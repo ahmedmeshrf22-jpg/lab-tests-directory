@@ -1,18 +1,23 @@
 workflows:
-  android-debug:
-    name: Build Tahalil Alakkad APK
+  android-release:
+    name: Build Tahalil Alakkad RELEASE
     max_build_duration: 60
 
     environment:
       java: 17
+      android_signing:
+        - tahalil_alakkad_release
 
     scripts:
       - name: Extract Android project
         script: |
           set -e
 
+          rm -rf "$CM_BUILD_DIR/extracted"
           mkdir -p "$CM_BUILD_DIR/extracted"
-          unzip -q "$CM_BUILD_DIR/project.zip" -d "$CM_BUILD_DIR/extracted"
+
+          unzip -q "$CM_BUILD_DIR/project.zip" \
+            -d "$CM_BUILD_DIR/extracted"
 
           SETTINGS_FILE=$(find "$CM_BUILD_DIR/extracted" \
             \( -name "settings.gradle.kts" -o -name "settings.gradle" \) \
@@ -26,7 +31,9 @@ workflows:
           PROJECT_DIR=$(dirname "$SETTINGS_FILE")
 
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$CM_ENV"
-          echo "Project found at: $PROJECT_DIR"
+
+          echo "Android project:"
+          echo "$PROJECT_DIR"
 
       - name: Set app name and icon
         script: |
@@ -48,7 +55,15 @@ workflows:
               "AndroidManifest.xml"
           )
 
-          icon_source = os.path.join(build_dir, "app_icon.png")
+          icon_source = os.path.join(
+              build_dir,
+              "app_icon.png"
+          )
+
+          if not os.path.exists(icon_source):
+              raise RuntimeError(
+                  "app_icon.png not found in repository"
+              )
 
           drawable_dir = os.path.join(
               project,
@@ -66,58 +81,85 @@ workflows:
               "app_icon.png"
           )
 
-          shutil.copyfile(icon_source, icon_target)
+          shutil.copyfile(
+              icon_source,
+              icon_target
+          )
 
-          with open(manifest, "r", encoding="utf-8") as f:
+          with open(
+              manifest,
+              "r",
+              encoding="utf-8"
+          ) as f:
               text = f.read()
 
           start = text.find("<application")
 
           if start == -1:
-              raise RuntimeError("application tag not found")
+              raise RuntimeError(
+                  "application tag not found"
+              )
 
           end = text.find(">", start)
 
           if end == -1:
-              raise RuntimeError("application tag is invalid")
+              raise RuntimeError(
+                  "invalid application tag"
+              )
 
           tag = text[start:end + 1]
 
-          def set_android_attr(tag, name, value):
-              pattern = rf'\sandroid:{name}="[^"]*"'
+          def set_attr(tag, name, value):
+              pattern = (
+                  rf'\sandroid:{name}="[^"]*"'
+              )
+
+              replacement = (
+                  f' android:{name}="{value}"'
+              )
 
               if re.search(pattern, tag):
                   return re.sub(
                       pattern,
-                      f' android:{name}="{value}"',
+                      replacement,
                       tag,
                       count=1
                   )
 
-              return tag[:-1] + \
-                  f'\n        android:{name}="{value}">'
+              return (
+                  tag[:-1]
+                  + f'\n        android:{name}="{value}">'
+              )
 
-          tag = set_android_attr(
+          tag = set_attr(
               tag,
               "label",
               "تحاليل العقاد"
           )
 
-          tag = set_android_attr(
+          tag = set_attr(
               tag,
               "icon",
               "@drawable/app_icon"
           )
 
-          tag = set_android_attr(
+          tag = set_attr(
               tag,
               "roundIcon",
               "@drawable/app_icon"
           )
 
-          text = text[:start] + tag + text[end + 1:]
+          text = (
+              text[:start]
+              + tag
+              + text[end + 1:]
+          )
 
-          with open(manifest, "w", encoding="utf-8") as f:
+          with open(
+              manifest,
+              "w",
+              encoding="utf-8"
+          ) as f:
               f.write(text)
 
           strings_file = os.path.join(
@@ -154,30 +196,47 @@ workflows:
                   ) as f:
                       f.write(strings)
 
-          print("App name set to: تحاليل العقاد")
-          print("App icon installed successfully")
+          print("App name: تحاليل العقاد")
+          print("App icon installed")
           PY
 
       - name: Install Android SDK 36.1
         script: |
           set -e
 
-          SDKMANAGER="/usr/local/share/android-sdk/cmdline-tools/latest/bin/sdkmanager"
+          SDKMANAGER=$(command -v sdkmanager || true)
 
-          if [ ! -x "$SDKMANAGER" ]; then
-            echo "sdkmanager not found at $SDKMANAGER"
+          if [ -z "$SDKMANAGER" ]; then
+            for CANDIDATE in \
+              "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" \
+              "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
+              "/usr/local/share/android-sdk/cmdline-tools/latest/bin/sdkmanager" \
+              "$HOME/Library/Android/sdk/cmdline-tools/latest/bin/sdkmanager"
+            do
+              if [ -x "$CANDIDATE" ]; then
+                SDKMANAGER="$CANDIDATE"
+                break
+              fi
+            done
+          fi
+
+          if [ -z "$SDKMANAGER" ]; then
+            echo "sdkmanager not found"
             exit 1
           fi
 
-          "$SDKMANAGER" --version
+          echo "Using sdkmanager:"
+          echo "$SDKMANAGER"
 
-          yes | "$SDKMANAGER" --licenses >/dev/null 2>&1 || true
+          yes | "$SDKMANAGER" \
+            --licenses >/dev/null 2>&1 || true
 
           "$SDKMANAGER" \
             "platforms;android-36.1" \
             "platform-tools"
 
-          echo "sdk.dir=$ANDROID_SDK_ROOT" > "$PROJECT_DIR/local.properties"
+          echo "sdk.dir=$ANDROID_SDK_ROOT" \
+            > "$PROJECT_DIR/local.properties"
 
       - name: Install Gradle 9.3.1
         script: |
@@ -186,64 +245,75 @@ workflows:
           rm -rf /tmp/gradle-9.3.1
           rm -f /tmp/gradle-9.3.1-bin.zip
 
-          curl -L --fail --retry 3 \
+          curl -L \
+            --fail \
+            --retry 3 \
             "https://services.gradle.org/distributions/gradle-9.3.1-bin.zip" \
             -o /tmp/gradle-9.3.1-bin.zip
 
-          unzip -q /tmp/gradle-9.3.1-bin.zip -d /tmp
+          unzip -q \
+            /tmp/gradle-9.3.1-bin.zip \
+            -d /tmp
 
-          echo "GRADLE_BIN=/tmp/gradle-9.3.1/bin/gradle" >> "$CM_ENV"
+          GRADLE_BIN="/tmp/gradle-9.3.1/bin/gradle"
 
-          /tmp/gradle-9.3.1/bin/gradle --version
+          echo "GRADLE_BIN=$GRADLE_BIN" \
+            >> "$CM_ENV"
 
-      - name: Create debug keystore
+          "$GRADLE_BIN" --version
+
+      - name: Verify release keystore
         script: |
           set -e
 
-          if [ ! -f "$PROJECT_DIR/debug.keystore" ]; then
-            keytool -genkeypair \
-              -keystore "$PROJECT_DIR/debug.keystore" \
-              -storepass android \
-              -alias androiddebugkey \
-              -keypass android \
-              -keyalg RSA \
-              -keysize 2048 \
-              -validity 10000 \
-              -dname "CN=Android Debug,O=Android,C=US" \
-              -noprompt
+          if [ -z "$CM_KEYSTORE_PATH" ]; then
+            echo "CM_KEYSTORE_PATH is missing"
+            exit 1
           fi
 
-      - name: Build APK
+          if [ ! -f "$CM_KEYSTORE_PATH" ]; then
+            echo "Keystore file not found"
+            exit 1
+          fi
+
+          echo "Release keystore loaded successfully"
+          echo "Alias: $CM_KEY_ALIAS"
+
+      - name: Build signed Release APK
         script: |
           set -e
 
           cd "$PROJECT_DIR"
 
+          export KEYSTORE_PATH="$CM_KEYSTORE_PATH"
+          export STORE_PASSWORD="$CM_KEYSTORE_PASSWORD"
+          export KEY_PASSWORD="$CM_KEY_PASSWORD"
+
           "$GRADLE_BIN" \
             --no-daemon \
-            :app:assembleDebug
+            :app:assembleRelease
 
-      - name: Collect APK
+      - name: Collect Release APK
         script: |
           set -e
 
           mkdir -p "$CM_BUILD_DIR/output"
 
           APK_FILE=$(find \
-            "$PROJECT_DIR/app/build/outputs/apk" \
+            "$PROJECT_DIR/app/build/outputs/apk/release" \
             -type f \
             -name "*.apk" \
             | head -n 1)
 
           if [ -z "$APK_FILE" ]; then
-            echo "APK not found"
+            echo "Release APK not found"
             exit 1
           fi
 
           cp "$APK_FILE" \
-            "$CM_BUILD_DIR/output/tahalil-alakkad.apk"
+            "$CM_BUILD_DIR/output/tahalil-alakkad-release.apk"
 
-          echo "APK ready:"
+          echo "SIGNED RELEASE APK READY:"
           ls -lh "$CM_BUILD_DIR/output"
 
     artifacts:
