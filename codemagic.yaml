@@ -13,13 +13,134 @@ workflows:
         script: |
           set -e
 
-          rm -rf "$CM_BUILD_DIR/extracted"
-          mkdir -p "$CM_BUILD_DIR/extracted"
+          ZIP_FILE="$CM_BUILD_DIR/project.zip"
+          EXTRACT_DIR="$CM_BUILD_DIR/extracted"
 
-          unzip -q "$CM_BUILD_DIR/project.zip" \
-            -d "$CM_BUILD_DIR/extracted"
+          rm -rf "$EXTRACT_DIR"
+          mkdir -p "$EXTRACT_DIR"
 
-          SETTINGS_FILE=$(find "$CM_BUILD_DIR/extracted" \
+          if [ ! -f "$ZIP_FILE" ]; then
+            echo "project.zip not found"
+            exit 1
+          fi
+
+          echo "Extracting Android project using lenient ZIP reader..."
+
+          cat > "$CM_BUILD_DIR/LenientZipExtract.java" <<'JAVA'
+          import java.io.*;
+          import java.nio.file.*;
+          import java.util.zip.*;
+
+          public class LenientZipExtract {
+              public static void main(String[] args) throws Exception {
+                  Path zip = Paths.get(args[0]);
+
+                  Path output = Paths.get(args[1])
+                      .toAbsolutePath()
+                      .normalize();
+
+                  Files.createDirectories(output);
+
+                  int count = 0;
+
+                  try (
+                      InputStream input =
+                          new BufferedInputStream(
+                              Files.newInputStream(zip)
+                          );
+
+                      ZipInputStream zis =
+                          new ZipInputStream(input)
+                  ) {
+                      ZipEntry entry;
+                      byte[] buffer = new byte[65536];
+
+                      while ((entry = zis.getNextEntry()) != null) {
+
+                          String name =
+                              entry.getName()
+                                  .replace('\\', '/');
+
+                          if (name.isBlank()) {
+                              zis.closeEntry();
+                              continue;
+                          }
+
+                          Path destination =
+                              output.resolve(name)
+                                  .normalize();
+
+                          if (!destination.startsWith(output)) {
+                              throw new IOException(
+                                  "Unsafe ZIP entry: " + name
+                              );
+                          }
+
+                          if (
+                              entry.isDirectory()
+                              || name.endsWith("/")
+                          ) {
+                              Files.createDirectories(
+                                  destination
+                              );
+                          } else {
+
+                              Path parent =
+                                  destination.getParent();
+
+                              if (parent != null) {
+                                  Files.createDirectories(
+                                      parent
+                                  );
+                              }
+
+                              try (
+                                  OutputStream out =
+                                      Files.newOutputStream(
+                                          destination,
+                                          StandardOpenOption.CREATE,
+                                          StandardOpenOption.TRUNCATE_EXISTING
+                                      )
+                              ) {
+                                  int read;
+
+                                  while (
+                                      (read = zis.read(buffer)) != -1
+                                  ) {
+                                      out.write(
+                                          buffer,
+                                          0,
+                                          read
+                                      );
+                                  }
+                              }
+                          }
+
+                          zis.closeEntry();
+                          count++;
+                      }
+                  }
+
+                  if (count == 0) {
+                      throw new IOException(
+                          "No files extracted from project.zip"
+                      );
+                  }
+
+                  System.out.println(
+                      "Successfully extracted "
+                      + count
+                      + " ZIP entries."
+                  );
+              }
+          }
+          JAVA
+
+          java "$CM_BUILD_DIR/LenientZipExtract.java" \
+            "$ZIP_FILE" \
+            "$EXTRACT_DIR"
+
+          SETTINGS_FILE=$(find "$EXTRACT_DIR" \
             \( -name "settings.gradle.kts" -o -name "settings.gradle" \) \
             | head -n 1)
 
