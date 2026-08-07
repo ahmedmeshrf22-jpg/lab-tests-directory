@@ -32,11 +32,19 @@ workflows:
         script: |
           set -e
 
-          yes | sdkmanager --licenses >/dev/null 2>&1 || true
+          SDKMANAGER="/usr/local/share/android-sdk/cmdline-tools/latest/bin/sdkmanager"
 
-          sdkmanager \
+          if [ ! -x "$SDKMANAGER" ]; then
+            echo "sdkmanager not found at $SDKMANAGER"
+            exit 1
+          fi
+
+          "$SDKMANAGER" --version
+
+          yes | "$SDKMANAGER" --licenses >/dev/null 2>&1 || true
+
+          "$SDKMANAGER" \
             "platforms;android-36.1" \
-            "build-tools;36.1.0" \
             "platform-tools"
 
           echo "sdk.dir=$ANDROID_SDK_ROOT" > "$PROJECT_DIR/local.properties"
