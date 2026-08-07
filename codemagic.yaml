@@ -1,6 +1,6 @@
 workflows:
   android-debug:
-    name: Build Android APK
+    name: Build Tahalil Alakkad APK
     max_build_duration: 60
 
     environment:
@@ -27,6 +27,136 @@ workflows:
 
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$CM_ENV"
           echo "Project found at: $PROJECT_DIR"
+
+      - name: Set app name and icon
+        script: |
+          set -e
+
+          python3 <<'PY'
+          import os
+          import re
+          import shutil
+
+          project = os.environ["PROJECT_DIR"]
+          build_dir = os.environ["CM_BUILD_DIR"]
+
+          manifest = os.path.join(
+              project,
+              "app",
+              "src",
+              "main",
+              "AndroidManifest.xml"
+          )
+
+          icon_source = os.path.join(build_dir, "app_icon.png")
+
+          drawable_dir = os.path.join(
+              project,
+              "app",
+              "src",
+              "main",
+              "res",
+              "drawable"
+          )
+
+          os.makedirs(drawable_dir, exist_ok=True)
+
+          icon_target = os.path.join(
+              drawable_dir,
+              "app_icon.png"
+          )
+
+          shutil.copyfile(icon_source, icon_target)
+
+          with open(manifest, "r", encoding="utf-8") as f:
+              text = f.read()
+
+          start = text.find("<application")
+
+          if start == -1:
+              raise RuntimeError("application tag not found")
+
+          end = text.find(">", start)
+
+          if end == -1:
+              raise RuntimeError("application tag is invalid")
+
+          tag = text[start:end + 1]
+
+          def set_android_attr(tag, name, value):
+              pattern = rf'\sandroid:{name}="[^"]*"'
+
+              if re.search(pattern, tag):
+                  return re.sub(
+                      pattern,
+                      f' android:{name}="{value}"',
+                      tag,
+                      count=1
+                  )
+
+              return tag[:-1] + \
+                  f'\n        android:{name}="{value}">'
+
+          tag = set_android_attr(
+              tag,
+              "label",
+              "تحاليل العقاد"
+          )
+
+          tag = set_android_attr(
+              tag,
+              "icon",
+              "@drawable/app_icon"
+          )
+
+          tag = set_android_attr(
+              tag,
+              "roundIcon",
+              "@drawable/app_icon"
+          )
+
+          text = text[:start] + tag + text[end + 1:]
+
+          with open(manifest, "w", encoding="utf-8") as f:
+              f.write(text)
+
+          strings_file = os.path.join(
+              project,
+              "app",
+              "src",
+              "main",
+              "res",
+              "values",
+              "strings.xml"
+          )
+
+          if os.path.exists(strings_file):
+              with open(
+                  strings_file,
+                  "r",
+                  encoding="utf-8"
+              ) as f:
+                  strings = f.read()
+
+              if 'name="app_name"' in strings:
+                  strings = re.sub(
+                      r'<string\s+name="app_name">.*?</string>',
+                      '<string name="app_name">تحاليل العقاد</string>',
+                      strings,
+                      count=1,
+                      flags=re.DOTALL
+                  )
+
+                  with open(
+                      strings_file,
+                      "w",
+                      encoding="utf-8"
+                  ) as f:
+                      f.write(strings)
+
+          print("App name set to: تحاليل العقاد")
+          print("App icon installed successfully")
+          PY
 
       - name: Install Android SDK 36.1
         script: |
@@ -99,12 +229,21 @@ workflows:
 
           mkdir -p "$CM_BUILD_DIR/output"
 
-          find "$PROJECT_DIR/app/build/outputs" \
+          APK_FILE=$(find \
+            "$PROJECT_DIR/app/build/outputs/apk" \
             -type f \
             -name "*.apk" \
-            -exec cp {} "$CM_BUILD_DIR/output/" \;
+            | head -n 1)
 
-          echo "Generated APK files:"
+          if [ -z "$APK_FILE" ]; then
+            echo "APK not found"
+            exit 1
+          fi
+
+          cp "$APK_FILE" \
+            "$CM_BUILD_DIR/output/tahalil-alakkad.apk"
+
+          echo "APK ready:"
           ls -lh "$CM_BUILD_DIR/output"
 
     artifacts:
