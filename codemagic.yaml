@@ -1,0 +1,103 @@
+workflows:
+  android-debug:
+    name: Build Android APK
+    max_build_duration: 60
+
+    environment:
+      java: 17
+
+    scripts:
+      - name: Extract Android project
+        script: |
+          set -e
+
+          mkdir -p "$CM_BUILD_DIR/extracted"
+          unzip -q "$CM_BUILD_DIR/project.zip" -d "$CM_BUILD_DIR/extracted"
+
+          SETTINGS_FILE=$(find "$CM_BUILD_DIR/extracted" \
+            \( -name "settings.gradle.kts" -o -name "settings.gradle" \) \
+            | head -n 1)
+
+          if [ -z "$SETTINGS_FILE" ]; then
+            echo "Android project not found inside project.zip"
+            exit 1
+          fi
+
+          PROJECT_DIR=$(dirname "$SETTINGS_FILE")
+
+          echo "PROJECT_DIR=$PROJECT_DIR" >> "$CM_ENV"
+          echo "Project found at: $PROJECT_DIR"
+
+      - name: Install Android SDK 36.1
+        script: |
+          set -e
+
+          yes | sdkmanager --licenses >/dev/null 2>&1 || true
+
+          sdkmanager \
+            "platforms;android-36.1" \
+            "build-tools;36.1.0" \
+            "platform-tools"
+
+          echo "sdk.dir=$ANDROID_SDK_ROOT" > "$PROJECT_DIR/local.properties"
+
+      - name: Install Gradle 9.3.1
+        script: |
+          set -e
+
+          rm -rf /tmp/gradle-9.3.1
+          rm -f /tmp/gradle-9.3.1-bin.zip
+
+          curl -L --fail --retry 3 \
+            "https://services.gradle.org/distributions/gradle-9.3.1-bin.zip" \
+            -o /tmp/gradle-9.3.1-bin.zip
+
+          unzip -q /tmp/gradle-9.3.1-bin.zip -d /tmp
+
+          echo "GRADLE_BIN=/tmp/gradle-9.3.1/bin/gradle" >> "$CM_ENV"
+
+          /tmp/gradle-9.3.1/bin/gradle --version
+
+      - name: Create debug keystore
+        script: |
+          set -e
+
+          if [ ! -f "$PROJECT_DIR/debug.keystore" ]; then
+            keytool -genkeypair \
+              -keystore "$PROJECT_DIR/debug.keystore" \
+              -storepass android \
+              -alias androiddebugkey \
+              -keypass android \
+              -keyalg RSA \
+              -keysize 2048 \
+              -validity 10000 \
+              -dname "CN=Android Debug,O=Android,C=US" \
+              -noprompt
+          fi
+
+      - name: Build APK
+        script: |
+          set -e
+
+          cd "$PROJECT_DIR"
+
+          "$GRADLE_BIN" \
+            --no-daemon \
+            :app:assembleDebug
+
+      - name: Collect APK
+        script: |
+          set -e
+
+          mkdir -p "$CM_BUILD_DIR/output"
+
+          find "$PROJECT_DIR/app/build/outputs" \
+            -type f \
+            -name "*.apk" \
+            -exec cp {} "$CM_BUILD_DIR/output/" \;
+
+          echo "Generated APK files:"
+          ls -lh "$CM_BUILD_DIR/output"
+
+    artifacts:
+      - output/*.apk
