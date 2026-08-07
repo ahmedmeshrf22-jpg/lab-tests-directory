@@ -13,18 +13,18 @@ workflows:
         script: |
           set -e
 
-          ZIP_FILE="$CM_BUILD_DIR/untitled (2).zip"
+          ZIP_FILE="$CM_BUILD_DIR/Project3.zip"
           EXTRACT_DIR="$CM_BUILD_DIR/extracted"
 
           rm -rf "$EXTRACT_DIR"
           mkdir -p "$EXTRACT_DIR"
 
           if [ ! -f "$ZIP_FILE" ]; then
-            echo "project.zip not found"
+            echo "Project3.zip not found"
             exit 1
           fi
 
-          echo "Extracting Android project using lenient ZIP reader..."
+          echo "Extracting Project3.zip using lenient ZIP reader..."
 
           cat > "$CM_BUILD_DIR/LenientZipExtract.java" <<'JAVA'
           import java.io.*;
@@ -123,7 +123,7 @@ workflows:
 
                   if (count == 0) {
                       throw new IOException(
-                          "No files extracted from project.zip"
+                          "No files extracted from Project3.zip"
                       );
                   }
 
@@ -145,7 +145,7 @@ workflows:
             | head -n 1)
 
           if [ -z "$SETTINGS_FILE" ]; then
-            echo "Android project not found inside project.zip"
+            echo "Android project not found inside Project3.zip"
             exit 1
           fi
 
