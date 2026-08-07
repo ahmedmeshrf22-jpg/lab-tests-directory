@@ -13,7 +13,7 @@ workflows:
         script: |
           set -e
 
-          ZIP_FILE="$CM_BUILD_DIR/project.zip"
+          ZIP_FILE="$CM_BUILD_DIR/untitled (2).zip"
           EXTRACT_DIR="$CM_BUILD_DIR/extracted"
 
           rm -rf "$EXTRACT_DIR"
