@@ -1,6 +1,7 @@
 workflows:
   android-release:
     name: Build Tahalil Alakkad RELEASE
+    instance_type: linux_x2
     max_build_duration: 60
 
     environment:
@@ -9,433 +10,182 @@ workflows:
         - tahalil_alakkad_release
 
     scripts:
-      - name: Extract Android project
+      - name: Find and extract Android project
         script: |
-          set -e
+          set -euo pipefail
 
-          ZIP_FILE="$CM_BUILD_DIR/Project3.zip"
-          EXTRACT_DIR="$CM_BUILD_DIR/extracted"
+          WORK_DIR="$CM_BUILD_DIR/android_project"
+          rm -rf "$WORK_DIR"
+          mkdir -p "$WORK_DIR"
 
-          rm -rf "$EXTRACT_DIR"
-          mkdir -p "$EXTRACT_DIR"
+          # لو المشروع موجود مباشرة بدون ZIP
+          SETTINGS_FILE=$(find "$CM_BUILD_DIR" \
+            -path "$WORK_DIR" -prune -o \
+            -name "settings.gradle.kts" -type f -print | head -n 1 || true)
 
-          if [ ! -f "$ZIP_FILE" ]; then
-            echo "Project3.zip not found"
-            exit 1
+          if [ -n "$SETTINGS_FILE" ]; then
+            PROJECT_DIR=$(dirname "$SETTINGS_FILE")
+            echo "Android project found directly."
+          else
+            # اختيار ملف المشروع تلقائياً بدون الحاجة لتغيير اسمه
+            ZIP_FILE=""
+
+            if [ -f "$CM_BUILD_DIR/Project3_fixed.zip" ]; then
+              ZIP_FILE="$CM_BUILD_DIR/Project3_fixed.zip"
+            elif [ -f "$CM_BUILD_DIR/Project3.zip" ]; then
+              ZIP_FILE="$CM_BUILD_DIR/Project3.zip"
+            else
+              ZIP_FILE=$(find "$CM_BUILD_DIR" -maxdepth 1 -type f -iname "*.zip" \
+                -printf '%T@ %p\n' | sort -nr | head -n 1 | cut -d' ' -f2- || true)
+            fi
+
+            if [ -z "$ZIP_FILE" ]; then
+              echo "ERROR: No Android project or ZIP file found."
+              exit 1
+            fi
+
+            echo "Using ZIP:"
+            echo "$ZIP_FILE"
+
+            unzip -q -o "$ZIP_FILE" -d "$WORK_DIR"
+
+            SETTINGS_FILE=$(find "$WORK_DIR" -name "settings.gradle.kts" -type f | head -n 1 || true)
+
+            if [ -z "$SETTINGS_FILE" ]; then
+              echo "ERROR: settings.gradle.kts not found."
+              exit 1
+            fi
+
+            PROJECT_DIR=$(dirname "$SETTINGS_FILE")
           fi
-
-          echo "Extracting Project3.zip using lenient ZIP reader..."
-
-          cat > "$CM_BUILD_DIR/LenientZipExtract.java" <<'JAVA'
-          import java.io.*;
-          import java.nio.file.*;
-          import java.util.zip.*;
-
-          public class LenientZipExtract {
-              public static void main(String[] args) throws Exception {
-                  Path zip = Paths.get(args[0]);
-
-                  Path output = Paths.get(args[1])
-                      .toAbsolutePath()
-                      .normalize();
-
-                  Files.createDirectories(output);
-
-                  int count = 0;
-
-                  try (
-                      InputStream input =
-                          new BufferedInputStream(
-                              Files.newInputStream(zip)
-                          );
-
-                      ZipInputStream zis =
-                          new ZipInputStream(input)
-                  ) {
-                      ZipEntry entry;
-                      byte[] buffer = new byte[65536];
-
-                      while ((entry = zis.getNextEntry()) != null) {
-
-                          String name =
-                              entry.getName()
-                                  .replace('\\', '/');
-
-                          if (name.isBlank()) {
-                              zis.closeEntry();
-                              continue;
-                          }
-
-                          Path destination =
-                              output.resolve(name)
-                                  .normalize();
-
-                          if (!destination.startsWith(output)) {
-                              throw new IOException(
-                                  "Unsafe ZIP entry: " + name
-                              );
-                          }
-
-                          if (
-                              entry.isDirectory()
-                              || name.endsWith("/")
-                          ) {
-                              Files.createDirectories(
-                                  destination
-                              );
-                          } else {
-
-                              Path parent =
-                                  destination.getParent();
-
-                              if (parent != null) {
-                                  Files.createDirectories(
-                                      parent
-                                  );
-                              }
-
-                              try (
-                                  OutputStream out =
-                                      Files.newOutputStream(
-                                          destination,
-                                          StandardOpenOption.CREATE,
-                                          StandardOpenOption.TRUNCATE_EXISTING
-                                      )
-                              ) {
-                                  int read;
-
-                                  while (
-                                      (read = zis.read(buffer)) != -1
-                                  ) {
-                                      out.write(
-                                          buffer,
-                                          0,
-                                          read
-                                      );
-                                  }
-                              }
-                          }
-
-                          zis.closeEntry();
-                          count++;
-                      }
-                  }
-
-                  if (count == 0) {
-                      throw new IOException(
-                          "No files extracted from Project3.zip"
-                      );
-                  }
-
-                  System.out.println(
-                      "Successfully extracted "
-                      + count
-                      + " ZIP entries."
-                  );
-              }
-          }
-          JAVA
-
-          java "$CM_BUILD_DIR/LenientZipExtract.java" \
-            "$ZIP_FILE" \
-            "$EXTRACT_DIR"
-
-          SETTINGS_FILE=$(find "$EXTRACT_DIR" \
-            \( -name "settings.gradle.kts" -o -name "settings.gradle" \) \
-            | head -n 1)
-
-          if [ -z "$SETTINGS_FILE" ]; then
-            echo "Android project not found inside Project3.zip"
-            exit 1
-          fi
-
-          PROJECT_DIR=$(dirname "$SETTINGS_FILE")
 
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$CM_ENV"
 
-          echo "Android project:"
+          echo "============================"
+          echo "PROJECT ROOT:"
           echo "$PROJECT_DIR"
+          echo "============================"
 
-      - name: Set app name and icon
+          ls -lah "$PROJECT_DIR"
+
+
+      - name: Configure Android SDK
         script: |
-          set -e
+          set -euo pipefail
 
-          python3 <<'PY'
-          import os
-          import re
-          import shutil
+          echo "sdk.dir=$ANDROID_SDK_ROOT" > "$PROJECT_DIR/local.properties"
 
-          project = os.environ["PROJECT_DIR"]
-          build_dir = os.environ["CM_BUILD_DIR"]
+          yes | sdkmanager --licenses >/dev/null 2>&1 || true
 
-          manifest = os.path.join(
-              project,
-              "app",
-              "src",
-              "main",
-              "AndroidManifest.xml"
-          )
-
-          icon_source = os.path.join(
-              build_dir,
-              "app_icon.png"
-          )
-
-          if not os.path.exists(icon_source):
-              raise RuntimeError(
-                  "app_icon.png not found in repository"
-              )
-
-          drawable_dir = os.path.join(
-              project,
-              "app",
-              "src",
-              "main",
-              "res",
-              "drawable"
-          )
-
-          os.makedirs(drawable_dir, exist_ok=True)
-
-          icon_target = os.path.join(
-              drawable_dir,
-              "app_icon.png"
-          )
-
-          shutil.copyfile(
-              icon_source,
-              icon_target
-          )
-
-          with open(
-              manifest,
-              "r",
-              encoding="utf-8"
-          ) as f:
-              text = f.read()
-
-          start = text.find("<application")
-
-          if start == -1:
-              raise RuntimeError(
-                  "application tag not found"
-              )
-
-          end = text.find(">", start)
-
-          if end == -1:
-              raise RuntimeError(
-                  "invalid application tag"
-              )
-
-          tag = text[start:end + 1]
-
-          def set_attr(tag, name, value):
-              pattern = (
-                  rf'\sandroid:{name}="[^"]*"'
-              )
-
-              replacement = (
-                  f' android:{name}="{value}"'
-              )
-
-              if re.search(pattern, tag):
-                  return re.sub(
-                      pattern,
-                      replacement,
-                      tag,
-                      count=1
-                  )
-
-              return (
-                  tag[:-1]
-                  + f'\n        android:{name}="{value}">'
-              )
-
-          tag = set_attr(
-              tag,
-              "label",
-              "تحاليل العقاد"
-          )
-
-          tag = set_attr(
-              tag,
-              "icon",
-              "@drawable/app_icon"
-          )
-
-          tag = set_attr(
-              tag,
-              "roundIcon",
-              "@drawable/app_icon"
-          )
-
-          text = (
-              text[:start]
-              + tag
-              + text[end + 1:]
-          )
-
-          with open(
-              manifest,
-              "w",
-              encoding="utf-8"
-          ) as f:
-              f.write(text)
-
-          strings_file = os.path.join(
-              project,
-              "app",
-              "src",
-              "main",
-              "res",
-              "values",
-              "strings.xml"
-          )
-
-          if os.path.exists(strings_file):
-              with open(
-                  strings_file,
-                  "r",
-                  encoding="utf-8"
-              ) as f:
-                  strings = f.read()
-
-              if 'name="app_name"' in strings:
-                  strings = re.sub(
-                      r'<string\s+name="app_name">.*?</string>',
-                      '<string name="app_name">تحاليل العقاد</string>',
-                      strings,
-                      count=1,
-                      flags=re.DOTALL
-                  )
-
-                  with open(
-                      strings_file,
-                      "w",
-                      encoding="utf-8"
-                  ) as f:
-                      f.write(strings)
-
-          print("App name: تحاليل العقاد")
-          print("App icon installed")
-          PY
-
-      - name: Install Android SDK 36.1
-        script: |
-          set -e
-
-          SDKMANAGER=$(command -v sdkmanager || true)
-
-          if [ -z "$SDKMANAGER" ]; then
-            for CANDIDATE in \
-              "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" \
-              "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
-              "/usr/local/share/android-sdk/cmdline-tools/latest/bin/sdkmanager" \
-              "$HOME/Library/Android/sdk/cmdline-tools/latest/bin/sdkmanager"
-            do
-              if [ -x "$CANDIDATE" ]; then
-                SDKMANAGER="$CANDIDATE"
-                break
-              fi
-            done
-          fi
-
-          if [ -z "$SDKMANAGER" ]; then
-            echo "sdkmanager not found"
-            exit 1
-          fi
-
-          echo "Using sdkmanager:"
-          echo "$SDKMANAGER"
-
-          yes | "$SDKMANAGER" \
-            --licenses >/dev/null 2>&1 || true
-
-          "$SDKMANAGER" \
+          sdkmanager \
+            "platform-tools" \
             "platforms;android-36.1" \
-            "platform-tools"
+            "build-tools;36.0.0"
 
-          echo "sdk.dir=$ANDROID_SDK_ROOT" \
-            > "$PROJECT_DIR/local.properties"
 
       - name: Install Gradle 9.3.1
         script: |
-          set -e
+          set -euo pipefail
 
-          rm -rf /tmp/gradle-9.3.1
-          rm -f /tmp/gradle-9.3.1-bin.zip
+          GRADLE_VERSION="9.3.1"
+          GRADLE_HOME="$HOME/gradle-$GRADLE_VERSION"
 
-          curl -L \
-            --fail \
-            --retry 3 \
-            "https://services.gradle.org/distributions/gradle-9.3.1-bin.zip" \
-            -o /tmp/gradle-9.3.1-bin.zip
+          if [ ! -x "$GRADLE_HOME/bin/gradle" ]; then
+            rm -f /tmp/gradle.zip
 
-          unzip -q \
-            /tmp/gradle-9.3.1-bin.zip \
-            -d /tmp
+            curl --fail --location --retry 3 \
+              "https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip" \
+              -o /tmp/gradle.zip
 
-          GRADLE_BIN="/tmp/gradle-9.3.1/bin/gradle"
+            unzip -q -o /tmp/gradle.zip -d "$HOME"
+          fi
 
-          echo "GRADLE_BIN=$GRADLE_BIN" \
-            >> "$CM_ENV"
+          echo "GRADLE_BIN=$GRADLE_HOME/bin/gradle" >> "$CM_ENV"
 
-          "$GRADLE_BIN" --version
+          "$GRADLE_HOME/bin/gradle" --version
 
-      - name: Verify release keystore
+
+      - name: Configure release signing
         script: |
-          set -e
+          set -euo pipefail
 
-          if [ -z "$CM_KEYSTORE_PATH" ]; then
-            echo "CM_KEYSTORE_PATH is missing"
+          if [ -z "${CM_KEYSTORE_PATH:-}" ]; then
+            echo "ERROR: Codemagic keystore not found."
             exit 1
           fi
 
           if [ ! -f "$CM_KEYSTORE_PATH" ]; then
-            echo "Keystore file not found"
+            echo "ERROR: Keystore file does not exist."
             exit 1
           fi
 
-          echo "Release keystore loaded successfully"
-          echo "Alias: $CM_KEY_ALIAS"
+          export APP_GRADLE="$PROJECT_DIR/app/build.gradle.kts"
 
-      - name: Build signed Release APK
+          python3 <<'PY'
+          import os
+          from pathlib import Path
+
+          p = Path(os.environ["APP_GRADLE"])
+          text = p.read_text(encoding="utf-8")
+
+          text = text.replace(
+              'keyAlias = "upload"',
+              'keyAlias = System.getenv("KEY_ALIAS") ?: "upload"'
+          )
+
+          p.write_text(text, encoding="utf-8")
+          PY
+
+          echo "Signing configured."
+
+
+      - name: Build Release APK and AAB
         script: |
-          set -e
-
-          cd "$PROJECT_DIR"
+          set -euo pipefail
 
           export KEYSTORE_PATH="$CM_KEYSTORE_PATH"
           export STORE_PASSWORD="$CM_KEYSTORE_PASSWORD"
           export KEY_PASSWORD="$CM_KEY_PASSWORD"
+          export KEY_ALIAS="$CM_KEY_ALIAS"
+
+          cd "$PROJECT_DIR"
 
           "$GRADLE_BIN" \
             --no-daemon \
-            :app:assembleRelease
+            --stacktrace \
+            clean \
+            :app:assembleRelease \
+            :app:bundleRelease
 
-      - name: Collect Release APK
-        script: |
-          set -e
+          mkdir -p "$CM_BUILD_DIR/release"
 
-          mkdir -p "$CM_BUILD_DIR/output"
+          APK=$(find app/build/outputs/apk/release \
+            -type f -name "*.apk" | head -n 1)
 
-          APK_FILE=$(find \
-            "$PROJECT_DIR/app/build/outputs/apk/release" \
-            -type f \
-            -name "*.apk" \
-            | head -n 1)
+          AAB=$(find app/build/outputs/bundle/release \
+            -type f -name "*.aab" | head -n 1)
 
-          if [ -z "$APK_FILE" ]; then
-            echo "Release APK not found"
+          if [ -z "$APK" ] || [ ! -f "$APK" ]; then
+            echo "ERROR: Release APK not generated."
             exit 1
           fi
 
-          cp "$APK_FILE" \
-            "$CM_BUILD_DIR/output/tahalil-alakkad-release.apk"
+          if [ -z "$AAB" ] || [ ! -f "$AAB" ]; then
+            echo "ERROR: Release AAB not generated."
+            exit 1
+          fi
 
-          echo "SIGNED RELEASE APK READY:"
-          ls -lh "$CM_BUILD_DIR/output"
+          cp "$APK" "$CM_BUILD_DIR/release/Tahalil-Alakkad.apk"
+          cp "$AAB" "$CM_BUILD_DIR/release/Tahalil-Alakkad.aab"
+
+          echo "============================"
+          echo "BUILD SUCCESSFUL"
+          echo "============================"
+
+          ls -lh "$CM_BUILD_DIR/release"
+
 
     artifacts:
-      - output/*.apk
+      - release/*.apk
+      - release/*.aab
+      - android_project/**/app/build/outputs/logs/*
