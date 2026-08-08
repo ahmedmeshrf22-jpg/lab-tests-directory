@@ -1,6 +1,6 @@
 workflows:
   android-release:
-    name: Build Tahalil Alakkad SECURE MANAGER V3
+    name: Build Tahalil Alakkad MANAGER V4 FIXED
     instance_type: mac_mini_m2
     max_build_duration: 60
 
@@ -14,14 +14,14 @@ workflows:
         script: |
           set -euo pipefail
 
-          ZIP_FILE="$CM_BUILD_DIR/Project3_AK_SECURE_MANAGER_V3.zip"
+          ZIP_FILE="$CM_BUILD_DIR/Project3_AK_SECURE_MANAGER_V4_FIXED.zip"
           WORK_DIR="$CM_BUILD_DIR/android_project"
 
           rm -rf "$WORK_DIR"
           mkdir -p "$WORK_DIR"
 
           if [ ! -f "$ZIP_FILE" ]; then
-            echo "ERROR: Project3_AK_SECURE_MANAGER_V3.zip not found"
+            echo "ERROR: Project3_AK_SECURE_MANAGER_V4_FIXED.zip not found"
             ls -lah "$CM_BUILD_DIR"
             exit 1
           fi
@@ -29,29 +29,47 @@ workflows:
           unzip -q -o "$ZIP_FILE" -d "$WORK_DIR"
 
           SETTINGS_FILE="$(find "$WORK_DIR" -name "settings.gradle.kts" -type f | head -n 1 || true)"
+
           if [ -z "$SETTINGS_FILE" ]; then
             echo "ERROR: settings.gradle.kts not found"
             exit 1
           fi
 
           PROJECT_DIR="$(dirname "$SETTINGS_FILE")"
+
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$CM_ENV"
 
+          echo "Using project:"
+          echo "$PROJECT_DIR"
 
-      - name: Verify project and security
+
+      - name: Verify Manager V4 fix
         script: |
           set -euo pipefail
 
           test -f "$PROJECT_DIR/app/build.gradle.kts"
           test -f "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
-          test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
+          test -f "$PROJECT_DIR/app/src/main/java/com/example/MainActivity.kt"
           test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+          test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
 
-          grep -q 'android:allowBackup="false"' \
-            "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
+          grep -q 'versionCode = 8' \
+            "$PROJECT_DIR/app/build.gradle.kts"
 
-          grep -q 'android:usesCleartextTraffic="false"' \
-            "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
+          grep -q 'showManagerDashboard = true' \
+            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+
+          grep -q 'ManagerDashboardDialog' \
+            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+
+          grep -q 'saveManagerPrices' \
+            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
+
+          grep -q 'customer_price_overrides' \
+            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
+
+          grep -q 'lab2lab_prices' \
+            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
 
           grep -q 'FLAG_SECURE' \
             "$PROJECT_DIR/app/src/main/java/com/example/MainActivity.kt"
@@ -59,13 +77,10 @@ workflows:
           grep -q 'isMinifyEnabled = true' \
             "$PROJECT_DIR/app/build.gradle.kts"
 
-          grep -q 'customer_price_overrides' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
+          grep -q 'isShrinkResources = true' \
+            "$PROJECT_DIR/app/build.gradle.kts"
 
-          grep -q 'saveManagerPrices' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
-
-          echo "Project and manager dashboard verified"
+          echo "MANAGER V4 verification passed"
 
 
       - name: Configure Android SDK
@@ -142,7 +157,7 @@ workflows:
           echo "Signing ready"
 
 
-      - name: Build signed APK and AAB
+      - name: Build MANAGER V4 FIXED APK and AAB
         script: |
           set -euo pipefail
 
@@ -185,15 +200,15 @@ workflows:
           mkdir -p "$CM_BUILD_DIR/release"
 
           cp "$APK_FILE" \
-            "$CM_BUILD_DIR/release/Tahalil-Alakkad-SECURE-MANAGER-V3.apk"
+            "$CM_BUILD_DIR/release/Tahalil-Alakkad-MANAGER-V4-FIXED.apk"
 
           cp "$AAB_FILE" \
-            "$CM_BUILD_DIR/release/Tahalil-Alakkad-SECURE-MANAGER-V3.aab"
+            "$CM_BUILD_DIR/release/Tahalil-Alakkad-MANAGER-V4-FIXED.aab"
 
           echo ""
           echo "======================================"
           echo "BUILD SUCCESSFUL"
-          echo "SECURE MANAGER V3"
+          echo "MANAGER V4 FIXED"
           echo "======================================"
 
           ls -lh "$CM_BUILD_DIR/release"
