@@ -1,6 +1,6 @@
 workflows:
   android-release:
-    name: Build Tahalil Alakkad Manager V4
+    name: Build Tahalil Alakkad SECURE V1
     instance_type: mac_mini_m2
     max_build_duration: 60
 
@@ -10,27 +10,25 @@ workflows:
         - tahalil_alakkad_release
 
     scripts:
-      - name: Extract Android project
+      - name: Extract secure Android project
         script: |
           set -euo pipefail
 
-          ZIP_FILE="$CM_BUILD_DIR/Project3_AK_Manager_Lab2Lab_V4.zip"
+          ZIP_FILE="$CM_BUILD_DIR/Project3_AK_SECURE_V1.zip"
           WORK_DIR="$CM_BUILD_DIR/android_project"
 
           rm -rf "$WORK_DIR"
           mkdir -p "$WORK_DIR"
 
           if [ ! -f "$ZIP_FILE" ]; then
-            echo "ERROR: Project3_AK_Manager_Lab2Lab_V4.zip not found"
+            echo "ERROR: Project3_AK_SECURE_V1.zip not found"
             ls -lah "$CM_BUILD_DIR"
             exit 1
           fi
 
           unzip -q -o "$ZIP_FILE" -d "$WORK_DIR"
 
-          SETTINGS_FILE="$(find "$WORK_DIR" \
-            -name "settings.gradle.kts" \
-            -type f | head -n 1 || true)"
+          SETTINGS_FILE="$(find "$WORK_DIR" -name "settings.gradle.kts" -type f | head -n 1 || true)"
 
           if [ -z "$SETTINGS_FILE" ]; then
             echo "ERROR: settings.gradle.kts not found"
@@ -38,9 +36,22 @@ workflows:
           fi
 
           PROJECT_DIR="$(dirname "$SETTINGS_FILE")"
-
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$CM_ENV"
 
+          echo "Using secure project: $PROJECT_DIR"
+
+      - name: Verify security hardening
+        script: |
+          set -euo pipefail
+
+          grep -q 'android:allowBackup="false"' "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
+          grep -q 'android:usesCleartextTraffic="false"' "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
+          grep -q 'FLAG_SECURE' "$PROJECT_DIR/app/src/main/java/com/example/MainActivity.kt"
+          grep -q 'isMinifyEnabled = true' "$PROJECT_DIR/app/build.gradle.kts"
+          grep -q 'isShrinkResources = true' "$PROJECT_DIR/app/build.gradle.kts"
+          grep -q 'firebase.appcheck.playintegrity' "$PROJECT_DIR/app/build.gradle.kts"
+
+          echo "Security checks passed"
 
       - name: Configure Android SDK
         script: |
@@ -49,9 +60,13 @@ workflows:
           ANDROID_HOME="/usr/local/share/android-sdk"
           SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
 
+          if [ ! -x "$SDKMANAGER" ]; then
+            echo "ERROR: sdkmanager not found at $SDKMANAGER"
+            exit 1
+          fi
+
           echo "ANDROID_HOME=$ANDROID_HOME" >> "$CM_ENV"
           echo "ANDROID_SDK_ROOT=$ANDROID_HOME" >> "$CM_ENV"
-
           echo "sdk.dir=$ANDROID_HOME" > "$PROJECT_DIR/local.properties"
 
           yes | "$SDKMANAGER" --licenses >/dev/null 2>&1 || true
@@ -61,7 +76,6 @@ workflows:
             "platforms;android-36.1" \
             "build-tools;36.0.0"
 
-
       - name: Install Gradle 9.3.1
         script: |
           set -euo pipefail
@@ -70,6 +84,8 @@ workflows:
           GRADLE_DIR="$HOME/gradle-$GRADLE_VERSION"
 
           if [ ! -x "$GRADLE_DIR/bin/gradle" ]; then
+            rm -f /tmp/gradle.zip
+
             curl --fail --location --retry 3 \
               "https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip" \
               -o /tmp/gradle.zip
@@ -78,31 +94,32 @@ workflows:
           fi
 
           echo "GRADLE_BIN=$GRADLE_DIR/bin/gradle" >> "$CM_ENV"
+          "$GRADLE_DIR/bin/gradle" --version
 
-
-      - name: Configure signing
+      - name: Validate release signing
         script: |
           set -euo pipefail
 
-          export APP_GRADLE="$PROJECT_DIR/app/build.gradle.kts"
+          if [ -z "${CM_KEYSTORE_PATH:-}" ] || [ ! -f "$CM_KEYSTORE_PATH" ]; then
+            echo "ERROR: Release keystore is missing"
+            exit 1
+          fi
 
-          python3 <<'PY'
-          import os
-          from pathlib import Path
+          if [ -z "${CM_KEYSTORE_PASSWORD:-}" ] || \
+             [ -z "${CM_KEY_ALIAS:-}" ] || \
+             [ -z "${CM_KEY_PASSWORD:-}" ]; then
+            echo "ERROR: Signing credentials are incomplete"
+            exit 1
+          fi
 
-          path = Path(os.environ["APP_GRADLE"])
-          text = path.read_text(encoding="utf-8")
+          keytool -list \
+            -keystore "$CM_KEYSTORE_PATH" \
+            -storepass "$CM_KEYSTORE_PASSWORD" \
+            -alias "$CM_KEY_ALIAS" >/dev/null
 
-          text = text.replace(
-              'keyAlias = "upload"',
-              'keyAlias = System.getenv("KEY_ALIAS") ?: "upload"'
-          )
+          echo "Release signing ready"
 
-          path.write_text(text, encoding="utf-8")
-          PY
-
-
-      - name: Build V4 APK and AAB
+      - name: Build signed SECURE APK and AAB
         script: |
           set -euo pipefail
 
@@ -120,22 +137,31 @@ workflows:
             :app:assembleRelease \
             :app:bundleRelease
 
+          APK_FILE="$(find app/build/outputs/apk/release -type f -name '*.apk' | head -n 1 || true)"
+          AAB_FILE="$(find app/build/outputs/bundle/release -type f -name '*.aab' | head -n 1 || true)"
+
+          if [ -z "$APK_FILE" ] || [ ! -f "$APK_FILE" ]; then
+            echo "ERROR: Secure APK was not generated"
+            exit 1
+          fi
+
+          if [ -z "$AAB_FILE" ] || [ ! -f "$AAB_FILE" ]; then
+            echo "ERROR: Secure AAB was not generated"
+            exit 1
+          fi
+
           mkdir -p "$CM_BUILD_DIR/release"
 
-          APK_FILE="$(find app/build/outputs/apk/release \
-            -type f -name "*.apk" | head -n 1)"
+          cp "$APK_FILE" "$CM_BUILD_DIR/release/Tahalil-Alakkad-SECURE-V1.apk"
+          cp "$AAB_FILE" "$CM_BUILD_DIR/release/Tahalil-Alakkad-SECURE-V1.aab"
 
-          AAB_FILE="$(find app/build/outputs/bundle/release \
-            -type f -name "*.aab" | head -n 1)"
-
-          cp "$APK_FILE" \
-            "$CM_BUILD_DIR/release/Tahalil-Alakkad-Manager-V4.apk"
-
-          cp "$AAB_FILE" \
-            "$CM_BUILD_DIR/release/Tahalil-Alakkad-Manager-V4.aab"
-
-          echo "BUILD SUCCESSFUL"
+          echo "======================================"
+          echo "SECURE BUILD SUCCESSFUL"
+          echo "======================================"
+          ls -lh "$CM_BUILD_DIR/release"
 
     artifacts:
       - release/*.apk
       - release/*.aab
+      - android_project/**/app/build/outputs/mapping/release/mapping.txt
+      - android_project/**/app/build/outputs/logs/*
