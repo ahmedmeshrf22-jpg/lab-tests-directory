@@ -1,6 +1,6 @@
 workflows:
   android-release:
-    name: Build Tahalil Alakkad SETTINGS V5
+    name: Build Tahalil Alakkad CUSTOMERS V6
     instance_type: mac_mini_m2
     max_build_duration: 60
 
@@ -10,18 +10,18 @@ workflows:
         - tahalil_alakkad_release
 
     scripts:
-      - name: Extract SETTINGS V5 project
+      - name: Extract CUSTOMERS V6 project
         script: |
           set -euo pipefail
 
-          ZIP_FILE="$CM_BUILD_DIR/Project3_AK_SECURE_SETTINGS_V5.zip"
+          ZIP_FILE="$CM_BUILD_DIR/Project3_AK_SECURE_CUSTOMERS_V6.zip"
           WORK_DIR="$CM_BUILD_DIR/android_project"
 
           rm -rf "$WORK_DIR"
           mkdir -p "$WORK_DIR"
 
           if [ ! -f "$ZIP_FILE" ]; then
-            echo "ERROR: Project3_AK_SECURE_SETTINGS_V5.zip not found"
+            echo "ERROR: Project3_AK_SECURE_CUSTOMERS_V6.zip not found"
             ls -lah "$CM_BUILD_DIR"
             exit 1
           fi
@@ -40,12 +40,12 @@ workflows:
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$CM_ENV"
 
           echo "======================================"
-          echo "USING SETTINGS V5"
+          echo "CUSTOMERS V6 PROJECT"
           echo "$PROJECT_DIR"
           echo "======================================"
 
 
-      - name: Verify SETTINGS V5
+      - name: Verify CUSTOMERS V6
         script: |
           set -euo pipefail
 
@@ -53,29 +53,27 @@ workflows:
           test -f "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
           test -f "$PROJECT_DIR/app/src/main/java/com/example/MainActivity.kt"
           test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-          test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/ManagerSettingsDialog.kt"
-          test -f "$PROJECT_DIR/app/src/main/java/com/example/settings/AppSettings.kt"
+          test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
+          test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/CustomerSystemDialog.kt"
+          test -f "$PROJECT_DIR/app/src/main/java/com/example/data/model/Customer.kt"
 
-          grep -q 'versionCode = 9' \
+          grep -q 'versionCode = 10' \
             "$PROJECT_DIR/app/build.gradle.kts"
 
-          grep -q 'ManagerSettingsDialog' \
+          grep -q 'saveCustomer' \
+            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
+
+          grep -q 'saveCustomerOrder' \
+            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
+
+          grep -q 'customers' \
+            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
+
+          grep -q 'orders' \
+            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
+
+          grep -q 'CustomerSystemDialog' \
             "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-
-          grep -q 'manager_settings_button' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-
-          grep -q 'showCustomerPrice' \
-            "$PROJECT_DIR/app/src/main/java/com/example/settings/AppSettings.kt"
-
-          grep -q 'showLab2LabPrice' \
-            "$PROJECT_DIR/app/src/main/java/com/example/settings/AppSettings.kt"
-
-          grep -q 'pdfIncludeCustomerPrice' \
-            "$PROJECT_DIR/app/src/main/java/com/example/settings/AppSettings.kt"
-
-          grep -q 'darkMode' \
-            "$PROJECT_DIR/app/src/main/java/com/example/settings/AppSettings.kt"
 
           grep -q 'FLAG_SECURE' \
             "$PROJECT_DIR/app/src/main/java/com/example/MainActivity.kt"
@@ -92,7 +90,7 @@ workflows:
           grep -q 'isShrinkResources = true' \
             "$PROJECT_DIR/app/build.gradle.kts"
 
-          echo "SETTINGS V5 verification passed"
+          echo "CUSTOMERS V6 verification passed"
 
 
       - name: Configure Android SDK
@@ -103,7 +101,7 @@ workflows:
           SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
 
           if [ ! -x "$SDKMANAGER" ]; then
-            echo "ERROR: sdkmanager not found at $SDKMANAGER"
+            echo "ERROR: sdkmanager not found"
             exit 1
           fi
 
@@ -130,6 +128,7 @@ workflows:
           GRADLE_DIR="$HOME/gradle-$GRADLE_VERSION"
 
           if [ ! -x "$GRADLE_DIR/bin/gradle" ]; then
+
             rm -f /tmp/gradle.zip
 
             curl --fail --location --retry 3 \
@@ -170,7 +169,7 @@ workflows:
           echo "Release signing ready"
 
 
-      - name: Build SETTINGS V5 APK and AAB
+      - name: Build CUSTOMERS V6 APK and AAB
         script: |
           set -euo pipefail
 
@@ -213,15 +212,15 @@ workflows:
           mkdir -p "$CM_BUILD_DIR/release"
 
           cp "$APK_FILE" \
-            "$CM_BUILD_DIR/release/Tahalil-Alakkad-SETTINGS-V5.apk"
+            "$CM_BUILD_DIR/release/Tahalil-Alakkad-CUSTOMERS-V6.apk"
 
           cp "$AAB_FILE" \
-            "$CM_BUILD_DIR/release/Tahalil-Alakkad-SETTINGS-V5.aab"
+            "$CM_BUILD_DIR/release/Tahalil-Alakkad-CUSTOMERS-V6.aab"
 
           echo ""
           echo "======================================"
           echo "BUILD SUCCESSFUL"
-          echo "SETTINGS V5"
+          echo "CUSTOMERS V6"
           echo "======================================"
 
           ls -lh "$CM_BUILD_DIR/release"
