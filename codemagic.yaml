@@ -11,32 +11,35 @@ workflows:
         - tahalil_alakkad_release
 
     scripts:
+
       - name: Extract Android project
         script: |
           set -euo pipefail
 
-          ZIP_FILE="$CM_BUILD_DIR/Project3_AK_Manager_Lab2Lab.zip"
+          ZIP_FILE="$CM_BUILD_DIR/Project3_AK_Manager_Lab2Lab_FIXED.zip"
           WORK_DIR="$CM_BUILD_DIR/android_project"
 
           rm -rf "$WORK_DIR"
           mkdir -p "$WORK_DIR"
 
           if [ ! -f "$ZIP_FILE" ]; then
-            echo "ERROR: Project3_AK_Manager_Lab2Lab.zip not found"
+            echo "ERROR: Project3_AK_Manager_Lab2Lab_FIXED.zip not found"
             echo "Available files:"
             ls -lah "$CM_BUILD_DIR"
             exit 1
           fi
 
-          echo "Using project:"
+          echo "======================================"
+          echo "USING:"
           echo "$ZIP_FILE"
+          echo "======================================"
 
           unzip -q -o "$ZIP_FILE" -d "$WORK_DIR"
 
           SETTINGS_FILE="$(find "$WORK_DIR" \
             -name "settings.gradle.kts" \
             -type f \
-            | head -n 1)"
+            | head -n 1 || true)"
 
           if [ -z "$SETTINGS_FILE" ]; then
             echo "ERROR: settings.gradle.kts not found"
@@ -47,7 +50,7 @@ workflows:
 
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$CM_ENV"
 
-          echo "Android project:"
+          echo "Android project root:"
           echo "$PROJECT_DIR"
 
           ls -lah "$PROJECT_DIR"
@@ -73,7 +76,8 @@ workflows:
           SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
 
           if [ ! -x "$SDKMANAGER" ]; then
-            echo "ERROR: sdkmanager not found"
+            echo "ERROR: sdkmanager not found at:"
+            echo "$SDKMANAGER"
             exit 1
           fi
 
@@ -125,7 +129,7 @@ workflows:
           set -euo pipefail
 
           if [ -z "${CM_KEYSTORE_PATH:-}" ]; then
-            echo "ERROR: Keystore not available"
+            echo "ERROR: Codemagic keystore is missing"
             exit 1
           fi
 
@@ -156,6 +160,7 @@ workflows:
           from pathlib import Path
 
           path = Path(os.environ["APP_GRADLE"])
+
           text = path.read_text(encoding="utf-8")
 
           text = text.replace(
@@ -169,7 +174,7 @@ workflows:
           echo "Release signing ready"
 
 
-      - name: Build Manager APK and AAB
+      - name: Build final Manager APK and AAB
         script: |
           set -euo pipefail
 
@@ -191,36 +196,36 @@ workflows:
             app/build/outputs/apk/release \
             -type f \
             -name "*.apk" \
-            | head -n 1)"
+            | head -n 1 || true)"
 
           AAB_FILE="$(find \
             app/build/outputs/bundle/release \
             -type f \
             -name "*.aab" \
-            | head -n 1)"
+            | head -n 1 || true)"
 
           if [ -z "$APK_FILE" ] || [ ! -f "$APK_FILE" ]; then
-            echo "ERROR: APK not generated"
+            echo "ERROR: Release APK was not generated"
             exit 1
           fi
 
           if [ -z "$AAB_FILE" ] || [ ! -f "$AAB_FILE" ]; then
-            echo "ERROR: AAB not generated"
+            echo "ERROR: Release AAB was not generated"
             exit 1
           fi
 
           mkdir -p "$CM_BUILD_DIR/release"
 
           cp "$APK_FILE" \
-            "$CM_BUILD_DIR/release/Tahalil-Alakkad-Manager-release.apk"
+            "$CM_BUILD_DIR/release/Tahalil-Alakkad-Manager-FINAL.apk"
 
           cp "$AAB_FILE" \
-            "$CM_BUILD_DIR/release/Tahalil-Alakkad-Manager-release.aab"
+            "$CM_BUILD_DIR/release/Tahalil-Alakkad-Manager-FINAL.aab"
 
           echo ""
           echo "======================================"
           echo "BUILD SUCCESSFUL"
-          echo "MANAGER + LAB2LAB VERSION"
+          echo "MANAGER LAB2LAB FINAL VERSION"
           echo "======================================"
 
           ls -lh "$CM_BUILD_DIR/release"
