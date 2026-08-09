@@ -1,6 +1,6 @@
 workflows:
   android-release:
-    name: Build Tahalil Alakkad CUSTOMER HISTORY V7
+    name: Build Tahalil Alakkad CUSTOMER ORDER FLOW V8
     instance_type: mac_mini_m2
     max_build_duration: 60
 
@@ -10,18 +10,18 @@ workflows:
         - tahalil_alakkad_release
 
     scripts:
-      - name: Extract CUSTOMER HISTORY V7 project
+      - name: Extract CUSTOMER ORDER FLOW V8 project
         script: |
           set -euo pipefail
 
-          ZIP_FILE="$CM_BUILD_DIR/Project3_AK_SECURE_CUSTOMER_HISTORY_V7.zip"
+          ZIP_FILE="$CM_BUILD_DIR/Project3_AK_SECURE_CUSTOMER_ORDER_FLOW_V8.zip"
           WORK_DIR="$CM_BUILD_DIR/android_project"
 
           rm -rf "$WORK_DIR"
           mkdir -p "$WORK_DIR"
 
           if [ ! -f "$ZIP_FILE" ]; then
-            echo "ERROR: Project3_AK_SECURE_CUSTOMER_HISTORY_V7.zip not found"
+            echo "ERROR: Project3_AK_SECURE_CUSTOMER_ORDER_FLOW_V8.zip not found"
             ls -lah "$CM_BUILD_DIR"
             exit 1
           fi
@@ -39,28 +39,41 @@ workflows:
 
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$CM_ENV"
 
-          echo "Using project:"
+          echo "======================================"
+          echo "CUSTOMER ORDER FLOW V8"
           echo "$PROJECT_DIR"
+          echo "======================================"
 
 
-      - name: Verify CUSTOMER HISTORY V7
+      - name: Verify CUSTOMER ORDER FLOW V8
         script: |
           set -euo pipefail
 
           test -f "$PROJECT_DIR/app/build.gradle.kts"
           test -f "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
           test -f "$PROJECT_DIR/app/src/main/java/com/example/MainActivity.kt"
+          test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
           test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/CustomerSystemDialog.kt"
           test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
+          test -f "$PROJECT_DIR/app/src/main/java/com/example/util/PdfGenerator.kt"
 
-          grep -q 'versionCode = 11' \
+          grep -q 'versionCode = 12' \
             "$PROJECT_DIR/app/build.gradle.kts"
+
+          grep -q 'عميل سابق' \
+            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+
+          grep -q 'عميل جديد' \
+            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
 
           grep -q 'saveCustomerOrder' \
             "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
 
-          grep -q 'orders' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
+          grep -q 'selectedCustomer' \
+            "$PROJECT_DIR/app/src/main/java/com/example/ui/CustomerSystemDialog.kt"
+
+          grep -q 'fileNumber' \
+            "$PROJECT_DIR/app/src/main/java/com/example/util/PdfGenerator.kt"
 
           grep -q 'FLAG_SECURE' \
             "$PROJECT_DIR/app/src/main/java/com/example/MainActivity.kt"
@@ -77,7 +90,7 @@ workflows:
           grep -q 'isShrinkResources = true' \
             "$PROJECT_DIR/app/build.gradle.kts"
 
-          echo "CUSTOMER HISTORY V7 verification passed"
+          echo "CUSTOMER ORDER FLOW V8 verification passed"
 
 
       - name: Configure Android SDK
@@ -154,7 +167,7 @@ workflows:
           echo "Release signing ready"
 
 
-      - name: Build CUSTOMER HISTORY V7 APK and AAB
+      - name: Build CUSTOMER ORDER FLOW V8 APK and AAB
         script: |
           set -euo pipefail
 
@@ -197,15 +210,15 @@ workflows:
           mkdir -p "$CM_BUILD_DIR/release"
 
           cp "$APK_FILE" \
-            "$CM_BUILD_DIR/release/Tahalil-Alakkad-CUSTOMER-HISTORY-V7.apk"
+            "$CM_BUILD_DIR/release/Tahalil-Alakkad-CUSTOMER-ORDER-FLOW-V8.apk"
 
           cp "$AAB_FILE" \
-            "$CM_BUILD_DIR/release/Tahalil-Alakkad-CUSTOMER-HISTORY-V7.aab"
+            "$CM_BUILD_DIR/release/Tahalil-Alakkad-CUSTOMER-ORDER-FLOW-V8.aab"
 
           echo ""
           echo "======================================"
           echo "BUILD SUCCESSFUL"
-          echo "CUSTOMER HISTORY V7"
+          echo "CUSTOMER ORDER FLOW V8"
           echo "======================================"
 
           ls -lh "$CM_BUILD_DIR/release"
