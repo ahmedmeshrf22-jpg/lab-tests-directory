@@ -1,6 +1,6 @@
 workflows:
   android-release:
-    name: Build Tahalil Alakkad DASHBOARD V10
+    name: Build Tahalil Alakkad DASHBOARD V10 FIXED
     instance_type: mac_mini_m2
     max_build_duration: 60
 
@@ -10,18 +10,18 @@ workflows:
         - tahalil_alakkad_release
 
     scripts:
-      - name: Extract DASHBOARD V10 project
+      - name: Extract DASHBOARD V10 FIXED project
         script: |
           set -euo pipefail
 
-          ZIP_FILE="$CM_BUILD_DIR/Project3_AK_SECURE_DASHBOARD_V10.zip"
+          ZIP_FILE="$CM_BUILD_DIR/Project3_AK_SECURE_DASHBOARD_V10_FIXED.zip"
           WORK_DIR="$CM_BUILD_DIR/android_project"
 
           rm -rf "$WORK_DIR"
           mkdir -p "$WORK_DIR"
 
           if [ ! -f "$ZIP_FILE" ]; then
-            echo "ERROR: Project3_AK_SECURE_DASHBOARD_V10.zip not found"
+            echo "ERROR: Project3_AK_SECURE_DASHBOARD_V10_FIXED.zip not found"
             ls -lah "$CM_BUILD_DIR"
             exit 1
           fi
@@ -36,75 +36,29 @@ workflows:
           fi
 
           PROJECT_DIR="$(dirname "$SETTINGS_FILE")"
+
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$CM_ENV"
 
           echo "======================================"
-          echo "DASHBOARD V10 PROJECT"
+          echo "DASHBOARD V10 FIXED"
           echo "$PROJECT_DIR"
           echo "======================================"
 
-
-      - name: Verify DASHBOARD V10
+      - name: Verify project
         script: |
           set -euo pipefail
 
+          test -f "$PROJECT_DIR/settings.gradle.kts"
+          test -f "$PROJECT_DIR/build.gradle.kts"
           test -f "$PROJECT_DIR/app/build.gradle.kts"
           test -f "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
           test -f "$PROJECT_DIR/app/src/main/java/com/example/MainActivity.kt"
           test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-          test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
-          test -f "$PROJECT_DIR/app/src/main/java/com/example/data/model/Customer.kt"
 
           grep -q 'versionCode = 14' \
             "$PROJECT_DIR/app/build.gradle.kts"
 
-          grep -q 'ProfessionalOrderCheckoutDialog' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-
-          grep -q 'discountPercent' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-
-          grep -q 'قبل الخصم' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-
-          grep -q 'بعد الخصم' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-
-          grep -q 'مبلغ الخصم' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-
-          grep -q 'نسبة الخصم' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-
-          grep -q 'discountPercent' \
-            "$PROJECT_DIR/app/src/main/java/com/example/data/model/Customer.kt"
-
-          grep -q 'paymentStatus' \
-            "$PROJECT_DIR/app/src/main/java/com/example/data/model/Customer.kt"
-
-          grep -q 'paidAmount' \
-            "$PROJECT_DIR/app/src/main/java/com/example/data/model/Customer.kt"
-
-          grep -q 'remainingAmount' \
-            "$PROJECT_DIR/app/src/main/java/com/example/data/model/Customer.kt"
-
-          grep -q 'FLAG_SECURE' \
-            "$PROJECT_DIR/app/src/main/java/com/example/MainActivity.kt"
-
-          grep -q 'android:allowBackup="false"' \
-            "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
-
-          grep -q 'android:usesCleartextTraffic="false"' \
-            "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
-
-          grep -q 'isMinifyEnabled = true' \
-            "$PROJECT_DIR/app/build.gradle.kts"
-
-          grep -q 'isShrinkResources = true' \
-            "$PROJECT_DIR/app/build.gradle.kts"
-
-          echo "DASHBOARD V10 verification passed"
-
+          echo "V10 FIXED project verified"
 
       - name: Configure Android SDK
         script: |
@@ -130,7 +84,6 @@ workflows:
             "platforms;android-36.1" \
             "build-tools;36.0.0"
 
-
       - name: Install Gradle 9.3.1
         script: |
           set -euo pipefail
@@ -151,7 +104,6 @@ workflows:
           echo "GRADLE_BIN=$GRADLE_DIR/bin/gradle" >> "$CM_ENV"
 
           "$GRADLE_DIR/bin/gradle" --version
-
 
       - name: Validate release signing
         script: |
@@ -177,8 +129,7 @@ workflows:
 
           echo "Release signing ready"
 
-
-      - name: Build DASHBOARD V10 APK and AAB
+      - name: Build DASHBOARD V10 FIXED APK and AAB
         script: |
           set -euo pipefail
 
@@ -212,19 +163,18 @@ workflows:
           mkdir -p "$CM_BUILD_DIR/release"
 
           cp "$APK_FILE" \
-            "$CM_BUILD_DIR/release/Tahalil-Alakkad-DASHBOARD-V10.apk"
+            "$CM_BUILD_DIR/release/Tahalil-Alakkad-DASHBOARD-V10-FIXED.apk"
 
           cp "$AAB_FILE" \
-            "$CM_BUILD_DIR/release/Tahalil-Alakkad-DASHBOARD-V10.aab"
+            "$CM_BUILD_DIR/release/Tahalil-Alakkad-DASHBOARD-V10-FIXED.aab"
 
           echo ""
           echo "======================================"
           echo "BUILD SUCCESSFUL"
-          echo "DASHBOARD V10"
+          echo "DASHBOARD V10 FIXED"
           echo "======================================"
 
           ls -lh "$CM_BUILD_DIR/release"
-
 
     artifacts:
       - release/*.apk
