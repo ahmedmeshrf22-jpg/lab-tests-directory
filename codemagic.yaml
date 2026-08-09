@@ -1,6 +1,6 @@
 workflows:
   android-release:
-    name: Build Tahalil Alakkad USER SWITCH V17
+    name: Build Tahalil Alakkad 3D DASHBOARD V18
     instance_type: mac_mini_m2
     max_build_duration: 60
 
@@ -10,18 +10,18 @@ workflows:
         - tahalil_alakkad_release
 
     scripts:
-      - name: Extract USER SWITCH V17 project
+      - name: Extract 3D DASHBOARD V18 project
         script: |
           set -euo pipefail
 
-          ZIP_FILE="$CM_BUILD_DIR/Project3_AK_SECURE_USER_SWITCH_V17.zip"
+          ZIP_FILE="$CM_BUILD_DIR/Project3_AK_SECURE_3D_DASHBOARD_V18.zip"
           WORK_DIR="$CM_BUILD_DIR/android_project"
 
           rm -rf "$WORK_DIR"
           mkdir -p "$WORK_DIR"
 
           if [ ! -f "$ZIP_FILE" ]; then
-            echo "ERROR: Project3_AK_SECURE_USER_SWITCH_V17.zip not found"
+            echo "ERROR: Project3_AK_SECURE_3D_DASHBOARD_V18.zip not found"
             ls -lah "$CM_BUILD_DIR"
             exit 1
           fi
@@ -39,11 +39,11 @@ workflows:
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$CM_ENV"
 
           echo "======================================"
-          echo "USER SWITCH V17 PROJECT"
+          echo "3D DASHBOARD V18 PROJECT"
           echo "$PROJECT_DIR"
           echo "======================================"
 
-      - name: Verify USER SWITCH V17
+      - name: Verify 3D DASHBOARD V18
         script: |
           set -euo pipefail
 
@@ -52,18 +52,20 @@ workflows:
           test -f "$PROJECT_DIR/app/src/main/java/com/example/MainActivity.kt"
           test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
           test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
+          test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/CustomerSystemDialog.kt"
+          test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/OperationsV14Dialog.kt"
 
-          grep -q 'versionCode = 22' \
+          grep -q 'versionCode = 23' \
             "$PROJECT_DIR/app/build.gradle.kts"
 
-          grep -q 'versionName = "3.3-user-switch-v17"' \
+          grep -q 'versionName = "3.4-3d-dashboard-v18"' \
             "$PROJECT_DIR/app/build.gradle.kts"
 
-          grep -q 'actualManager' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
+          grep -q 'ManagerHomeDashboard' \
+            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
 
-          grep -q 'actingAsUser' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
+          grep -q 'Manager3DActionIcon' \
+            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
 
           grep -q 'switchToUser' \
             "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
@@ -71,14 +73,14 @@ workflows:
           grep -q 'returnToManagerMode' \
             "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
 
-          grep -q 'UserSwitcherDialog' \
+          grep -q 'BackHandler' \
             "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
 
-          grep -q 'تبديل المستخدم' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+          grep -q 'BackHandler' \
+            "$PROJECT_DIR/app/src/main/java/com/example/ui/CustomerSystemDialog.kt"
 
-          grep -q 'رجوع لعبدالرحمن' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+          grep -q 'BackHandler' \
+            "$PROJECT_DIR/app/src/main/java/com/example/ui/OperationsV14Dialog.kt"
 
           grep -q 'FLAG_SECURE' \
             "$PROJECT_DIR/app/src/main/java/com/example/MainActivity.kt"
@@ -95,7 +97,7 @@ workflows:
           grep -q 'isShrinkResources = true' \
             "$PROJECT_DIR/app/build.gradle.kts"
 
-          echo "USER SWITCH V17 verification passed"
+          echo "3D DASHBOARD V18 verification passed"
 
       - name: Configure Android SDK
         script: |
@@ -166,7 +168,7 @@ workflows:
 
           echo "Release signing ready"
 
-      - name: Build USER SWITCH V17 APK and AAB
+      - name: Build 3D DASHBOARD V18 APK and AAB
         script: |
           set -euo pipefail
 
@@ -209,15 +211,15 @@ workflows:
           mkdir -p "$CM_BUILD_DIR/release"
 
           cp "$APK_FILE" \
-            "$CM_BUILD_DIR/release/Tahalil-Alakkad-USER-SWITCH-V17.apk"
+            "$CM_BUILD_DIR/release/Tahalil-Alakkad-3D-DASHBOARD-V18.apk"
 
           cp "$AAB_FILE" \
-            "$CM_BUILD_DIR/release/Tahalil-Alakkad-USER-SWITCH-V17.aab"
+            "$CM_BUILD_DIR/release/Tahalil-Alakkad-3D-DASHBOARD-V18.aab"
 
           echo ""
           echo "======================================"
           echo "BUILD SUCCESSFUL"
-          echo "USER SWITCH V17"
+          echo "3D DASHBOARD V18"
           echo "======================================"
 
           ls -lh "$CM_BUILD_DIR/release"
