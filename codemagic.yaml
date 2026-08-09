@@ -1,6 +1,6 @@
 workflows:
   android-release:
-    name: Build Tahalil Alakkad MANAGER HOME V15
+    name: Build Tahalil Alakkad BACK NAV V16
     instance_type: mac_mini_m2
     max_build_duration: 60
 
@@ -10,18 +10,18 @@ workflows:
         - tahalil_alakkad_release
 
     scripts:
-      - name: Extract MANAGER HOME V15 project
+      - name: Extract BACK NAV V16 project
         script: |
           set -euo pipefail
 
-          ZIP_FILE="$CM_BUILD_DIR/Project3_AK_SECURE_MANAGER_HOME_V15.zip"
+          ZIP_FILE="$CM_BUILD_DIR/Project3_AK_SECURE_BACK_NAV_V16.zip"
           WORK_DIR="$CM_BUILD_DIR/android_project"
 
           rm -rf "$WORK_DIR"
           mkdir -p "$WORK_DIR"
 
           if [ ! -f "$ZIP_FILE" ]; then
-            echo "ERROR: Project3_AK_SECURE_MANAGER_HOME_V15.zip not found"
+            echo "ERROR: Project3_AK_SECURE_BACK_NAV_V16.zip not found"
             ls -lah "$CM_BUILD_DIR"
             exit 1
           fi
@@ -39,11 +39,11 @@ workflows:
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$CM_ENV"
 
           echo "======================================"
-          echo "MANAGER HOME V15 PROJECT"
+          echo "BACK NAV V16 PROJECT"
           echo "$PROJECT_DIR"
           echo "======================================"
 
-      - name: Verify MANAGER HOME V15
+      - name: Verify BACK NAV V16
         script: |
           set -euo pipefail
 
@@ -51,44 +51,36 @@ workflows:
           test -f "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
           test -f "$PROJECT_DIR/app/src/main/java/com/example/MainActivity.kt"
           test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-          test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
+          test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/CustomerSystemDialog.kt"
           test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/OperationsV14Dialog.kt"
+          test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
 
-          grep -q 'versionCode = 20' "$PROJECT_DIR/app/build.gradle.kts"
-          grep -q 'versionName = "3.1-manager-home-v15"' "$PROJECT_DIR/app/build.gradle.kts"
+          grep -q 'versionCode = 21' \
+            "$PROJECT_DIR/app/build.gradle.kts"
 
-          grep -q 'ManagerHomeDashboard' \
+          grep -q 'versionName = "3.2-back-navigation-v16"' \
+            "$PROJECT_DIR/app/build.gradle.kts"
+
+          grep -q 'BackHandler' \
             "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
 
-          grep -q 'loadManagerHomeSummary' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
+          grep -q 'BackHandler' \
+            "$PROJECT_DIR/app/src/main/java/com/example/ui/CustomerSystemDialog.kt"
 
-          grep -q 'طلبات اليوم' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-
-          grep -q 'تحصيل اليوم' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-
-          grep -q 'طلب جديد' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-
-          grep -q 'العملاء' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-
-          grep -q 'الطلبات' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-
-          grep -q 'التقارير' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-
-          grep -q 'المديونيات' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-
-          grep -q 'الإدارة' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-
-          grep -q 'initialDebtsOnly' \
+          grep -q 'BackHandler' \
             "$PROJECT_DIR/app/src/main/java/com/example/ui/OperationsV14Dialog.kt"
+
+          grep -q 'showManagerHome' \
+            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+
+          grep -q 'showOperationsV14' \
+            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+
+          grep -q 'selectedCustomer' \
+            "$PROJECT_DIR/app/src/main/java/com/example/ui/CustomerSystemDialog.kt"
+
+          grep -q 'selectedOrder' \
+            "$PROJECT_DIR/app/src/main/java/com/example/ui/CustomerSystemDialog.kt"
 
           grep -q 'FLAG_SECURE' \
             "$PROJECT_DIR/app/src/main/java/com/example/MainActivity.kt"
@@ -105,7 +97,7 @@ workflows:
           grep -q 'isShrinkResources = true' \
             "$PROJECT_DIR/app/build.gradle.kts"
 
-          echo "MANAGER HOME V15 verification passed"
+          echo "BACK NAV V16 verification passed"
 
       - name: Configure Android SDK
         script: |
@@ -176,7 +168,7 @@ workflows:
 
           echo "Release signing ready"
 
-      - name: Build MANAGER HOME V15 APK and AAB
+      - name: Build BACK NAV V16 APK and AAB
         script: |
           set -euo pipefail
 
@@ -219,15 +211,15 @@ workflows:
           mkdir -p "$CM_BUILD_DIR/release"
 
           cp "$APK_FILE" \
-            "$CM_BUILD_DIR/release/Tahalil-Alakkad-MANAGER-HOME-V15.apk"
+            "$CM_BUILD_DIR/release/Tahalil-Alakkad-BACK-NAV-V16.apk"
 
           cp "$AAB_FILE" \
-            "$CM_BUILD_DIR/release/Tahalil-Alakkad-MANAGER-HOME-V15.aab"
+            "$CM_BUILD_DIR/release/Tahalil-Alakkad-BACK-NAV-V16.aab"
 
           echo ""
           echo "======================================"
           echo "BUILD SUCCESSFUL"
-          echo "MANAGER HOME V15"
+          echo "BACK NAV V16"
           echo "======================================"
 
           ls -lh "$CM_BUILD_DIR/release"
