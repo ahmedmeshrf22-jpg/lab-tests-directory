@@ -28,9 +28,7 @@ workflows:
 
           unzip -q -o "$ZIP_FILE" -d "$WORK_DIR"
 
-          SETTINGS_FILE="$(find "$WORK_DIR" \
-            -name "settings.gradle.kts" \
-            -type f | head -n 1 || true)"
+          SETTINGS_FILE="$(find "$WORK_DIR" -name "settings.gradle.kts" -type f | head -n 1 || true)"
 
           if [ -z "$SETTINGS_FILE" ]; then
             echo "ERROR: settings.gradle.kts not found"
@@ -38,7 +36,6 @@ workflows:
           fi
 
           PROJECT_DIR="$(dirname "$SETTINGS_FILE")"
-
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$CM_ENV"
 
           echo "======================================"
@@ -63,13 +60,16 @@ workflows:
           grep -q 'isBlacklisted' \
             "$PROJECT_DIR/app/src/main/java/com/example/data/model/Customer.kt"
 
-          grep -q 'isDeleted' \
+          grep -q 'blacklistReason' \
             "$PROJECT_DIR/app/src/main/java/com/example/data/model/Customer.kt"
 
-          grep -q 'blacklist' \
+          grep -q 'isArchived' \
+            "$PROJECT_DIR/app/src/main/java/com/example/data/model/Customer.kt"
+
+          grep -q 'setCustomerBlacklist' \
             "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
 
-          grep -q 'restore' \
+          grep -q 'setCustomerArchived' \
             "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
 
           grep -q 'FLAG_SECURE' \
@@ -138,8 +138,7 @@ workflows:
         script: |
           set -euo pipefail
 
-          if [ -z "${CM_KEYSTORE_PATH:-}" ] || \
-             [ ! -f "$CM_KEYSTORE_PATH" ]; then
+          if [ -z "${CM_KEYSTORE_PATH:-}" ] || [ ! -f "$CM_KEYSTORE_PATH" ]; then
             echo "ERROR: Release keystore missing"
             exit 1
           fi
@@ -177,17 +176,8 @@ workflows:
             :app:assembleRelease \
             :app:bundleRelease
 
-          APK_FILE="$(find \
-            app/build/outputs/apk/release \
-            -type f \
-            -name '*.apk' \
-            | head -n 1 || true)"
-
-          AAB_FILE="$(find \
-            app/build/outputs/bundle/release \
-            -type f \
-            -name '*.aab' \
-            | head -n 1 || true)"
+          APK_FILE="$(find app/build/outputs/apk/release -type f -name '*.apk' | head -n 1 || true)"
+          AAB_FILE="$(find app/build/outputs/bundle/release -type f -name '*.aab' | head -n 1 || true)"
 
           if [ -z "$APK_FILE" ] || [ ! -f "$APK_FILE" ]; then
             echo "ERROR: APK was not generated"
