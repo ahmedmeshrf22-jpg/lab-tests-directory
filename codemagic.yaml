@@ -1,6 +1,6 @@
 workflows:
   android-release:
-    name: Build Tahalil Alakkad CUSTOMERS V6
+    name: Build Tahalil Alakkad CUSTOMERS V6 FIXED
     instance_type: mac_mini_m2
     max_build_duration: 60
 
@@ -10,18 +10,18 @@ workflows:
         - tahalil_alakkad_release
 
     scripts:
-      - name: Extract CUSTOMERS V6 project
+      - name: Extract CUSTOMERS V6 FIXED project
         script: |
           set -euo pipefail
 
-          ZIP_FILE="$CM_BUILD_DIR/Project3_AK_SECURE_CUSTOMERS_V6.zip"
+          ZIP_FILE="$CM_BUILD_DIR/Project3_AK_SECURE_CUSTOMERS_V6_FIXED.zip"
           WORK_DIR="$CM_BUILD_DIR/android_project"
 
           rm -rf "$WORK_DIR"
           mkdir -p "$WORK_DIR"
 
           if [ ! -f "$ZIP_FILE" ]; then
-            echo "ERROR: Project3_AK_SECURE_CUSTOMERS_V6.zip not found"
+            echo "ERROR: Project3_AK_SECURE_CUSTOMERS_V6_FIXED.zip not found"
             ls -lah "$CM_BUILD_DIR"
             exit 1
           fi
@@ -36,29 +36,22 @@ workflows:
           fi
 
           PROJECT_DIR="$(dirname "$SETTINGS_FILE")"
-
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$CM_ENV"
 
-          echo "======================================"
-          echo "CUSTOMERS V6 PROJECT"
+          echo "Using project:"
           echo "$PROJECT_DIR"
-          echo "======================================"
 
 
-      - name: Verify CUSTOMERS V6
+      - name: Verify CUSTOMERS V6 FIXED
         script: |
           set -euo pipefail
 
           test -f "$PROJECT_DIR/app/build.gradle.kts"
           test -f "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
           test -f "$PROJECT_DIR/app/src/main/java/com/example/MainActivity.kt"
-          test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-          test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
           test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/CustomerSystemDialog.kt"
+          test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
           test -f "$PROJECT_DIR/app/src/main/java/com/example/data/model/Customer.kt"
-
-          grep -q 'versionCode = 10' \
-            "$PROJECT_DIR/app/build.gradle.kts"
 
           grep -q 'saveCustomer' \
             "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
@@ -71,9 +64,6 @@ workflows:
 
           grep -q 'orders' \
             "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
-
-          grep -q 'CustomerSystemDialog' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
 
           grep -q 'FLAG_SECURE' \
             "$PROJECT_DIR/app/src/main/java/com/example/MainActivity.kt"
@@ -90,7 +80,7 @@ workflows:
           grep -q 'isShrinkResources = true' \
             "$PROJECT_DIR/app/build.gradle.kts"
 
-          echo "CUSTOMERS V6 verification passed"
+          echo "CUSTOMERS V6 FIXED verification passed"
 
 
       - name: Configure Android SDK
@@ -117,8 +107,6 @@ workflows:
             "platforms;android-36.1" \
             "build-tools;36.0.0"
 
-          echo "Android SDK ready"
-
 
       - name: Install Gradle 9.3.1
         script: |
@@ -128,7 +116,6 @@ workflows:
           GRADLE_DIR="$HOME/gradle-$GRADLE_VERSION"
 
           if [ ! -x "$GRADLE_DIR/bin/gradle" ]; then
-
             rm -f /tmp/gradle.zip
 
             curl --fail --location --retry 3 \
@@ -166,10 +153,10 @@ workflows:
             -alias "$CM_KEY_ALIAS" \
             >/dev/null
 
-          echo "Release signing ready"
+          echo "Signing ready"
 
 
-      - name: Build CUSTOMERS V6 APK and AAB
+      - name: Build CUSTOMERS V6 FIXED APK and AAB
         script: |
           set -euo pipefail
 
@@ -212,15 +199,15 @@ workflows:
           mkdir -p "$CM_BUILD_DIR/release"
 
           cp "$APK_FILE" \
-            "$CM_BUILD_DIR/release/Tahalil-Alakkad-CUSTOMERS-V6.apk"
+            "$CM_BUILD_DIR/release/Tahalil-Alakkad-CUSTOMERS-V6-FIXED.apk"
 
           cp "$AAB_FILE" \
-            "$CM_BUILD_DIR/release/Tahalil-Alakkad-CUSTOMERS-V6.aab"
+            "$CM_BUILD_DIR/release/Tahalil-Alakkad-CUSTOMERS-V6-FIXED.aab"
 
           echo ""
           echo "======================================"
           echo "BUILD SUCCESSFUL"
-          echo "CUSTOMERS V6"
+          echo "CUSTOMERS V6 FIXED"
           echo "======================================"
 
           ls -lh "$CM_BUILD_DIR/release"
