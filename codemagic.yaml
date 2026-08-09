@@ -1,6 +1,6 @@
 workflows:
   android-release:
-    name: Build Tahalil Alakkad 3D DASHBOARD V18
+    name: Build Tahalil Alakkad APP NAME V19
     instance_type: mac_mini_m2
     max_build_duration: 60
 
@@ -10,18 +10,18 @@ workflows:
         - tahalil_alakkad_release
 
     scripts:
-      - name: Extract 3D DASHBOARD V18 project
+      - name: Extract APP NAME V19 project
         script: |
           set -euo pipefail
 
-          ZIP_FILE="$CM_BUILD_DIR/Project3_AK_SECURE_3D_DASHBOARD_V18.zip"
+          ZIP_FILE="$CM_BUILD_DIR/Project3_AK_SECURE_APP_NAME_V19.zip"
           WORK_DIR="$CM_BUILD_DIR/android_project"
 
           rm -rf "$WORK_DIR"
           mkdir -p "$WORK_DIR"
 
           if [ ! -f "$ZIP_FILE" ]; then
-            echo "ERROR: Project3_AK_SECURE_3D_DASHBOARD_V18.zip not found"
+            echo "ERROR: Project3_AK_SECURE_APP_NAME_V19.zip not found"
             ls -lah "$CM_BUILD_DIR"
             exit 1
           fi
@@ -39,11 +39,11 @@ workflows:
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$CM_ENV"
 
           echo "======================================"
-          echo "3D DASHBOARD V18 PROJECT"
+          echo "APP NAME V19 PROJECT"
           echo "$PROJECT_DIR"
           echo "======================================"
 
-      - name: Verify 3D DASHBOARD V18
+      - name: Verify APP NAME V19
         script: |
           set -euo pipefail
 
@@ -51,36 +51,12 @@ workflows:
           test -f "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
           test -f "$PROJECT_DIR/app/src/main/java/com/example/MainActivity.kt"
           test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-          test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
-          test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/CustomerSystemDialog.kt"
-          test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/OperationsV14Dialog.kt"
 
-          grep -q 'versionCode = 23' \
+          grep -q 'versionCode = 24' \
             "$PROJECT_DIR/app/build.gradle.kts"
 
-          grep -q 'versionName = "3.4-3d-dashboard-v18"' \
-            "$PROJECT_DIR/app/build.gradle.kts"
-
-          grep -q 'ManagerHomeDashboard' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-
-          grep -q 'Manager3DActionIcon' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-
-          grep -q 'switchToUser' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
-
-          grep -q 'returnToManagerMode' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
-
-          grep -q 'BackHandler' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-
-          grep -q 'BackHandler' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/CustomerSystemDialog.kt"
-
-          grep -q 'BackHandler' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/OperationsV14Dialog.kt"
+          grep -q 'تحاليل العقاد' \
+            "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
 
           grep -q 'FLAG_SECURE' \
             "$PROJECT_DIR/app/src/main/java/com/example/MainActivity.kt"
@@ -97,7 +73,7 @@ workflows:
           grep -q 'isShrinkResources = true' \
             "$PROJECT_DIR/app/build.gradle.kts"
 
-          echo "3D DASHBOARD V18 verification passed"
+          echo "APP NAME V19 verification passed"
 
       - name: Configure Android SDK
         script: |
@@ -168,7 +144,7 @@ workflows:
 
           echo "Release signing ready"
 
-      - name: Build 3D DASHBOARD V18 APK and AAB
+      - name: Build APP NAME V19 APK and AAB
         script: |
           set -euo pipefail
 
@@ -211,15 +187,15 @@ workflows:
           mkdir -p "$CM_BUILD_DIR/release"
 
           cp "$APK_FILE" \
-            "$CM_BUILD_DIR/release/Tahalil-Alakkad-3D-DASHBOARD-V18.apk"
+            "$CM_BUILD_DIR/release/Tahalil-Alakkad-V19.apk"
 
           cp "$AAB_FILE" \
-            "$CM_BUILD_DIR/release/Tahalil-Alakkad-3D-DASHBOARD-V18.aab"
+            "$CM_BUILD_DIR/release/Tahalil-Alakkad-V19.aab"
 
           echo ""
           echo "======================================"
           echo "BUILD SUCCESSFUL"
-          echo "3D DASHBOARD V18"
+          echo "APP NAME V19"
           echo "======================================"
 
           ls -lh "$CM_BUILD_DIR/release"
