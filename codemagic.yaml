@@ -1,6 +1,6 @@
 workflows:
   android-release:
-    name: Build Tahalil Alakkad SYSTEM V14 PERMISSIONS FIX
+    name: Build Tahalil Alakkad MANAGER HOME V15
     instance_type: mac_mini_m2
     max_build_duration: 60
 
@@ -10,18 +10,18 @@ workflows:
         - tahalil_alakkad_release
 
     scripts:
-      - name: Extract SYSTEM V14 project
+      - name: Extract MANAGER HOME V15 project
         script: |
           set -euo pipefail
 
-          ZIP_FILE="$CM_BUILD_DIR/Project3_AK_SECURE_SYSTEM_V14_PERMISSIONS_FIXED.zip"
+          ZIP_FILE="$CM_BUILD_DIR/Project3_AK_SECURE_MANAGER_HOME_V15.zip"
           WORK_DIR="$CM_BUILD_DIR/android_project"
 
           rm -rf "$WORK_DIR"
           mkdir -p "$WORK_DIR"
 
           if [ ! -f "$ZIP_FILE" ]; then
-            echo "ERROR: Project3_AK_SECURE_SYSTEM_V14_PERMISSIONS_FIXED.zip not found"
+            echo "ERROR: Project3_AK_SECURE_MANAGER_HOME_V15.zip not found"
             ls -lah "$CM_BUILD_DIR"
             exit 1
           fi
@@ -39,11 +39,11 @@ workflows:
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$CM_ENV"
 
           echo "======================================"
-          echo "SYSTEM V14 PERMISSIONS FIX PROJECT"
+          echo "MANAGER HOME V15 PROJECT"
           echo "$PROJECT_DIR"
           echo "======================================"
 
-      - name: Verify SYSTEM V14 PERMISSIONS FIX
+      - name: Verify MANAGER HOME V15
         script: |
           set -euo pipefail
 
@@ -52,37 +52,60 @@ workflows:
           test -f "$PROJECT_DIR/app/src/main/java/com/example/MainActivity.kt"
           test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
           test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
-          test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/CustomerSystemDialog.kt"
           test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/OperationsV14Dialog.kt"
-          test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/UserSettingsDialog.kt"
-          test -f "$PROJECT_DIR/app/src/main/java/com/example/data/model/Customer.kt"
-          test -f "$PROJECT_DIR/app/src/main/java/com/example/data/model/SystemModels.kt"
-          test -f "$PROJECT_DIR/firestore.rules"
 
-          grep -q 'versionCode = 19' "$PROJECT_DIR/app/build.gradle.kts"
-          grep -q 'versionName = "3.0-system-v14-permissions-fix"' "$PROJECT_DIR/app/build.gradle.kts"
-          grep -q 'alternatePhone' "$PROJECT_DIR/app/src/main/java/com/example/data/model/Customer.kt"
-          grep -q 'defaultDiscountPercent' "$PROJECT_DIR/app/src/main/java/com/example/data/model/Customer.kt"
-          grep -q 'loadCustomerActivity' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
-          grep -q 'collectOrderPayment' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
-          grep -q 'loadReports' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
-          grep -q 'loadAuditLogs' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
-          grep -q 'createUserAccount' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
-          grep -q 'OperationsV14Dialog' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-          grep -q 'showOperationsV14 && isManager' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-          grep -q 'التقارير والحسابات العامة متاحة لعبدالرحمن فقط' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
-          grep -q 'التقارير والحسابات العامة: عبدالرحمن فقط' "$PROJECT_DIR/app/src/main/java/com/example/ui/OperationsV14Dialog.kt"
-          grep -q 'request.resource.data.can_view_sales_reports == false' "$PROJECT_DIR/firestore.rules"
-          grep -q 'allow read: if isManager();' "$PROJECT_DIR/firestore.rules"
-          ! grep -q 'مبيعات • تحصيل • مديونيات • تقارير' "$PROJECT_DIR/app/src/main/java/com/example/ui/OperationsV14Dialog.kt"
-          grep -q 'isBlacklisted' "$PROJECT_DIR/app/src/main/java/com/example/ui/CustomerSystemDialog.kt"
-          grep -q 'FLAG_SECURE' "$PROJECT_DIR/app/src/main/java/com/example/MainActivity.kt"
-          grep -q 'android:allowBackup="false"' "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
-          grep -q 'android:usesCleartextTraffic="false"' "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
-          grep -q 'isMinifyEnabled = true' "$PROJECT_DIR/app/build.gradle.kts"
-          grep -q 'isShrinkResources = true' "$PROJECT_DIR/app/build.gradle.kts"
+          grep -q 'versionCode = 20' "$PROJECT_DIR/app/build.gradle.kts"
+          grep -q 'versionName = "3.1-manager-home-v15"' "$PROJECT_DIR/app/build.gradle.kts"
 
-          echo "SYSTEM V14 verification passed"
+          grep -q 'ManagerHomeDashboard' \
+            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+
+          grep -q 'loadManagerHomeSummary' \
+            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
+
+          grep -q 'طلبات اليوم' \
+            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+
+          grep -q 'تحصيل اليوم' \
+            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+
+          grep -q 'طلب جديد' \
+            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+
+          grep -q 'العملاء' \
+            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+
+          grep -q 'الطلبات' \
+            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+
+          grep -q 'التقارير' \
+            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+
+          grep -q 'المديونيات' \
+            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+
+          grep -q 'الإدارة' \
+            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+
+          grep -q 'initialDebtsOnly' \
+            "$PROJECT_DIR/app/src/main/java/com/example/ui/OperationsV14Dialog.kt"
+
+          grep -q 'FLAG_SECURE' \
+            "$PROJECT_DIR/app/src/main/java/com/example/MainActivity.kt"
+
+          grep -q 'android:allowBackup="false"' \
+            "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
+
+          grep -q 'android:usesCleartextTraffic="false"' \
+            "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
+
+          grep -q 'isMinifyEnabled = true' \
+            "$PROJECT_DIR/app/build.gradle.kts"
+
+          grep -q 'isShrinkResources = true' \
+            "$PROJECT_DIR/app/build.gradle.kts"
+
+          echo "MANAGER HOME V15 verification passed"
 
       - name: Configure Android SDK
         script: |
@@ -98,6 +121,7 @@ workflows:
 
           echo "ANDROID_HOME=$ANDROID_HOME" >> "$CM_ENV"
           echo "ANDROID_SDK_ROOT=$ANDROID_HOME" >> "$CM_ENV"
+
           echo "sdk.dir=$ANDROID_HOME" > "$PROJECT_DIR/local.properties"
 
           yes | "$SDKMANAGER" --licenses >/dev/null 2>&1 || true
@@ -116,13 +140,16 @@ workflows:
 
           if [ ! -x "$GRADLE_DIR/bin/gradle" ]; then
             rm -f /tmp/gradle.zip
+
             curl --fail --location --retry 3 \
               "https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip" \
               -o /tmp/gradle.zip
+
             unzip -q -o /tmp/gradle.zip -d "$HOME"
           fi
 
           echo "GRADLE_BIN=$GRADLE_DIR/bin/gradle" >> "$CM_ENV"
+
           "$GRADLE_DIR/bin/gradle" --version
 
       - name: Validate release signing
@@ -149,7 +176,7 @@ workflows:
 
           echo "Release signing ready"
 
-      - name: Build SYSTEM V14 PERMISSIONS FIX APK and AAB
+      - name: Build MANAGER HOME V15 APK and AAB
         script: |
           set -euo pipefail
 
@@ -167,8 +194,17 @@ workflows:
             :app:assembleRelease \
             :app:bundleRelease
 
-          APK_FILE="$(find app/build/outputs/apk/release -type f -name '*.apk' | head -n 1 || true)"
-          AAB_FILE="$(find app/build/outputs/bundle/release -type f -name '*.aab' | head -n 1 || true)"
+          APK_FILE="$(find \
+            app/build/outputs/apk/release \
+            -type f \
+            -name '*.apk' \
+            | head -n 1 || true)"
+
+          AAB_FILE="$(find \
+            app/build/outputs/bundle/release \
+            -type f \
+            -name '*.aab' \
+            | head -n 1 || true)"
 
           if [ -z "$APK_FILE" ] || [ ! -f "$APK_FILE" ]; then
             echo "ERROR: APK was not generated"
@@ -182,14 +218,18 @@ workflows:
 
           mkdir -p "$CM_BUILD_DIR/release"
 
-          cp "$APK_FILE" "$CM_BUILD_DIR/release/Tahalil-Alakkad-SYSTEM-V14-PERMISSIONS-FIX.apk"
-          cp "$AAB_FILE" "$CM_BUILD_DIR/release/Tahalil-Alakkad-SYSTEM-V14-PERMISSIONS-FIX.aab"
+          cp "$APK_FILE" \
+            "$CM_BUILD_DIR/release/Tahalil-Alakkad-MANAGER-HOME-V15.apk"
+
+          cp "$AAB_FILE" \
+            "$CM_BUILD_DIR/release/Tahalil-Alakkad-MANAGER-HOME-V15.aab"
 
           echo ""
           echo "======================================"
           echo "BUILD SUCCESSFUL"
-          echo "SYSTEM V14 PERMISSIONS FIX"
+          echo "MANAGER HOME V15"
           echo "======================================"
+
           ls -lh "$CM_BUILD_DIR/release"
 
     artifacts:
