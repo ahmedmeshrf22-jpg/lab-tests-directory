@@ -1,6 +1,6 @@
 workflows:
   android-release:
-    name: Build Tahalil Alakkad CUSTOMER CONTROL V11
+    name: Build Tahalil Alakkad USER SETTINGS V12
     instance_type: mac_mini_m2
     max_build_duration: 60
 
@@ -10,25 +10,27 @@ workflows:
         - tahalil_alakkad_release
 
     scripts:
-      - name: Extract CUSTOMER CONTROL V11
+      - name: Extract USER SETTINGS V12
         script: |
           set -euo pipefail
 
-          ZIP_FILE="$CM_BUILD_DIR/Project3_AK_SECURE_CUSTOMER_CONTROL_V11.zip"
+          ZIP_FILE="$CM_BUILD_DIR/Project3_AK_SECURE_USER_SETTINGS_V12.zip"
           WORK_DIR="$CM_BUILD_DIR/android_project"
 
           rm -rf "$WORK_DIR"
           mkdir -p "$WORK_DIR"
 
           if [ ! -f "$ZIP_FILE" ]; then
-            echo "ERROR: Project3_AK_SECURE_CUSTOMER_CONTROL_V11.zip not found"
+            echo "ERROR: Project3_AK_SECURE_USER_SETTINGS_V12.zip not found"
             ls -lah "$CM_BUILD_DIR"
             exit 1
           fi
 
           unzip -q -o "$ZIP_FILE" -d "$WORK_DIR"
 
-          SETTINGS_FILE="$(find "$WORK_DIR" -name "settings.gradle.kts" -type f | head -n 1 || true)"
+          SETTINGS_FILE="$(find "$WORK_DIR" \
+            -name "settings.gradle.kts" \
+            -type f | head -n 1 || true)"
 
           if [ -z "$SETTINGS_FILE" ]; then
             echo "ERROR: settings.gradle.kts not found"
@@ -36,41 +38,62 @@ workflows:
           fi
 
           PROJECT_DIR="$(dirname "$SETTINGS_FILE")"
+
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$CM_ENV"
 
           echo "======================================"
-          echo "CUSTOMER CONTROL V11"
+          echo "USER SETTINGS V12"
           echo "$PROJECT_DIR"
           echo "======================================"
 
-      - name: Verify CUSTOMER CONTROL V11
+      - name: Verify USER SETTINGS V12
         script: |
           set -euo pipefail
 
           test -f "$PROJECT_DIR/app/build.gradle.kts"
           test -f "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
           test -f "$PROJECT_DIR/app/src/main/java/com/example/MainActivity.kt"
+          test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+          test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/UserSettingsDialog.kt"
           test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/CustomerSystemDialog.kt"
-          test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
+          test -f "$PROJECT_DIR/app/src/main/java/com/example/settings/AppSettings.kt"
           test -f "$PROJECT_DIR/app/src/main/java/com/example/data/model/Customer.kt"
 
-          grep -q 'versionCode = 15' \
+          grep -q 'versionCode = 16' \
             "$PROJECT_DIR/app/build.gradle.kts"
+
+          grep -q 'UserSettingsDialog' \
+            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+
+          grep -q 'unlockMode' \
+            "$PROJECT_DIR/app/src/main/java/com/example/ui/UserSettingsDialog.kt"
+
+          grep -q 'PIN' \
+            "$PROJECT_DIR/app/src/main/java/com/example/ui/UserSettingsDialog.kt"
+
+          grep -q 'fontScale' \
+            "$PROJECT_DIR/app/src/main/java/com/example/ui/UserSettingsDialog.kt"
+
+          grep -q 'darkMode' \
+            "$PROJECT_DIR/app/src/main/java/com/example/ui/UserSettingsDialog.kt"
+
+          grep -q 'showEnglishName' \
+            "$PROJECT_DIR/app/src/main/java/com/example/ui/UserSettingsDialog.kt"
+
+          grep -q 'showArabicName' \
+            "$PROJECT_DIR/app/src/main/java/com/example/ui/UserSettingsDialog.kt"
+
+          grep -q 'showMarketName' \
+            "$PROJECT_DIR/app/src/main/java/com/example/ui/UserSettingsDialog.kt"
+
+          grep -q 'autoLockSeconds' \
+            "$PROJECT_DIR/app/src/main/java/com/example/settings/AppSettings.kt"
 
           grep -q 'isBlacklisted' \
             "$PROJECT_DIR/app/src/main/java/com/example/data/model/Customer.kt"
 
-          grep -q 'blacklistReason' \
-            "$PROJECT_DIR/app/src/main/java/com/example/data/model/Customer.kt"
-
           grep -q 'isArchived' \
             "$PROJECT_DIR/app/src/main/java/com/example/data/model/Customer.kt"
-
-          grep -q 'setCustomerBlacklist' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
-
-          grep -q 'setCustomerArchived' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
 
           grep -q 'FLAG_SECURE' \
             "$PROJECT_DIR/app/src/main/java/com/example/MainActivity.kt"
@@ -87,7 +110,7 @@ workflows:
           grep -q 'isShrinkResources = true' \
             "$PROJECT_DIR/app/build.gradle.kts"
 
-          echo "CUSTOMER CONTROL V11 verification passed"
+          echo "USER SETTINGS V12 verification passed"
 
       - name: Configure Android SDK
         script: |
@@ -158,7 +181,7 @@ workflows:
 
           echo "Release signing ready"
 
-      - name: Build CUSTOMER CONTROL V11 APK and AAB
+      - name: Build USER SETTINGS V12 APK and AAB
         script: |
           set -euo pipefail
 
@@ -176,8 +199,17 @@ workflows:
             :app:assembleRelease \
             :app:bundleRelease
 
-          APK_FILE="$(find app/build/outputs/apk/release -type f -name '*.apk' | head -n 1 || true)"
-          AAB_FILE="$(find app/build/outputs/bundle/release -type f -name '*.aab' | head -n 1 || true)"
+          APK_FILE="$(find \
+            app/build/outputs/apk/release \
+            -type f \
+            -name '*.apk' \
+            | head -n 1 || true)"
+
+          AAB_FILE="$(find \
+            app/build/outputs/bundle/release \
+            -type f \
+            -name '*.aab' \
+            | head -n 1 || true)"
 
           if [ -z "$APK_FILE" ] || [ ! -f "$APK_FILE" ]; then
             echo "ERROR: APK was not generated"
@@ -192,15 +224,15 @@ workflows:
           mkdir -p "$CM_BUILD_DIR/release"
 
           cp "$APK_FILE" \
-            "$CM_BUILD_DIR/release/Tahalil-Alakkad-CUSTOMER-CONTROL-V11.apk"
+            "$CM_BUILD_DIR/release/Tahalil-Alakkad-USER-SETTINGS-V12.apk"
 
           cp "$AAB_FILE" \
-            "$CM_BUILD_DIR/release/Tahalil-Alakkad-CUSTOMER-CONTROL-V11.aab"
+            "$CM_BUILD_DIR/release/Tahalil-Alakkad-USER-SETTINGS-V12.aab"
 
           echo ""
           echo "======================================"
           echo "BUILD SUCCESSFUL"
-          echo "CUSTOMER CONTROL V11"
+          echo "USER SETTINGS V12"
           echo "======================================"
 
           ls -lh "$CM_BUILD_DIR/release"
