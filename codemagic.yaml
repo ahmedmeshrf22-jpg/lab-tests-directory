@@ -1,6 +1,6 @@
 workflows:
   android-release:
-    name: Build Tahalil Alakkad PRO ORDERS V9
+    name: Build Tahalil Alakkad DASHBOARD V10
     instance_type: mac_mini_m2
     max_build_duration: 60
 
@@ -10,18 +10,18 @@ workflows:
         - tahalil_alakkad_release
 
     scripts:
-      - name: Extract PRO ORDERS V9 project
+      - name: Extract DASHBOARD V10 project
         script: |
           set -euo pipefail
 
-          ZIP_FILE="$CM_BUILD_DIR/Project3_AK_SECURE_PRO_ORDERS_V9.zip"
+          ZIP_FILE="$CM_BUILD_DIR/Project3_AK_SECURE_DASHBOARD_V10.zip"
           WORK_DIR="$CM_BUILD_DIR/android_project"
 
           rm -rf "$WORK_DIR"
           mkdir -p "$WORK_DIR"
 
           if [ ! -f "$ZIP_FILE" ]; then
-            echo "ERROR: Project3_AK_SECURE_PRO_ORDERS_V9.zip not found"
+            echo "ERROR: Project3_AK_SECURE_DASHBOARD_V10.zip not found"
             ls -lah "$CM_BUILD_DIR"
             exit 1
           fi
@@ -38,11 +38,13 @@ workflows:
           PROJECT_DIR="$(dirname "$SETTINGS_FILE")"
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$CM_ENV"
 
-          echo "Using project:"
+          echo "======================================"
+          echo "DASHBOARD V10 PROJECT"
           echo "$PROJECT_DIR"
+          echo "======================================"
 
 
-      - name: Verify PRO ORDERS V9
+      - name: Verify DASHBOARD V10
         script: |
           set -euo pipefail
 
@@ -50,20 +52,31 @@ workflows:
           test -f "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
           test -f "$PROJECT_DIR/app/src/main/java/com/example/MainActivity.kt"
           test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-          test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/CustomerSystemDialog.kt"
           test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
           test -f "$PROJECT_DIR/app/src/main/java/com/example/data/model/Customer.kt"
 
-          grep -q 'versionCode = 13' \
+          grep -q 'versionCode = 14' \
             "$PROJECT_DIR/app/build.gradle.kts"
 
           grep -q 'ProfessionalOrderCheckoutDialog' \
             "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
 
-          grep -q 'saveCustomerOrderAdvanced' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
+          grep -q 'discountPercent' \
+            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
 
-          grep -q 'discountAmount' \
+          grep -q 'قبل الخصم' \
+            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+
+          grep -q 'بعد الخصم' \
+            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+
+          grep -q 'مبلغ الخصم' \
+            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+
+          grep -q 'نسبة الخصم' \
+            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+
+          grep -q 'discountPercent' \
             "$PROJECT_DIR/app/src/main/java/com/example/data/model/Customer.kt"
 
           grep -q 'paymentStatus' \
@@ -74,9 +87,6 @@ workflows:
 
           grep -q 'remainingAmount' \
             "$PROJECT_DIR/app/src/main/java/com/example/data/model/Customer.kt"
-
-          grep -q 'حفظ ومشاركة PDF' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
 
           grep -q 'FLAG_SECURE' \
             "$PROJECT_DIR/app/src/main/java/com/example/MainActivity.kt"
@@ -93,7 +103,7 @@ workflows:
           grep -q 'isShrinkResources = true' \
             "$PROJECT_DIR/app/build.gradle.kts"
 
-          echo "PRO ORDERS V9 verification passed"
+          echo "DASHBOARD V10 verification passed"
 
 
       - name: Configure Android SDK
@@ -168,7 +178,7 @@ workflows:
           echo "Release signing ready"
 
 
-      - name: Build PRO ORDERS V9 APK and AAB
+      - name: Build DASHBOARD V10 APK and AAB
         script: |
           set -euo pipefail
 
@@ -186,17 +196,8 @@ workflows:
             :app:assembleRelease \
             :app:bundleRelease
 
-          APK_FILE="$(find \
-            app/build/outputs/apk/release \
-            -type f \
-            -name '*.apk' \
-            | head -n 1 || true)"
-
-          AAB_FILE="$(find \
-            app/build/outputs/bundle/release \
-            -type f \
-            -name '*.aab' \
-            | head -n 1 || true)"
+          APK_FILE="$(find app/build/outputs/apk/release -type f -name '*.apk' | head -n 1 || true)"
+          AAB_FILE="$(find app/build/outputs/bundle/release -type f -name '*.aab' | head -n 1 || true)"
 
           if [ -z "$APK_FILE" ] || [ ! -f "$APK_FILE" ]; then
             echo "ERROR: APK was not generated"
@@ -211,15 +212,15 @@ workflows:
           mkdir -p "$CM_BUILD_DIR/release"
 
           cp "$APK_FILE" \
-            "$CM_BUILD_DIR/release/Tahalil-Alakkad-PRO-ORDERS-V9.apk"
+            "$CM_BUILD_DIR/release/Tahalil-Alakkad-DASHBOARD-V10.apk"
 
           cp "$AAB_FILE" \
-            "$CM_BUILD_DIR/release/Tahalil-Alakkad-PRO-ORDERS-V9.aab"
+            "$CM_BUILD_DIR/release/Tahalil-Alakkad-DASHBOARD-V10.aab"
 
           echo ""
           echo "======================================"
           echo "BUILD SUCCESSFUL"
-          echo "PRO ORDERS V9"
+          echo "DASHBOARD V10"
           echo "======================================"
 
           ls -lh "$CM_BUILD_DIR/release"
