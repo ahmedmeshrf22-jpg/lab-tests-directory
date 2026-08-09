@@ -1,6 +1,6 @@
 workflows:
   android-release:
-    name: Build Tahalil Alakkad DASHBOARD V10 FIXED
+    name: Build Tahalil Alakkad CUSTOMER CONTROL V11
     instance_type: mac_mini_m2
     max_build_duration: 60
 
@@ -10,25 +10,27 @@ workflows:
         - tahalil_alakkad_release
 
     scripts:
-      - name: Extract DASHBOARD V10 FIXED project
+      - name: Extract CUSTOMER CONTROL V11
         script: |
           set -euo pipefail
 
-          ZIP_FILE="$CM_BUILD_DIR/Project3_AK_SECURE_DASHBOARD_V10_FIXED.zip"
+          ZIP_FILE="$CM_BUILD_DIR/Project3_AK_SECURE_CUSTOMER_CONTROL_V11.zip"
           WORK_DIR="$CM_BUILD_DIR/android_project"
 
           rm -rf "$WORK_DIR"
           mkdir -p "$WORK_DIR"
 
           if [ ! -f "$ZIP_FILE" ]; then
-            echo "ERROR: Project3_AK_SECURE_DASHBOARD_V10_FIXED.zip not found"
+            echo "ERROR: Project3_AK_SECURE_CUSTOMER_CONTROL_V11.zip not found"
             ls -lah "$CM_BUILD_DIR"
             exit 1
           fi
 
           unzip -q -o "$ZIP_FILE" -d "$WORK_DIR"
 
-          SETTINGS_FILE="$(find "$WORK_DIR" -name "settings.gradle.kts" -type f | head -n 1 || true)"
+          SETTINGS_FILE="$(find "$WORK_DIR" \
+            -name "settings.gradle.kts" \
+            -type f | head -n 1 || true)"
 
           if [ -z "$SETTINGS_FILE" ]; then
             echo "ERROR: settings.gradle.kts not found"
@@ -40,25 +42,52 @@ workflows:
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$CM_ENV"
 
           echo "======================================"
-          echo "DASHBOARD V10 FIXED"
+          echo "CUSTOMER CONTROL V11"
           echo "$PROJECT_DIR"
           echo "======================================"
 
-      - name: Verify project
+      - name: Verify CUSTOMER CONTROL V11
         script: |
           set -euo pipefail
 
-          test -f "$PROJECT_DIR/settings.gradle.kts"
-          test -f "$PROJECT_DIR/build.gradle.kts"
           test -f "$PROJECT_DIR/app/build.gradle.kts"
           test -f "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
           test -f "$PROJECT_DIR/app/src/main/java/com/example/MainActivity.kt"
-          test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+          test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/CustomerSystemDialog.kt"
+          test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
+          test -f "$PROJECT_DIR/app/src/main/java/com/example/data/model/Customer.kt"
 
-          grep -q 'versionCode = 14' \
+          grep -q 'versionCode = 15' \
             "$PROJECT_DIR/app/build.gradle.kts"
 
-          echo "V10 FIXED project verified"
+          grep -q 'isBlacklisted' \
+            "$PROJECT_DIR/app/src/main/java/com/example/data/model/Customer.kt"
+
+          grep -q 'isDeleted' \
+            "$PROJECT_DIR/app/src/main/java/com/example/data/model/Customer.kt"
+
+          grep -q 'blacklist' \
+            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
+
+          grep -q 'restore' \
+            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
+
+          grep -q 'FLAG_SECURE' \
+            "$PROJECT_DIR/app/src/main/java/com/example/MainActivity.kt"
+
+          grep -q 'android:allowBackup="false"' \
+            "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
+
+          grep -q 'android:usesCleartextTraffic="false"' \
+            "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
+
+          grep -q 'isMinifyEnabled = true' \
+            "$PROJECT_DIR/app/build.gradle.kts"
+
+          grep -q 'isShrinkResources = true' \
+            "$PROJECT_DIR/app/build.gradle.kts"
+
+          echo "CUSTOMER CONTROL V11 verification passed"
 
       - name: Configure Android SDK
         script: |
@@ -109,7 +138,8 @@ workflows:
         script: |
           set -euo pipefail
 
-          if [ -z "${CM_KEYSTORE_PATH:-}" ] || [ ! -f "$CM_KEYSTORE_PATH" ]; then
+          if [ -z "${CM_KEYSTORE_PATH:-}" ] || \
+             [ ! -f "$CM_KEYSTORE_PATH" ]; then
             echo "ERROR: Release keystore missing"
             exit 1
           fi
@@ -129,7 +159,7 @@ workflows:
 
           echo "Release signing ready"
 
-      - name: Build DASHBOARD V10 FIXED APK and AAB
+      - name: Build CUSTOMER CONTROL V11 APK and AAB
         script: |
           set -euo pipefail
 
@@ -147,8 +177,17 @@ workflows:
             :app:assembleRelease \
             :app:bundleRelease
 
-          APK_FILE="$(find app/build/outputs/apk/release -type f -name '*.apk' | head -n 1 || true)"
-          AAB_FILE="$(find app/build/outputs/bundle/release -type f -name '*.aab' | head -n 1 || true)"
+          APK_FILE="$(find \
+            app/build/outputs/apk/release \
+            -type f \
+            -name '*.apk' \
+            | head -n 1 || true)"
+
+          AAB_FILE="$(find \
+            app/build/outputs/bundle/release \
+            -type f \
+            -name '*.aab' \
+            | head -n 1 || true)"
 
           if [ -z "$APK_FILE" ] || [ ! -f "$APK_FILE" ]; then
             echo "ERROR: APK was not generated"
@@ -163,15 +202,15 @@ workflows:
           mkdir -p "$CM_BUILD_DIR/release"
 
           cp "$APK_FILE" \
-            "$CM_BUILD_DIR/release/Tahalil-Alakkad-DASHBOARD-V10-FIXED.apk"
+            "$CM_BUILD_DIR/release/Tahalil-Alakkad-CUSTOMER-CONTROL-V11.apk"
 
           cp "$AAB_FILE" \
-            "$CM_BUILD_DIR/release/Tahalil-Alakkad-DASHBOARD-V10-FIXED.aab"
+            "$CM_BUILD_DIR/release/Tahalil-Alakkad-CUSTOMER-CONTROL-V11.aab"
 
           echo ""
           echo "======================================"
           echo "BUILD SUCCESSFUL"
-          echo "DASHBOARD V10 FIXED"
+          echo "CUSTOMER CONTROL V11"
           echo "======================================"
 
           ls -lh "$CM_BUILD_DIR/release"
