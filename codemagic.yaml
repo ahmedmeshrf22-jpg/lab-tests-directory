@@ -1,6 +1,6 @@
 workflows:
   android-release:
-    name: Build Tahalil Alakkad USER SETTINGS V12
+    name: Build Tahalil Alakkad CUSTOMER SEARCH V13
     instance_type: mac_mini_m2
     max_build_duration: 60
 
@@ -10,18 +10,18 @@ workflows:
         - tahalil_alakkad_release
 
     scripts:
-      - name: Extract USER SETTINGS V12
+      - name: Extract CUSTOMER SEARCH V13
         script: |
           set -euo pipefail
 
-          ZIP_FILE="$CM_BUILD_DIR/Project3_AK_SECURE_USER_SETTINGS_V12.zip"
+          ZIP_FILE="$CM_BUILD_DIR/Project3_AK_SECURE_CUSTOMER_SEARCH_V13.zip"
           WORK_DIR="$CM_BUILD_DIR/android_project"
 
           rm -rf "$WORK_DIR"
           mkdir -p "$WORK_DIR"
 
           if [ ! -f "$ZIP_FILE" ]; then
-            echo "ERROR: Project3_AK_SECURE_USER_SETTINGS_V12.zip not found"
+            echo "ERROR: Project3_AK_SECURE_CUSTOMER_SEARCH_V13.zip not found"
             ls -lah "$CM_BUILD_DIR"
             exit 1
           fi
@@ -38,56 +38,26 @@ workflows:
           fi
 
           PROJECT_DIR="$(dirname "$SETTINGS_FILE")"
-
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$CM_ENV"
 
           echo "======================================"
-          echo "USER SETTINGS V12"
+          echo "CUSTOMER SEARCH V13"
           echo "$PROJECT_DIR"
           echo "======================================"
 
-      - name: Verify USER SETTINGS V12
+      - name: Verify CUSTOMER SEARCH V13
         script: |
           set -euo pipefail
 
           test -f "$PROJECT_DIR/app/build.gradle.kts"
           test -f "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
           test -f "$PROJECT_DIR/app/src/main/java/com/example/MainActivity.kt"
-          test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-          test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/UserSettingsDialog.kt"
           test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/CustomerSystemDialog.kt"
-          test -f "$PROJECT_DIR/app/src/main/java/com/example/settings/AppSettings.kt"
+          test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
           test -f "$PROJECT_DIR/app/src/main/java/com/example/data/model/Customer.kt"
 
-          grep -q 'versionCode = 16' \
+          grep -q 'versionCode = 17' \
             "$PROJECT_DIR/app/build.gradle.kts"
-
-          grep -q 'UserSettingsDialog' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-
-          grep -q 'unlockMode' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/UserSettingsDialog.kt"
-
-          grep -q 'PIN' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/UserSettingsDialog.kt"
-
-          grep -q 'fontScale' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/UserSettingsDialog.kt"
-
-          grep -q 'darkMode' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/UserSettingsDialog.kt"
-
-          grep -q 'showEnglishName' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/UserSettingsDialog.kt"
-
-          grep -q 'showArabicName' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/UserSettingsDialog.kt"
-
-          grep -q 'showMarketName' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/UserSettingsDialog.kt"
-
-          grep -q 'autoLockSeconds' \
-            "$PROJECT_DIR/app/src/main/java/com/example/settings/AppSettings.kt"
 
           grep -q 'isBlacklisted' \
             "$PROJECT_DIR/app/src/main/java/com/example/data/model/Customer.kt"
@@ -110,7 +80,7 @@ workflows:
           grep -q 'isShrinkResources = true' \
             "$PROJECT_DIR/app/build.gradle.kts"
 
-          echo "USER SETTINGS V12 verification passed"
+          echo "CUSTOMER SEARCH V13 verification passed"
 
       - name: Configure Android SDK
         script: |
@@ -161,7 +131,8 @@ workflows:
         script: |
           set -euo pipefail
 
-          if [ -z "${CM_KEYSTORE_PATH:-}" ] || [ ! -f "$CM_KEYSTORE_PATH" ]; then
+          if [ -z "${CM_KEYSTORE_PATH:-}" ] || \
+             [ ! -f "$CM_KEYSTORE_PATH" ]; then
             echo "ERROR: Release keystore missing"
             exit 1
           fi
@@ -181,7 +152,7 @@ workflows:
 
           echo "Release signing ready"
 
-      - name: Build USER SETTINGS V12 APK and AAB
+      - name: Build CUSTOMER SEARCH V13 APK and AAB
         script: |
           set -euo pipefail
 
@@ -224,15 +195,15 @@ workflows:
           mkdir -p "$CM_BUILD_DIR/release"
 
           cp "$APK_FILE" \
-            "$CM_BUILD_DIR/release/Tahalil-Alakkad-USER-SETTINGS-V12.apk"
+            "$CM_BUILD_DIR/release/Tahalil-Alakkad-CUSTOMER-SEARCH-V13.apk"
 
           cp "$AAB_FILE" \
-            "$CM_BUILD_DIR/release/Tahalil-Alakkad-USER-SETTINGS-V12.aab"
+            "$CM_BUILD_DIR/release/Tahalil-Alakkad-CUSTOMER-SEARCH-V13.aab"
 
           echo ""
           echo "======================================"
           echo "BUILD SUCCESSFUL"
-          echo "USER SETTINGS V12"
+          echo "CUSTOMER SEARCH V13"
           echo "======================================"
 
           ls -lh "$CM_BUILD_DIR/release"
