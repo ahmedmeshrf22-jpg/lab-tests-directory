@@ -1,6 +1,6 @@
 workflows:
   android-release:
-    name: Build Tahalil Alakkad SYSTEM V14
+    name: Build Tahalil Alakkad SYSTEM V14 PERMISSIONS FIX
     instance_type: mac_mini_m2
     max_build_duration: 60
 
@@ -14,14 +14,14 @@ workflows:
         script: |
           set -euo pipefail
 
-          ZIP_FILE="$CM_BUILD_DIR/Project3_AK_SECURE_SYSTEM_V14.zip"
+          ZIP_FILE="$CM_BUILD_DIR/Project3_AK_SECURE_SYSTEM_V14_PERMISSIONS_FIXED.zip"
           WORK_DIR="$CM_BUILD_DIR/android_project"
 
           rm -rf "$WORK_DIR"
           mkdir -p "$WORK_DIR"
 
           if [ ! -f "$ZIP_FILE" ]; then
-            echo "ERROR: Project3_AK_SECURE_SYSTEM_V14.zip not found"
+            echo "ERROR: Project3_AK_SECURE_SYSTEM_V14_PERMISSIONS_FIXED.zip not found"
             ls -lah "$CM_BUILD_DIR"
             exit 1
           fi
@@ -39,11 +39,11 @@ workflows:
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$CM_ENV"
 
           echo "======================================"
-          echo "SYSTEM V14 PROJECT"
+          echo "SYSTEM V14 PERMISSIONS FIX PROJECT"
           echo "$PROJECT_DIR"
           echo "======================================"
 
-      - name: Verify SYSTEM V14
+      - name: Verify SYSTEM V14 PERMISSIONS FIX
         script: |
           set -euo pipefail
 
@@ -59,8 +59,8 @@ workflows:
           test -f "$PROJECT_DIR/app/src/main/java/com/example/data/model/SystemModels.kt"
           test -f "$PROJECT_DIR/firestore.rules"
 
-          grep -q 'versionCode = 18' "$PROJECT_DIR/app/build.gradle.kts"
-          grep -q 'versionName = "3.0-system-v14"' "$PROJECT_DIR/app/build.gradle.kts"
+          grep -q 'versionCode = 19' "$PROJECT_DIR/app/build.gradle.kts"
+          grep -q 'versionName = "3.0-system-v14-permissions-fix"' "$PROJECT_DIR/app/build.gradle.kts"
           grep -q 'alternatePhone' "$PROJECT_DIR/app/src/main/java/com/example/data/model/Customer.kt"
           grep -q 'defaultDiscountPercent' "$PROJECT_DIR/app/src/main/java/com/example/data/model/Customer.kt"
           grep -q 'loadCustomerActivity' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
@@ -69,6 +69,12 @@ workflows:
           grep -q 'loadAuditLogs' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
           grep -q 'createUserAccount' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
           grep -q 'OperationsV14Dialog' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+          grep -q 'showOperationsV14 && isManager' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+          grep -q 'التقارير والحسابات العامة متاحة لعبدالرحمن فقط' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
+          grep -q 'التقارير والحسابات العامة: عبدالرحمن فقط' "$PROJECT_DIR/app/src/main/java/com/example/ui/OperationsV14Dialog.kt"
+          grep -q 'request.resource.data.can_view_sales_reports == false' "$PROJECT_DIR/firestore.rules"
+          grep -q 'allow read: if isManager();' "$PROJECT_DIR/firestore.rules"
+          ! grep -q 'مبيعات • تحصيل • مديونيات • تقارير' "$PROJECT_DIR/app/src/main/java/com/example/ui/OperationsV14Dialog.kt"
           grep -q 'isBlacklisted' "$PROJECT_DIR/app/src/main/java/com/example/ui/CustomerSystemDialog.kt"
           grep -q 'FLAG_SECURE' "$PROJECT_DIR/app/src/main/java/com/example/MainActivity.kt"
           grep -q 'android:allowBackup="false"' "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
@@ -143,7 +149,7 @@ workflows:
 
           echo "Release signing ready"
 
-      - name: Build SYSTEM V14 APK and AAB
+      - name: Build SYSTEM V14 PERMISSIONS FIX APK and AAB
         script: |
           set -euo pipefail
 
@@ -176,13 +182,13 @@ workflows:
 
           mkdir -p "$CM_BUILD_DIR/release"
 
-          cp "$APK_FILE" "$CM_BUILD_DIR/release/Tahalil-Alakkad-SYSTEM-V14.apk"
-          cp "$AAB_FILE" "$CM_BUILD_DIR/release/Tahalil-Alakkad-SYSTEM-V14.aab"
+          cp "$APK_FILE" "$CM_BUILD_DIR/release/Tahalil-Alakkad-SYSTEM-V14-PERMISSIONS-FIX.apk"
+          cp "$AAB_FILE" "$CM_BUILD_DIR/release/Tahalil-Alakkad-SYSTEM-V14-PERMISSIONS-FIX.aab"
 
           echo ""
           echo "======================================"
           echo "BUILD SUCCESSFUL"
-          echo "SYSTEM V14"
+          echo "SYSTEM V14 PERMISSIONS FIX"
           echo "======================================"
           ls -lh "$CM_BUILD_DIR/release"
 
