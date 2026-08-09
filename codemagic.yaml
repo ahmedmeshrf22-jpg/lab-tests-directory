@@ -49,13 +49,19 @@ workflows:
 
           test -f "$PROJECT_DIR/app/build.gradle.kts"
           test -f "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
+          test -f "$PROJECT_DIR/app/src/main/res/values/strings.xml"
           test -f "$PROJECT_DIR/app/src/main/java/com/example/MainActivity.kt"
-          test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
 
           grep -q 'versionCode = 24' \
             "$PROJECT_DIR/app/build.gradle.kts"
 
-          grep -q 'تحاليل العقاد' \
+          grep -q 'versionName = "3.5-app-name-v19"' \
+            "$PROJECT_DIR/app/build.gradle.kts"
+
+          grep -q '<string name="app_name">تحاليل العقاد</string>' \
+            "$PROJECT_DIR/app/src/main/res/values/strings.xml"
+
+          grep -q 'android:label="@string/app_name"' \
             "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
 
           grep -q 'FLAG_SECURE' \
@@ -162,17 +168,8 @@ workflows:
             :app:assembleRelease \
             :app:bundleRelease
 
-          APK_FILE="$(find \
-            app/build/outputs/apk/release \
-            -type f \
-            -name '*.apk' \
-            | head -n 1 || true)"
-
-          AAB_FILE="$(find \
-            app/build/outputs/bundle/release \
-            -type f \
-            -name '*.aab' \
-            | head -n 1 || true)"
+          APK_FILE="$(find app/build/outputs/apk/release -type f -name '*.apk' | head -n 1 || true)"
+          AAB_FILE="$(find app/build/outputs/bundle/release -type f -name '*.aab' | head -n 1 || true)"
 
           if [ -z "$APK_FILE" ] || [ ! -f "$APK_FILE" ]; then
             echo "ERROR: APK was not generated"
