@@ -1,6 +1,6 @@
 workflows:
   android-release:
-    name: Build Tahalil Alakkad CUSTOMERS V6 FIXED
+    name: Build Tahalil Alakkad CUSTOMER HISTORY V7
     instance_type: mac_mini_m2
     max_build_duration: 60
 
@@ -10,18 +10,18 @@ workflows:
         - tahalil_alakkad_release
 
     scripts:
-      - name: Extract CUSTOMERS V6 FIXED project
+      - name: Extract CUSTOMER HISTORY V7 project
         script: |
           set -euo pipefail
 
-          ZIP_FILE="$CM_BUILD_DIR/Project3_AK_SECURE_CUSTOMERS_V6_FIXED.zip"
+          ZIP_FILE="$CM_BUILD_DIR/Project3_AK_SECURE_CUSTOMER_HISTORY_V7.zip"
           WORK_DIR="$CM_BUILD_DIR/android_project"
 
           rm -rf "$WORK_DIR"
           mkdir -p "$WORK_DIR"
 
           if [ ! -f "$ZIP_FILE" ]; then
-            echo "ERROR: Project3_AK_SECURE_CUSTOMERS_V6_FIXED.zip not found"
+            echo "ERROR: Project3_AK_SECURE_CUSTOMER_HISTORY_V7.zip not found"
             ls -lah "$CM_BUILD_DIR"
             exit 1
           fi
@@ -36,13 +36,14 @@ workflows:
           fi
 
           PROJECT_DIR="$(dirname "$SETTINGS_FILE")"
+
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$CM_ENV"
 
           echo "Using project:"
           echo "$PROJECT_DIR"
 
 
-      - name: Verify CUSTOMERS V6 FIXED
+      - name: Verify CUSTOMER HISTORY V7
         script: |
           set -euo pipefail
 
@@ -51,15 +52,11 @@ workflows:
           test -f "$PROJECT_DIR/app/src/main/java/com/example/MainActivity.kt"
           test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/CustomerSystemDialog.kt"
           test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
-          test -f "$PROJECT_DIR/app/src/main/java/com/example/data/model/Customer.kt"
 
-          grep -q 'saveCustomer' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
+          grep -q 'versionCode = 11' \
+            "$PROJECT_DIR/app/build.gradle.kts"
 
           grep -q 'saveCustomerOrder' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
-
-          grep -q 'customers' \
             "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
 
           grep -q 'orders' \
@@ -80,7 +77,7 @@ workflows:
           grep -q 'isShrinkResources = true' \
             "$PROJECT_DIR/app/build.gradle.kts"
 
-          echo "CUSTOMERS V6 FIXED verification passed"
+          echo "CUSTOMER HISTORY V7 verification passed"
 
 
       - name: Configure Android SDK
@@ -116,6 +113,7 @@ workflows:
           GRADLE_DIR="$HOME/gradle-$GRADLE_VERSION"
 
           if [ ! -x "$GRADLE_DIR/bin/gradle" ]; then
+
             rm -f /tmp/gradle.zip
 
             curl --fail --location --retry 3 \
@@ -153,10 +151,10 @@ workflows:
             -alias "$CM_KEY_ALIAS" \
             >/dev/null
 
-          echo "Signing ready"
+          echo "Release signing ready"
 
 
-      - name: Build CUSTOMERS V6 FIXED APK and AAB
+      - name: Build CUSTOMER HISTORY V7 APK and AAB
         script: |
           set -euo pipefail
 
@@ -199,15 +197,15 @@ workflows:
           mkdir -p "$CM_BUILD_DIR/release"
 
           cp "$APK_FILE" \
-            "$CM_BUILD_DIR/release/Tahalil-Alakkad-CUSTOMERS-V6-FIXED.apk"
+            "$CM_BUILD_DIR/release/Tahalil-Alakkad-CUSTOMER-HISTORY-V7.apk"
 
           cp "$AAB_FILE" \
-            "$CM_BUILD_DIR/release/Tahalil-Alakkad-CUSTOMERS-V6-FIXED.aab"
+            "$CM_BUILD_DIR/release/Tahalil-Alakkad-CUSTOMER-HISTORY-V7.aab"
 
           echo ""
           echo "======================================"
           echo "BUILD SUCCESSFUL"
-          echo "CUSTOMERS V6 FIXED"
+          echo "CUSTOMER HISTORY V7"
           echo "======================================"
 
           ls -lh "$CM_BUILD_DIR/release"
