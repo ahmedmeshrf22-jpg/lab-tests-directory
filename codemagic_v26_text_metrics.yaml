@@ -1,0 +1,191 @@
+workflows:
+  android-release:
+    name: Build Tahalil Alakkad TEXT METRICS V26
+    instance_type: mac_mini_m2
+    max_build_duration: 60
+
+    environment:
+      java: 17
+      android_signing:
+        - tahalil_alakkad_release
+
+    scripts:
+      - name: Extract TEXT METRICS V26 project
+        script: |
+          set -euo pipefail
+
+          ZIP_FILE="$CM_BUILD_DIR/Project3_AK_SECURE_TEXT_METRICS_V26.zip"
+          WORK_DIR="$CM_BUILD_DIR/android_project"
+
+          rm -rf "$WORK_DIR"
+          mkdir -p "$WORK_DIR"
+
+          if [ ! -f "$ZIP_FILE" ]; then
+            echo "ERROR: Project3_AK_SECURE_TEXT_METRICS_V26.zip not found"
+            ls -lah "$CM_BUILD_DIR"
+            exit 1
+          fi
+
+          unzip -q -o "$ZIP_FILE" -d "$WORK_DIR"
+
+          SETTINGS_FILE="$(find "$WORK_DIR" -name "settings.gradle.kts" -type f | head -n 1 || true)"
+          if [ -z "$SETTINGS_FILE" ]; then
+            echo "ERROR: settings.gradle.kts not found"
+            exit 1
+          fi
+
+          PROJECT_DIR="$(dirname "$SETTINGS_FILE")"
+          echo "PROJECT_DIR=$PROJECT_DIR" >> "$CM_ENV"
+
+      - name: Verify TEXT METRICS V26
+        script: |
+          set -euo pipefail
+
+          test -f "$PROJECT_DIR/app/build.gradle.kts"
+          test -f "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
+          test -f "$PROJECT_DIR/app/src/main/res/values/strings.xml"
+          test -f "$PROJECT_DIR/app/src/main/java/com/example/MainActivity.kt"
+          test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/theme/Type.kt"
+          test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+          test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
+          test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/CustomerSystemDialog.kt"
+          test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/OperationsV14Dialog.kt"
+          test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/LoginScreen.kt"
+          test -f "$PROJECT_DIR/app/src/main/java/com/example/util/PdfGenerator.kt"
+          test -f "$PROJECT_DIR/firestore.rules"
+
+          grep -q 'versionCode = 31' "$PROJECT_DIR/app/build.gradle.kts"
+          grep -q 'versionName = "4.2-text-metrics-v26"' "$PROJECT_DIR/app/build.gradle.kts"
+          grep -q '<string name="app_name">تحاليل العقاد</string>' "$PROJECT_DIR/app/src/main/res/values/strings.xml"
+
+          grep -q 'PlatformTextStyle(includeFontPadding = true)' "$PROJECT_DIR/app/src/main/java/com/example/ui/theme/Type.kt"
+          grep -q 'lineHeight = 26.sp' "$PROJECT_DIR/app/src/main/java/com/example/ui/theme/Type.kt"
+          grep -q 'heightIn(min = 72.dp)' "$PROJECT_DIR/app/src/main/java/com/example/ui/LoginScreen.kt"
+          grep -q 'heightIn(min = 72.dp)' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+          grep -q 'heightIn(min = 72.dp)' "$PROJECT_DIR/app/src/main/java/com/example/ui/CustomerSystemDialog.kt"
+          grep -q 'heightIn(min = 72.dp)' "$PROJECT_DIR/app/src/main/java/com/example/ui/OperationsV14Dialog.kt"
+
+          if grep -R -q 'heightIn(min = 64.dp)' "$PROJECT_DIR/app/src/main/java/com/example/ui"; then
+            echo "ERROR: old 64dp text field height still exists"
+            exit 1
+          fi
+
+          grep -q 'text = "Abdelrahman"' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+          grep -q 'text = "General Manager"' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+          grep -q 'BackHandler' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+          grep -q 'generateAndShareReportPdf' "$PROJECT_DIR/app/src/main/java/com/example/util/PdfGenerator.kt"
+          grep -q 'deviceAccessStatus' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
+          grep -q 'FLAG_SECURE' "$PROJECT_DIR/app/src/main/java/com/example/MainActivity.kt"
+          grep -q 'android:allowBackup="false"' "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
+          grep -q 'android:usesCleartextTraffic="false"' "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
+          grep -q 'isMinifyEnabled = true' "$PROJECT_DIR/app/build.gradle.kts"
+          grep -q 'isShrinkResources = true' "$PROJECT_DIR/app/build.gradle.kts"
+
+          echo "TEXT METRICS V26 verification passed"
+
+      - name: Configure Android SDK
+        script: |
+          set -euo pipefail
+
+          ANDROID_HOME="/usr/local/share/android-sdk"
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+
+          if [ ! -x "$SDKMANAGER" ]; then
+            echo "ERROR: sdkmanager not found"
+            exit 1
+          fi
+
+          echo "ANDROID_HOME=$ANDROID_HOME" >> "$CM_ENV"
+          echo "ANDROID_SDK_ROOT=$ANDROID_HOME" >> "$CM_ENV"
+          echo "sdk.dir=$ANDROID_HOME" > "$PROJECT_DIR/local.properties"
+
+          yes | "$SDKMANAGER" --licenses >/dev/null 2>&1 || true
+
+          "$SDKMANAGER" \
+            "platform-tools" \
+            "platforms;android-36.1" \
+            "build-tools;36.0.0"
+
+      - name: Install Gradle 9.3.1
+        script: |
+          set -euo pipefail
+
+          GRADLE_VERSION="9.3.1"
+          GRADLE_DIR="$HOME/gradle-$GRADLE_VERSION"
+
+          if [ ! -x "$GRADLE_DIR/bin/gradle" ]; then
+            rm -f /tmp/gradle.zip
+            curl --fail --location --retry 3 \
+              "https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip" \
+              -o /tmp/gradle.zip
+            unzip -q -o /tmp/gradle.zip -d "$HOME"
+          fi
+
+          echo "GRADLE_BIN=$GRADLE_DIR/bin/gradle" >> "$CM_ENV"
+          "$GRADLE_DIR/bin/gradle" --version
+
+      - name: Validate release signing
+        script: |
+          set -euo pipefail
+
+          if [ -z "${CM_KEYSTORE_PATH:-}" ] || [ ! -f "$CM_KEYSTORE_PATH" ]; then
+            echo "ERROR: Release keystore missing"
+            exit 1
+          fi
+
+          if [ -z "${CM_KEYSTORE_PASSWORD:-}" ] || \
+             [ -z "${CM_KEY_ALIAS:-}" ] || \
+             [ -z "${CM_KEY_PASSWORD:-}" ]; then
+            echo "ERROR: Signing credentials incomplete"
+            exit 1
+          fi
+
+          keytool -list \
+            -keystore "$CM_KEYSTORE_PATH" \
+            -storepass "$CM_KEYSTORE_PASSWORD" \
+            -alias "$CM_KEY_ALIAS" \
+            >/dev/null
+
+      - name: Build TEXT METRICS V26 APK and AAB
+        script: |
+          set -euo pipefail
+
+          export KEYSTORE_PATH="$CM_KEYSTORE_PATH"
+          export STORE_PASSWORD="$CM_KEYSTORE_PASSWORD"
+          export KEY_PASSWORD="$CM_KEY_PASSWORD"
+          export KEY_ALIAS="$CM_KEY_ALIAS"
+
+          cd "$PROJECT_DIR"
+
+          "$GRADLE_BIN" \
+            --no-daemon \
+            --stacktrace \
+            clean \
+            :app:assembleRelease \
+            :app:bundleRelease
+
+          APK_FILE="$(find app/build/outputs/apk/release -type f -name '*.apk' | head -n 1 || true)"
+          AAB_FILE="$(find app/build/outputs/bundle/release -type f -name '*.aab' | head -n 1 || true)"
+
+          if [ -z "$APK_FILE" ] || [ ! -f "$APK_FILE" ]; then
+            echo "ERROR: APK was not generated"
+            exit 1
+          fi
+
+          if [ -z "$AAB_FILE" ] || [ ! -f "$AAB_FILE" ]; then
+            echo "ERROR: AAB was not generated"
+            exit 1
+          fi
+
+          mkdir -p "$CM_BUILD_DIR/release"
+
+          cp "$APK_FILE" "$CM_BUILD_DIR/release/Tahalil-Alakkad-TEXT-METRICS-V26.apk"
+          cp "$AAB_FILE" "$CM_BUILD_DIR/release/Tahalil-Alakkad-TEXT-METRICS-V26.aab"
+
+          ls -lh "$CM_BUILD_DIR/release"
+
+    artifacts:
+      - release/*.apk
+      - release/*.aab
+      - android_project/**/app/build/outputs/mapping/release/mapping.txt
+      - android_project/**/app/build/outputs/logs/*
