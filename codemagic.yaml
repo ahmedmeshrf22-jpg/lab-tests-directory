@@ -1,6 +1,6 @@
 workflows:
   android-release:
-    name: Build Tahalil Alakkad LANGUAGE OFFLINE V28
+    name: Build Tahalil Alakkad PERFORMANCE RELIABILITY V29
     instance_type: mac_mini_m2
     max_build_duration: 60
 
@@ -10,18 +10,18 @@ workflows:
         - tahalil_alakkad_release
 
     scripts:
-      - name: Extract LANGUAGE OFFLINE V28 project
+      - name: Extract PERFORMANCE RELIABILITY V29 project
         script: |
           set -euo pipefail
 
-          ZIP_FILE="$CM_BUILD_DIR/Project3_AK_SECURE_LANGUAGE_OFFLINE_V28.zip"
+          ZIP_FILE="$CM_BUILD_DIR/Project3_AK_SECURE_PERFORMANCE_RELIABILITY_V29.zip"
           WORK_DIR="$CM_BUILD_DIR/android_project"
 
           rm -rf "$WORK_DIR"
           mkdir -p "$WORK_DIR"
 
           if [ ! -f "$ZIP_FILE" ]; then
-            echo "ERROR: Project3_AK_SECURE_LANGUAGE_OFFLINE_V28.zip not found"
+            echo "ERROR: Project3_AK_SECURE_PERFORMANCE_RELIABILITY_V29.zip not found"
             ls -lah "$CM_BUILD_DIR"
             exit 1
           fi
@@ -38,7 +38,7 @@ workflows:
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$CM_ENV"
           echo "PROJECT_DIR=$PROJECT_DIR"
 
-      - name: Verify LANGUAGE OFFLINE V28
+      - name: Verify PERFORMANCE RELIABILITY V29
         script: |
           set -euo pipefail
 
@@ -49,6 +49,10 @@ workflows:
           test -f "$PROJECT_DIR/app/src/main/java/com/example/settings/AppSettings.kt"
           test -f "$PROJECT_DIR/app/src/main/java/com/example/settings/AppText.kt"
           test -f "$PROJECT_DIR/app/src/main/java/com/example/settings/ConnectivityMonitor.kt"
+          test -f "$PROJECT_DIR/app/src/main/java/com/example/settings/FirestorePerformance.kt"
+          test -f "$PROJECT_DIR/firestore.indexes.json"
+          test -f "$PROJECT_DIR/firebase.json"
+          test -f "$PROJECT_DIR/PERFORMANCE_RELIABILITY_V29_NOTES.txt"
           test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
           test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
           test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/CustomerSystemDialog.kt"
@@ -58,9 +62,19 @@ workflows:
           test -f "$PROJECT_DIR/app/src/main/java/com/example/util/PdfGenerator.kt"
           test -f "$PROJECT_DIR/firestore.rules"
 
-          grep -q 'versionCode = 33' "$PROJECT_DIR/app/build.gradle.kts"
-          grep -q 'versionName = "4.4-language-offline-sync-v28"' "$PROJECT_DIR/app/build.gradle.kts"
+          grep -q 'versionCode = 34' "$PROJECT_DIR/app/build.gradle.kts"
+          grep -q 'versionName = "4.5-performance-reliability-v29"' "$PROJECT_DIR/app/build.gradle.kts"
           grep -q '<string name="app_name">تحاليل العقاد</string>' "$PROJECT_DIR/app/src/main/res/values/strings.xml"
+
+          grep -q 'PersistentCacheSettings.newBuilder()' "$PROJECT_DIR/app/src/main/java/com/example/settings/FirestorePerformance.kt"
+          grep -q 'CACHE_BYTES = 200L' "$PROJECT_DIR/app/src/main/java/com/example/settings/FirestorePerformance.kt"
+          grep -q 'SERVER_PAGE_SIZE = 750L' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
+          grep -q 'loadManagerRemainingPages' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
+          grep -q 'whereGreaterThanOrEqualTo("created_at_ms", startToday)' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
+          grep -q 'whereLessThanOrEqualTo("created_at_ms", toMillis)' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
+          grep -q 'limit(AUDIT_LOG_LIMIT)' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
+          grep -q '"collectionGroup": "orders"' "$PROJECT_DIR/firestore.indexes.json"
+          grep -q '"fieldPath": "created_at_ms"' "$PROJECT_DIR/firestore.indexes.json"
 
           grep -q 'val language: String = "ar"' "$PROJECT_DIR/app/src/main/java/com/example/settings/AppSettings.kt"
           grep -q 'AppLanguageRuntime' "$PROJECT_DIR/app/src/main/java/com/example/settings/AppText.kt"
@@ -82,7 +96,7 @@ workflows:
           grep -q 'waitForPendingWrites' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
 
           if grep -q 'runTransaction' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"; then
-            echo "ERROR: Firestore transaction found; V28 user operations must queue offline"
+            echo "ERROR: Firestore transaction found; V29 user operations must queue offline"
             exit 1
           fi
 
@@ -108,7 +122,7 @@ workflows:
           grep -q 'isMinifyEnabled = true' "$PROJECT_DIR/app/build.gradle.kts"
           grep -q 'isShrinkResources = true' "$PROJECT_DIR/app/build.gradle.kts"
 
-          echo "LANGUAGE OFFLINE V28 verification passed"
+          echo "PERFORMANCE RELIABILITY V29 verification passed"
 
       - name: Configure Android SDK
         script: |
@@ -175,7 +189,7 @@ workflows:
             -alias "$CM_KEY_ALIAS" \
             >/dev/null
 
-      - name: Build LANGUAGE OFFLINE V28 APK and AAB
+      - name: Build PERFORMANCE RELIABILITY V29 APK and AAB
         script: |
           set -euo pipefail
 
@@ -208,8 +222,8 @@ workflows:
 
           mkdir -p "$CM_BUILD_DIR/release"
 
-          cp "$APK_FILE" "$CM_BUILD_DIR/release/Tahalil-Alakkad-LANGUAGE-OFFLINE-V28.apk"
-          cp "$AAB_FILE" "$CM_BUILD_DIR/release/Tahalil-Alakkad-LANGUAGE-OFFLINE-V28.aab"
+          cp "$APK_FILE" "$CM_BUILD_DIR/release/Tahalil-Alakkad-PERFORMANCE-RELIABILITY-V29.apk"
+          cp "$AAB_FILE" "$CM_BUILD_DIR/release/Tahalil-Alakkad-PERFORMANCE-RELIABILITY-V29.aab"
 
           ls -lh "$CM_BUILD_DIR/release"
 
