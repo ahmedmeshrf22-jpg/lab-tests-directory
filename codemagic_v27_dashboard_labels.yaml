@@ -115,9 +115,11 @@ workflows:
 
           if [ ! -x "$GRADLE_DIR/bin/gradle" ]; then
             rm -f /tmp/gradle.zip
+
             curl --fail --location --retry 3 \
               "https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip" \
               -o /tmp/gradle.zip
+
             unzip -q -o /tmp/gradle.zip -d "$HOME"
           fi
 
