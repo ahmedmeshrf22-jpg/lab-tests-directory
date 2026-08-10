@@ -1,6 +1,6 @@
 workflows:
   android-release:
-    name: Build Tahalil Alakkad REPORT CALENDAR PDF V21
+    name: Build Tahalil Alakkad REPORT PDF EMPTY V22
     instance_type: mac_mini_m2
     max_build_duration: 60
 
@@ -10,18 +10,18 @@ workflows:
         - tahalil_alakkad_release
 
     scripts:
-      - name: Extract REPORT CALENDAR PDF V21 project
+      - name: Extract REPORT PDF EMPTY V22 project
         script: |
           set -euo pipefail
 
-          ZIP_FILE="$CM_BUILD_DIR/Project3_AK_SECURE_REPORT_CALENDAR_PDF_V21.zip"
+          ZIP_FILE="$CM_BUILD_DIR/Project3_AK_SECURE_REPORT_PDF_EMPTY_V22.zip"
           WORK_DIR="$CM_BUILD_DIR/android_project"
 
           rm -rf "$WORK_DIR"
           mkdir -p "$WORK_DIR"
 
           if [ ! -f "$ZIP_FILE" ]; then
-            echo "ERROR: Project3_AK_SECURE_REPORT_CALENDAR_PDF_V21.zip not found"
+            echo "ERROR: Project3_AK_SECURE_REPORT_PDF_EMPTY_V22.zip not found"
             ls -lah "$CM_BUILD_DIR"
             exit 1
           fi
@@ -37,7 +37,7 @@ workflows:
           PROJECT_DIR="$(dirname "$SETTINGS_FILE")"
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$CM_ENV"
 
-      - name: Verify REPORT CALENDAR PDF V21
+      - name: Verify REPORT PDF EMPTY V22
         script: |
           set -euo pipefail
 
@@ -49,8 +49,8 @@ workflows:
           test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/OperationsV14Dialog.kt"
           test -f "$PROJECT_DIR/firestore.rules"
 
-          grep -q 'versionCode = 26' "$PROJECT_DIR/app/build.gradle.kts"
-          grep -q 'versionName = "3.7-report-calendar-pdf-v21"' "$PROJECT_DIR/app/build.gradle.kts"
+          grep -q 'versionCode = 27' "$PROJECT_DIR/app/build.gradle.kts"
+          grep -q 'versionName = "3.8-report-pdf-empty-v22"' "$PROJECT_DIR/app/build.gradle.kts"
           grep -q '<string name="app_name">تحاليل العقاد</string>' "$PROJECT_DIR/app/src/main/res/values/strings.xml"
           grep -q 'deviceAccessStatus' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
           grep -q 'approveDevice' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
@@ -66,9 +66,11 @@ workflows:
           grep -q 'ReportDateField' "$PROJECT_DIR/app/src/main/java/com/example/ui/OperationsV14Dialog.kt"
           grep -q 'DatePickerDialog' "$PROJECT_DIR/app/src/main/java/com/example/ui/OperationsV14Dialog.kt"
           grep -q 'generateAndShareReportPdf' "$PROJECT_DIR/app/src/main/java/com/example/util/PdfGenerator.kt"
-          grep -q 'طباعة / مشاركة التقرير PDF' "$PROJECT_DIR/app/src/main/java/com/example/ui/OperationsV14Dialog.kt"
+          grep -q 'طباعة / حفظ / مشاركة التقرير PDF' "$PROJECT_DIR/app/src/main/java/com/example/ui/OperationsV14Dialog.kt"
+          grep -q 'enabled = !loading' "$PROJECT_DIR/app/src/main/java/com/example/ui/OperationsV14Dialog.kt"
+          grep -q 'لا توجد طلبات في الفترة المحددة' "$PROJECT_DIR/app/src/main/java/com/example/util/PdfGenerator.kt"
 
-          echo "REPORT CALENDAR PDF V21 verification passed"
+          echo "REPORT PDF EMPTY V22 verification passed"
 
       - name: Configure Android SDK
         script: |
@@ -117,7 +119,9 @@ workflows:
             exit 1
           fi
 
-          if [ -z "${CM_KEYSTORE_PASSWORD:-}" ] || [ -z "${CM_KEY_ALIAS:-}" ] || [ -z "${CM_KEY_PASSWORD:-}" ]; then
+          if [ -z "${CM_KEYSTORE_PASSWORD:-}" ] || \
+             [ -z "${CM_KEY_ALIAS:-}" ] || \
+             [ -z "${CM_KEY_PASSWORD:-}" ]; then
             echo "ERROR: Signing credentials incomplete"
             exit 1
           fi
@@ -128,7 +132,7 @@ workflows:
             -alias "$CM_KEY_ALIAS" \
             >/dev/null
 
-      - name: Build REPORT CALENDAR PDF V21 APK and AAB
+      - name: Build REPORT PDF EMPTY V22 APK and AAB
         script: |
           set -euo pipefail
 
@@ -162,10 +166,10 @@ workflows:
           mkdir -p "$CM_BUILD_DIR/release"
 
           cp "$APK_FILE" \
-            "$CM_BUILD_DIR/release/Tahalil-Alakkad-REPORT-CALENDAR-PDF-V21.apk"
+            "$CM_BUILD_DIR/release/Tahalil-Alakkad-REPORT-PDF-EMPTY-V22.apk"
 
           cp "$AAB_FILE" \
-            "$CM_BUILD_DIR/release/Tahalil-Alakkad-REPORT-CALENDAR-PDF-V21.aab"
+            "$CM_BUILD_DIR/release/Tahalil-Alakkad-REPORT-PDF-EMPTY-V22.aab"
 
           ls -lh "$CM_BUILD_DIR/release"
 
