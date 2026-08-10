@@ -29,6 +29,7 @@ workflows:
           unzip -q -o "$ZIP_FILE" -d "$WORK_DIR"
 
           SETTINGS_FILE="$(find "$WORK_DIR" -name "settings.gradle.kts" -type f | head -n 1 || true)"
+
           if [ -z "$SETTINGS_FILE" ]; then
             echo "ERROR: settings.gradle.kts not found"
             exit 1
@@ -56,30 +57,63 @@ workflows:
 
           grep -q 'versionCode = 32' "$PROJECT_DIR/app/build.gradle.kts"
           grep -q 'versionName = "4.3-dashboard-card-labels-v27"' "$PROJECT_DIR/app/build.gradle.kts"
-          grep -q '<string name="app_name">تحاليل العقاد</string>' "$PROJECT_DIR/app/src/main/res/values/strings.xml"
 
-          grep -q 'modifier = modifier.heightIn(min = 148.dp)' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-          grep -q 'lineHeight = 22.sp' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-          grep -q 'lineHeight = 16.sp' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-          grep -q 'maxLines = 2' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+          grep -q '<string name="app_name">تحاليل العقاد</string>' \
+            "$PROJECT_DIR/app/src/main/res/values/strings.xml"
 
-          if grep -q 'modifier = modifier.height(116.dp)' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"; then
+          grep -q 'modifier = modifier.heightIn(min = 148.dp)' \
+            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+
+          grep -q 'lineHeight = 22.sp' \
+            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+
+          grep -q 'lineHeight = 16.sp' \
+            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+
+          grep -q 'maxLines = 2' \
+            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+
+          if grep -q 'modifier = modifier.height(116.dp)' \
+            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"; then
             echo "ERROR: old clipped manager card height still exists"
             exit 1
           fi
 
-          grep -q 'PlatformTextStyle(includeFontPadding = true)' "$PROJECT_DIR/app/src/main/java/com/example/ui/theme/Type.kt"
-          grep -q 'heightIn(min = 72.dp)' "$PROJECT_DIR/app/src/main/java/com/example/ui/LoginScreen.kt"
-          grep -q 'text = "Abdelrahman"' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-          grep -q 'text = "General Manager"' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-          grep -q 'BackHandler' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-          grep -q 'generateAndShareReportPdf' "$PROJECT_DIR/app/src/main/java/com/example/util/PdfGenerator.kt"
-          grep -q 'deviceAccessStatus' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
-          grep -q 'FLAG_SECURE' "$PROJECT_DIR/app/src/main/java/com/example/MainActivity.kt"
-          grep -q 'android:allowBackup="false"' "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
-          grep -q 'android:usesCleartextTraffic="false"' "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
-          grep -q 'isMinifyEnabled = true' "$PROJECT_DIR/app/build.gradle.kts"
-          grep -q 'isShrinkResources = true' "$PROJECT_DIR/app/build.gradle.kts"
+          grep -q 'PlatformTextStyle(includeFontPadding = true)' \
+            "$PROJECT_DIR/app/src/main/java/com/example/ui/theme/Type.kt"
+
+          grep -q 'heightIn(min = 72.dp)' \
+            "$PROJECT_DIR/app/src/main/java/com/example/ui/LoginScreen.kt"
+
+          grep -q 'text = "Abdelrahman"' \
+            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+
+          grep -q 'text = "General Manager"' \
+            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+
+          grep -q 'BackHandler' \
+            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+
+          grep -q 'generateAndShareReportPdf' \
+            "$PROJECT_DIR/app/src/main/java/com/example/util/PdfGenerator.kt"
+
+          grep -q 'deviceAccessStatus' \
+            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
+
+          grep -q 'FLAG_SECURE' \
+            "$PROJECT_DIR/app/src/main/java/com/example/MainActivity.kt"
+
+          grep -q 'android:allowBackup="false"' \
+            "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
+
+          grep -q 'android:usesCleartextTraffic="false"' \
+            "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
+
+          grep -q 'isMinifyEnabled = true' \
+            "$PROJECT_DIR/app/build.gradle.kts"
+
+          grep -q 'isShrinkResources = true' \
+            "$PROJECT_DIR/app/build.gradle.kts"
 
           echo "DASHBOARD LABELS V27 verification passed"
 
@@ -97,6 +131,7 @@ workflows:
 
           echo "ANDROID_HOME=$ANDROID_HOME" >> "$CM_ENV"
           echo "ANDROID_SDK_ROOT=$ANDROID_HOME" >> "$CM_ENV"
+
           echo "sdk.dir=$ANDROID_HOME" > "$PROJECT_DIR/local.properties"
 
           yes | "$SDKMANAGER" --licenses >/dev/null 2>&1 || true
@@ -115,13 +150,16 @@ workflows:
 
           if [ ! -x "$GRADLE_DIR/bin/gradle" ]; then
             rm -f /tmp/gradle.zip
+
             curl --fail --location --retry 3 \
               "https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip" \
               -o /tmp/gradle.zip
+
             unzip -q -o /tmp/gradle.zip -d "$HOME"
           fi
 
           echo "GRADLE_BIN=$GRADLE_DIR/bin/gradle" >> "$CM_ENV"
+
           "$GRADLE_DIR/bin/gradle" --version
 
       - name: Validate release signing
@@ -179,8 +217,11 @@ workflows:
 
           mkdir -p "$CM_BUILD_DIR/release"
 
-          cp "$APK_FILE" "$CM_BUILD_DIR/release/Tahalil-Alakkad-DASHBOARD-LABELS-V27.apk"
-          cp "$AAB_FILE" "$CM_BUILD_DIR/release/Tahalil-Alakkad-DASHBOARD-LABELS-V27.aab"
+          cp "$APK_FILE" \
+            "$CM_BUILD_DIR/release/Tahalil-Alakkad-DASHBOARD-LABELS-V27.apk"
+
+          cp "$AAB_FILE" \
+            "$CM_BUILD_DIR/release/Tahalil-Alakkad-DASHBOARD-LABELS-V27.aab"
 
           ls -lh "$CM_BUILD_DIR/release"
 
