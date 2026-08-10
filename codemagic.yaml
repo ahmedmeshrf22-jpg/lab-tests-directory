@@ -1,6 +1,6 @@
 workflows:
   android-release:
-    name: Build Tahalil Alakkad MANAGER UI V24
+    name: Build Tahalil Alakkad READABLE FIELDS V25
     instance_type: mac_mini_m2
     max_build_duration: 60
 
@@ -10,18 +10,18 @@ workflows:
         - tahalil_alakkad_release
 
     scripts:
-      - name: Extract MANAGER UI V24 project
+      - name: Extract READABLE FIELDS V25 project
         script: |
           set -euo pipefail
 
-          ZIP_FILE="$CM_BUILD_DIR/Project3_AK_SECURE_MANAGER_UI_V24.zip"
+          ZIP_FILE="$CM_BUILD_DIR/Project3_AK_SECURE_READABLE_FIELDS_V25.zip"
           WORK_DIR="$CM_BUILD_DIR/android_project"
 
           rm -rf "$WORK_DIR"
           mkdir -p "$WORK_DIR"
 
           if [ ! -f "$ZIP_FILE" ]; then
-            echo "ERROR: Project3_AK_SECURE_MANAGER_UI_V24.zip not found"
+            echo "ERROR: Project3_AK_SECURE_READABLE_FIELDS_V25.zip not found"
             ls -lah "$CM_BUILD_DIR"
             exit 1
           fi
@@ -37,7 +37,7 @@ workflows:
           PROJECT_DIR="$(dirname "$SETTINGS_FILE")"
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$CM_ENV"
 
-      - name: Verify MANAGER UI V24
+      - name: Verify READABLE FIELDS V25
         script: |
           set -euo pipefail
 
@@ -53,8 +53,8 @@ workflows:
           test -f "$PROJECT_DIR/app/src/main/java/com/example/util/PdfGenerator.kt"
           test -f "$PROJECT_DIR/firestore.rules"
 
-          grep -q 'versionCode = 29' "$PROJECT_DIR/app/build.gradle.kts"
-          grep -q 'versionName = "4.0-manager-ui-v24"' "$PROJECT_DIR/app/build.gradle.kts"
+          grep -q 'versionCode = 30' "$PROJECT_DIR/app/build.gradle.kts"
+          grep -q 'versionName = "4.1-readable-fields-v25"' "$PROJECT_DIR/app/build.gradle.kts"
           grep -q '<string name="app_name">تحاليل العقاد</string>' "$PROJECT_DIR/app/src/main/res/values/strings.xml"
 
           grep -q 'text = "Abdelrahman"' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
@@ -64,6 +64,11 @@ workflows:
           grep -q 'text = "نظرة سريعة"' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
           grep -q 'text = "الأقسام الرئيسية"' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
           grep -q 'private fun ManagerActionIcon' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+
+          grep -q 'heightIn(min = 64.dp)' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+          grep -q 'heightIn(min = 64.dp)' "$PROJECT_DIR/app/src/main/java/com/example/ui/CustomerSystemDialog.kt"
+          grep -q 'heightIn(min = 64.dp)' "$PROJECT_DIR/app/src/main/java/com/example/ui/LoginScreen.kt"
+          grep -q 'heightIn(min = 64.dp)' "$PROJECT_DIR/app/src/main/java/com/example/ui/OperationsV14Dialog.kt"
 
           if grep -q 'text = "لوحة عبدالرحمن"' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"; then
             echo "ERROR: old manager dashboard title still exists"
@@ -87,7 +92,7 @@ workflows:
           grep -q 'isMinifyEnabled = true' "$PROJECT_DIR/app/build.gradle.kts"
           grep -q 'isShrinkResources = true' "$PROJECT_DIR/app/build.gradle.kts"
 
-          echo "MANAGER UI V24 verification passed"
+          echo "READABLE FIELDS V25 verification passed"
 
       - name: Configure Android SDK
         script: |
@@ -154,7 +159,7 @@ workflows:
             -alias "$CM_KEY_ALIAS" \
             >/dev/null
 
-      - name: Build MANAGER UI V24 APK and AAB
+      - name: Build READABLE FIELDS V25 APK and AAB
         script: |
           set -euo pipefail
 
@@ -187,8 +192,8 @@ workflows:
 
           mkdir -p "$CM_BUILD_DIR/release"
 
-          cp "$APK_FILE" "$CM_BUILD_DIR/release/Tahalil-Alakkad-MANAGER-UI-V24.apk"
-          cp "$AAB_FILE" "$CM_BUILD_DIR/release/Tahalil-Alakkad-MANAGER-UI-V24.aab"
+          cp "$APK_FILE" "$CM_BUILD_DIR/release/Tahalil-Alakkad-READABLE-FIELDS-V25.apk"
+          cp "$AAB_FILE" "$CM_BUILD_DIR/release/Tahalil-Alakkad-READABLE-FIELDS-V25.aab"
 
           ls -lh "$CM_BUILD_DIR/release"
 
