@@ -1,6 +1,6 @@
 workflows:
   android-release:
-    name: Build Tahalil Alakkad DASHBOARD LABELS V27
+    name: Build Tahalil Alakkad LANGUAGE OFFLINE V28
     instance_type: mac_mini_m2
     max_build_duration: 60
 
@@ -10,18 +10,18 @@ workflows:
         - tahalil_alakkad_release
 
     scripts:
-      - name: Extract DASHBOARD LABELS V27 project
+      - name: Extract LANGUAGE OFFLINE V28 project
         script: |
           set -euo pipefail
 
-          ZIP_FILE="$CM_BUILD_DIR/Project3_AK_SECURE_DASHBOARD_LABELS_V27.zip"
+          ZIP_FILE="$CM_BUILD_DIR/Project3_AK_SECURE_LANGUAGE_OFFLINE_V28.zip"
           WORK_DIR="$CM_BUILD_DIR/android_project"
 
           rm -rf "$WORK_DIR"
           mkdir -p "$WORK_DIR"
 
           if [ ! -f "$ZIP_FILE" ]; then
-            echo "ERROR: Project3_AK_SECURE_DASHBOARD_LABELS_V27.zip not found"
+            echo "ERROR: Project3_AK_SECURE_LANGUAGE_OFFLINE_V28.zip not found"
             ls -lah "$CM_BUILD_DIR"
             exit 1
           fi
@@ -36,8 +36,9 @@ workflows:
 
           PROJECT_DIR="$(dirname "$SETTINGS_FILE")"
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$CM_ENV"
+          echo "PROJECT_DIR=$PROJECT_DIR"
 
-      - name: Verify DASHBOARD LABELS V27
+      - name: Verify LANGUAGE OFFLINE V28
         script: |
           set -euo pipefail
 
@@ -45,43 +46,69 @@ workflows:
           test -f "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
           test -f "$PROJECT_DIR/app/src/main/res/values/strings.xml"
           test -f "$PROJECT_DIR/app/src/main/java/com/example/MainActivity.kt"
-          test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/theme/Type.kt"
+          test -f "$PROJECT_DIR/app/src/main/java/com/example/settings/AppSettings.kt"
+          test -f "$PROJECT_DIR/app/src/main/java/com/example/settings/AppText.kt"
+          test -f "$PROJECT_DIR/app/src/main/java/com/example/settings/ConnectivityMonitor.kt"
           test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
           test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
           test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/CustomerSystemDialog.kt"
           test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/OperationsV14Dialog.kt"
-          test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/LoginScreen.kt"
+          test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/UserSettingsDialog.kt"
+          test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/ManagerSettingsDialog.kt"
           test -f "$PROJECT_DIR/app/src/main/java/com/example/util/PdfGenerator.kt"
           test -f "$PROJECT_DIR/firestore.rules"
 
-          grep -q 'versionCode = 32' "$PROJECT_DIR/app/build.gradle.kts"
-          grep -q 'versionName = "4.3-dashboard-card-labels-v27"' "$PROJECT_DIR/app/build.gradle.kts"
+          grep -q 'versionCode = 33' "$PROJECT_DIR/app/build.gradle.kts"
+          grep -q 'versionName = "4.4-language-offline-sync-v28"' "$PROJECT_DIR/app/build.gradle.kts"
           grep -q '<string name="app_name">تحاليل العقاد</string>' "$PROJECT_DIR/app/src/main/res/values/strings.xml"
 
-          grep -q 'modifier = modifier.heightIn(min = 148.dp)' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-          grep -q 'lineHeight = 22.sp' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-          grep -q 'lineHeight = 16.sp' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-          grep -q 'maxLines = 2' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+          grep -q 'val language: String = "ar"' "$PROJECT_DIR/app/src/main/java/com/example/settings/AppSettings.kt"
+          grep -q 'AppLanguageRuntime' "$PROJECT_DIR/app/src/main/java/com/example/settings/AppText.kt"
+          grep -q 'language = "en"' "$PROJECT_DIR/app/src/main/java/com/example/ui/UserSettingsDialog.kt"
+          grep -q 'language = "en"' "$PROJECT_DIR/app/src/main/java/com/example/ui/ManagerSettingsDialog.kt"
+          grep -q 'LayoutDirection.Ltr' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+          grep -q 'language = settings.language' "$PROJECT_DIR/app/src/main/java/com/example/ui/CustomerSystemDialog.kt"
+          grep -q 'language = settings.language' "$PROJECT_DIR/app/src/main/java/com/example/ui/OperationsV14Dialog.kt"
+          grep -q 'language = settings.language' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
 
-          if grep -q 'modifier = modifier.height(116.dp)' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"; then
-            echo "ERROR: old clipped manager card height still exists"
+          grep -q 'ACCESS_NETWORK_STATE' "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
+          grep -q 'class ConnectivityMonitor' "$PROJECT_DIR/app/src/main/java/com/example/settings/ConnectivityMonitor.kt"
+          grep -q 'class PendingSyncStore' "$PROJECT_DIR/app/src/main/java/com/example/settings/ConnectivityMonitor.kt"
+          grep -q 'pendingSyncCount' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
+          grep -q 'SyncStatusBar' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+          grep -q 'queueOfflineAuditIfNeeded' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
+          grep -q '"was_offline" to true' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
+          grep -q '"synced_at" to FieldValue.serverTimestamp()' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
+          grep -q 'waitForPendingWrites' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
+
+          if grep -q 'runTransaction' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"; then
+            echo "ERROR: Firestore transaction found; V28 user operations must queue offline"
             exit 1
           fi
 
-          grep -q 'PlatformTextStyle(includeFontPadding = true)' "$PROJECT_DIR/app/src/main/java/com/example/ui/theme/Type.kt"
-          grep -q 'heightIn(min = 72.dp)' "$PROJECT_DIR/app/src/main/java/com/example/ui/LoginScreen.kt"
+          grep -q 'heightIn(min = 148.dp)' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+
+          if grep -q 'modifier = modifier.height(116.dp)' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"; then
+            echo "ERROR: old clipped dashboard card height still exists"
+            exit 1
+          fi
+
           grep -q 'text = "Abdelrahman"' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
           grep -q 'text = "General Manager"' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+
           grep -q 'BackHandler' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+          grep -q 'BackHandler' "$PROJECT_DIR/app/src/main/java/com/example/ui/CustomerSystemDialog.kt"
+          grep -q 'BackHandler' "$PROJECT_DIR/app/src/main/java/com/example/ui/OperationsV14Dialog.kt"
+
           grep -q 'generateAndShareReportPdf' "$PROJECT_DIR/app/src/main/java/com/example/util/PdfGenerator.kt"
-          grep -q 'deviceAccessStatus' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
+
           grep -q 'FLAG_SECURE' "$PROJECT_DIR/app/src/main/java/com/example/MainActivity.kt"
           grep -q 'android:allowBackup="false"' "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
           grep -q 'android:usesCleartextTraffic="false"' "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
           grep -q 'isMinifyEnabled = true' "$PROJECT_DIR/app/build.gradle.kts"
           grep -q 'isShrinkResources = true' "$PROJECT_DIR/app/build.gradle.kts"
 
-          echo "DASHBOARD LABELS V27 verification passed"
+          echo "LANGUAGE OFFLINE V28 verification passed"
 
       - name: Configure Android SDK
         script: |
@@ -148,7 +175,7 @@ workflows:
             -alias "$CM_KEY_ALIAS" \
             >/dev/null
 
-      - name: Build DASHBOARD LABELS V27 APK and AAB
+      - name: Build LANGUAGE OFFLINE V28 APK and AAB
         script: |
           set -euo pipefail
 
@@ -181,8 +208,8 @@ workflows:
 
           mkdir -p "$CM_BUILD_DIR/release"
 
-          cp "$APK_FILE" "$CM_BUILD_DIR/release/Tahalil-Alakkad-DASHBOARD-LABELS-V27.apk"
-          cp "$AAB_FILE" "$CM_BUILD_DIR/release/Tahalil-Alakkad-DASHBOARD-LABELS-V27.aab"
+          cp "$APK_FILE" "$CM_BUILD_DIR/release/Tahalil-Alakkad-LANGUAGE-OFFLINE-V28.apk"
+          cp "$AAB_FILE" "$CM_BUILD_DIR/release/Tahalil-Alakkad-LANGUAGE-OFFLINE-V28.aab"
 
           ls -lh "$CM_BUILD_DIR/release"
 
