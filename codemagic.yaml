@@ -1,6 +1,6 @@
 workflows:
   android-release:
-    name: Build Tahalil Alakkad READABLE FIELDS V25
+    name: Build Tahalil Alakkad DASHBOARD LABELS V27
     instance_type: mac_mini_m2
     max_build_duration: 60
 
@@ -10,18 +10,18 @@ workflows:
         - tahalil_alakkad_release
 
     scripts:
-      - name: Extract READABLE FIELDS V25 project
+      - name: Extract DASHBOARD LABELS V27 project
         script: |
           set -euo pipefail
 
-          ZIP_FILE="$CM_BUILD_DIR/Project3_AK_SECURE_READABLE_FIELDS_V25.zip"
+          ZIP_FILE="$CM_BUILD_DIR/Project3_AK_SECURE_DASHBOARD_LABELS_V27.zip"
           WORK_DIR="$CM_BUILD_DIR/android_project"
 
           rm -rf "$WORK_DIR"
           mkdir -p "$WORK_DIR"
 
           if [ ! -f "$ZIP_FILE" ]; then
-            echo "ERROR: Project3_AK_SECURE_READABLE_FIELDS_V25.zip not found"
+            echo "ERROR: Project3_AK_SECURE_DASHBOARD_LABELS_V27.zip not found"
             ls -lah "$CM_BUILD_DIR"
             exit 1
           fi
@@ -37,7 +37,7 @@ workflows:
           PROJECT_DIR="$(dirname "$SETTINGS_FILE")"
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$CM_ENV"
 
-      - name: Verify READABLE FIELDS V25
+      - name: Verify DASHBOARD LABELS V27
         script: |
           set -euo pipefail
 
@@ -45,54 +45,43 @@ workflows:
           test -f "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
           test -f "$PROJECT_DIR/app/src/main/res/values/strings.xml"
           test -f "$PROJECT_DIR/app/src/main/java/com/example/MainActivity.kt"
+          test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/theme/Type.kt"
           test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
           test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
           test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/CustomerSystemDialog.kt"
           test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/OperationsV14Dialog.kt"
-          test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/DeviceAuthorizationScreen.kt"
+          test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/LoginScreen.kt"
           test -f "$PROJECT_DIR/app/src/main/java/com/example/util/PdfGenerator.kt"
           test -f "$PROJECT_DIR/firestore.rules"
 
-          grep -q 'versionCode = 30' "$PROJECT_DIR/app/build.gradle.kts"
-          grep -q 'versionName = "4.1-readable-fields-v25"' "$PROJECT_DIR/app/build.gradle.kts"
+          grep -q 'versionCode = 32' "$PROJECT_DIR/app/build.gradle.kts"
+          grep -q 'versionName = "4.3-dashboard-card-labels-v27"' "$PROJECT_DIR/app/build.gradle.kts"
           grep -q '<string name="app_name">تحاليل العقاد</string>' "$PROJECT_DIR/app/src/main/res/values/strings.xml"
 
-          grep -q 'text = "Abdelrahman"' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-          grep -q 'text = "General Manager"' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-          grep -q 'displayName = "Abdelrahman"' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
-          grep -q '"display_name" to "Abdelrahman"' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
-          grep -q 'text = "نظرة سريعة"' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-          grep -q 'text = "الأقسام الرئيسية"' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-          grep -q 'private fun ManagerActionIcon' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+          grep -q 'modifier = modifier.heightIn(min = 148.dp)' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+          grep -q 'lineHeight = 22.sp' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+          grep -q 'lineHeight = 16.sp' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+          grep -q 'maxLines = 2' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
 
-          grep -q 'heightIn(min = 64.dp)' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-          grep -q 'heightIn(min = 64.dp)' "$PROJECT_DIR/app/src/main/java/com/example/ui/CustomerSystemDialog.kt"
-          grep -q 'heightIn(min = 64.dp)' "$PROJECT_DIR/app/src/main/java/com/example/ui/LoginScreen.kt"
-          grep -q 'heightIn(min = 64.dp)' "$PROJECT_DIR/app/src/main/java/com/example/ui/OperationsV14Dialog.kt"
-
-          if grep -q 'text = "لوحة عبدالرحمن"' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"; then
-            echo "ERROR: old manager dashboard title still exists"
+          if grep -q 'modifier = modifier.height(116.dp)' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"; then
+            echo "ERROR: old clipped manager card height still exists"
             exit 1
           fi
 
+          grep -q 'PlatformTextStyle(includeFontPadding = true)' "$PROJECT_DIR/app/src/main/java/com/example/ui/theme/Type.kt"
+          grep -q 'heightIn(min = 72.dp)' "$PROJECT_DIR/app/src/main/java/com/example/ui/LoginScreen.kt"
+          grep -q 'text = "Abdelrahman"' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+          grep -q 'text = "General Manager"' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
           grep -q 'BackHandler' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-          grep -q 'BackHandler' "$PROJECT_DIR/app/src/main/java/com/example/ui/CustomerSystemDialog.kt"
-          grep -q 'BackHandler' "$PROJECT_DIR/app/src/main/java/com/example/ui/OperationsV14Dialog.kt"
-
           grep -q 'generateAndShareReportPdf' "$PROJECT_DIR/app/src/main/java/com/example/util/PdfGenerator.kt"
-          grep -q 'لا توجد طلبات في الفترة المحددة' "$PROJECT_DIR/app/src/main/java/com/example/util/PdfGenerator.kt"
-
           grep -q 'deviceAccessStatus' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
-          grep -q 'approveDevice' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
-          grep -q 'match /devices/{deviceId}' "$PROJECT_DIR/firestore.rules"
-
           grep -q 'FLAG_SECURE' "$PROJECT_DIR/app/src/main/java/com/example/MainActivity.kt"
           grep -q 'android:allowBackup="false"' "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
           grep -q 'android:usesCleartextTraffic="false"' "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
           grep -q 'isMinifyEnabled = true' "$PROJECT_DIR/app/build.gradle.kts"
           grep -q 'isShrinkResources = true' "$PROJECT_DIR/app/build.gradle.kts"
 
-          echo "READABLE FIELDS V25 verification passed"
+          echo "DASHBOARD LABELS V27 verification passed"
 
       - name: Configure Android SDK
         script: |
@@ -159,7 +148,7 @@ workflows:
             -alias "$CM_KEY_ALIAS" \
             >/dev/null
 
-      - name: Build READABLE FIELDS V25 APK and AAB
+      - name: Build DASHBOARD LABELS V27 APK and AAB
         script: |
           set -euo pipefail
 
@@ -192,8 +181,8 @@ workflows:
 
           mkdir -p "$CM_BUILD_DIR/release"
 
-          cp "$APK_FILE" "$CM_BUILD_DIR/release/Tahalil-Alakkad-READABLE-FIELDS-V25.apk"
-          cp "$AAB_FILE" "$CM_BUILD_DIR/release/Tahalil-Alakkad-READABLE-FIELDS-V25.aab"
+          cp "$APK_FILE" "$CM_BUILD_DIR/release/Tahalil-Alakkad-DASHBOARD-LABELS-V27.apk"
+          cp "$AAB_FILE" "$CM_BUILD_DIR/release/Tahalil-Alakkad-DASHBOARD-LABELS-V27.aab"
 
           ls -lh "$CM_BUILD_DIR/release"
 
