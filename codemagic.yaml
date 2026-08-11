@@ -1,6 +1,6 @@
 workflows:
   android-release:
-    name: Build Tahalil Alakkad QR CUSTOMER V37
+    name: Build Tahalil Alakkad OPTIONAL OUTPUT QR V38
     instance_type: mac_mini_m2
     max_build_duration: 60
 
@@ -10,15 +10,15 @@ workflows:
         - tahalil_alakkad_release
 
     scripts:
-      - name: Extract QR CUSTOMER V37 project
+      - name: Extract OPTIONAL OUTPUT QR V38 project
         script: |
           set -euo pipefail
 
-          ZIP_FILE="$CM_BUILD_DIR/Project3_AK_SECURE_QR_CUSTOMER_V37.zip"
+          ZIP_FILE="$CM_BUILD_DIR/Project3_AK_SECURE_OPTIONAL_OUTPUT_QR_V38.zip"
           WORK_DIR="$CM_BUILD_DIR/android_project"
 
           if [ ! -f "$ZIP_FILE" ]; then
-            echo "ERROR: Project3_AK_SECURE_QR_CUSTOMER_V37.zip not found"
+            echo "ERROR: Project3_AK_SECURE_OPTIONAL_OUTPUT_QR_V38.zip not found"
             ls -lah "$CM_BUILD_DIR"
             exit 1
           fi
@@ -28,6 +28,7 @@ workflows:
           unzip -q -o "$ZIP_FILE" -d "$WORK_DIR"
 
           SETTINGS_FILE=$(find "$WORK_DIR" -type f -name "settings.gradle.kts" -print -quit)
+
           if [ -z "$SETTINGS_FILE" ]; then
             echo "ERROR: settings.gradle.kts not found"
             exit 1
@@ -37,50 +38,84 @@ workflows:
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$CM_ENV"
           echo "PROJECT_DIR=$PROJECT_DIR"
 
-      - name: Verify QR CUSTOMER V37
+      - name: Verify OPTIONAL OUTPUT QR V38
         script: |
           set -euo pipefail
 
           test -f "$PROJECT_DIR/app/build.gradle.kts"
           test -f "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
-          test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/CustomerSystemDialog.kt"
+          test -f "$PROJECT_DIR/app/src/main/res/values/strings.xml"
+          test -f "$PROJECT_DIR/app/src/main/java/com/example/MainActivity.kt"
+
+          test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
           test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
+          test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/CustomerSystemDialog.kt"
+          test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/OrderPdfShareDialog.kt"
           test -f "$PROJECT_DIR/app/src/main/java/com/example/util/PdfGenerator.kt"
-          test -f "$PROJECT_DIR/QR_CUSTOMER_SEARCH_PDF_LAYOUT_V37_NOTES.txt"
 
-          grep -q 'versionCode = 42' "$PROJECT_DIR/app/build.gradle.kts"
-          grep -q 'versionName = "4.13-qr-customer-v37"' "$PROJECT_DIR/app/build.gradle.kts"
+          test -f "$PROJECT_DIR/OPTIONAL_OUTPUT_QR_V38_NOTES.txt"
 
+          grep -q 'versionCode = 43' "$PROJECT_DIR/app/build.gradle.kts"
+          grep -q 'versionName = "4.14-optional-output-qr-v38"' "$PROJECT_DIR/app/build.gradle.kts"
+          grep -q '<string name="app_name">تحاليل العقاد</string>' "$PROJECT_DIR/app/src/main/res/values/strings.xml"
+
+          # QR scanner
           grep -q 'com.google.android.gms:play-services-code-scanner:16.1.0' \
             "$PROJECT_DIR/app/build.gradle.kts"
-
-          grep -q 'com.google.mlkit.vision.DEPENDENCIES' \
-            "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
-
-          grep -q 'android:value="barcode_ui"' \
-            "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
-
-          grep -q 'بحث بـ QR العميل' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/CustomerSystemDialog.kt"
 
           grep -q 'GmsBarcodeScanning.getClient' \
             "$PROJECT_DIR/app/src/main/java/com/example/ui/CustomerSystemDialog.kt"
 
-          grep -q 'enableAutoZoom' \
+          grep -q 'بحث بـ QR العميل' \
+            "$PROJECT_DIR/app/src/main/java/com/example/ui/CustomerSystemDialog.kt"
+
+          grep -q 'امسح QR الموجود على إيصال العميل لفتح ملفه مباشرة' \
             "$PROJECT_DIR/app/src/main/java/com/example/ui/CustomerSystemDialog.kt"
 
           grep -q 'findCustomerByQrPayload' \
             "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
 
+          # Stable QR payload
+          grep -q 'TAHALIL_ALAKKAD_CUSTOMER|V=2|ID=' \
+            "$PROJECT_DIR/app/src/main/java/com/example/util/PdfGenerator.kt"
+
+          # Backward compatibility with old QR
           grep -q 'TAHALIL_ALAKKAD_CUSTOMER|V=1|ID=' \
+            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
+
+          # Optional output after save
+          grep -q 'حفظ الطلب فقط' \
+            "$PROJECT_DIR/app/src/main/java/com/example/ui/OrderPdfShareDialog.kt"
+
+          grep -q 'إيصال العميل PDF' \
+            "$PROJECT_DIR/app/src/main/java/com/example/ui/OrderPdfShareDialog.kt"
+
+          grep -q 'إيصال العميل صورة PNG' \
+            "$PROJECT_DIR/app/src/main/java/com/example/ui/OrderPdfShareDialog.kt"
+
+          grep -q 'طلب المعمل PDF' \
+            "$PROJECT_DIR/app/src/main/java/com/example/ui/OrderPdfShareDialog.kt"
+
+          grep -q 'طلب المعمل صورة PNG' \
+            "$PROJECT_DIR/app/src/main/java/com/example/ui/OrderPdfShareDialog.kt"
+
+          grep -q 'Close after save only' \
+            "$PROJECT_DIR/app/src/main/java/com/example/ui/OrderPdfShareDialog.kt"
+
+          # Image output generation
+          grep -q 'generateDualOrderPdfs' \
             "$PROJECT_DIR/app/src/main/java/com/example/util/PdfGenerator.kt"
 
-          grep -q 'V37: full-width clinic identity header' \
+          grep -q 'generateCustomerReceiptImage' \
             "$PROJECT_DIR/app/src/main/java/com/example/util/PdfGenerator.kt"
 
-          grep -q 'V37: organized full-width clinic footer' \
+          grep -q 'generateLabRequestImage' \
             "$PROJECT_DIR/app/src/main/java/com/example/util/PdfGenerator.kt"
 
+          grep -q 'Bitmap.CompressFormat.PNG' \
+            "$PROJECT_DIR/app/src/main/java/com/example/util/PdfGenerator.kt"
+
+          # Clinic identity / footer
           grep -q '01102233167' \
             "$PROJECT_DIR/app/src/main/java/com/example/util/PdfGenerator.kt"
 
@@ -90,9 +125,13 @@ workflows:
           grep -q '59 شارع فيصل الرئيسي' \
             "$PROJECT_DIR/app/src/main/java/com/example/util/PdfGenerator.kt"
 
-          grep -q 'generateDualOrderPdfs' \
+          grep -q 'V38: refined full-width clinic header' \
             "$PROJECT_DIR/app/src/main/java/com/example/util/PdfGenerator.kt"
 
+          grep -q 'V38: organized footer with contact row' \
+            "$PROJECT_DIR/app/src/main/java/com/example/util/PdfGenerator.kt"
+
+          # Security
           grep -q 'FLAG_SECURE' \
             "$PROJECT_DIR/app/src/main/java/com/example/MainActivity.kt"
 
@@ -108,7 +147,7 @@ workflows:
           grep -q 'isShrinkResources = true' \
             "$PROJECT_DIR/app/build.gradle.kts"
 
-          echo "QR CUSTOMER V37 verification passed"
+          echo "OPTIONAL OUTPUT QR V38 verification passed"
 
       - name: Configure Android SDK
         script: |
@@ -127,7 +166,6 @@ workflows:
           echo "sdk.dir=$ANDROID_HOME" > "$PROJECT_DIR/local.properties"
 
           yes | "$SDKMANAGER" --licenses >/dev/null 2>&1 || true
-
           "$SDKMANAGER" "platform-tools"
           "$SDKMANAGER" "platforms;android-36.1"
           "$SDKMANAGER" "build-tools;36.0.0"
@@ -180,7 +218,7 @@ workflows:
             -alias "$CM_KEY_ALIAS" \
             >/dev/null
 
-      - name: Build QR CUSTOMER V37 APK and AAB
+      - name: Build OPTIONAL OUTPUT QR V38 APK and AAB
         script: |
           set -euo pipefail
 
@@ -219,15 +257,15 @@ workflows:
           mkdir -p "$RELEASE_DIR"
 
           cp "$APK_FILE" \
-            "$RELEASE_DIR/Tahalil-Alakkad-QR-CUSTOMER-V37.apk"
+            "$RELEASE_DIR/Tahalil-Alakkad-OPTIONAL-OUTPUT-QR-V38.apk"
 
           cp "$AAB_FILE" \
-            "$RELEASE_DIR/Tahalil-Alakkad-QR-CUSTOMER-V37.aab"
+            "$RELEASE_DIR/Tahalil-Alakkad-OPTIONAL-OUTPUT-QR-V38.aab"
 
-          test -f "$RELEASE_DIR/Tahalil-Alakkad-QR-CUSTOMER-V37.apk"
-          test -f "$RELEASE_DIR/Tahalil-Alakkad-QR-CUSTOMER-V37.aab"
+          test -f "$RELEASE_DIR/Tahalil-Alakkad-OPTIONAL-OUTPUT-QR-V38.apk"
+          test -f "$RELEASE_DIR/Tahalil-Alakkad-OPTIONAL-OUTPUT-QR-V38.aab"
 
-          echo "V37 APK and AAB created successfully"
+          echo "V38 APK and AAB created successfully"
           ls -lah "$RELEASE_DIR"
 
     artifacts:
