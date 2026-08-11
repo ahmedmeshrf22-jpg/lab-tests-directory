@@ -1,6 +1,6 @@
 workflows:
   android-release:
-    name: Build Tahalil Alakkad DUAL PDF QR V36
+    name: Build Tahalil Alakkad QR CUSTOMER V37
     instance_type: mac_mini_m2
     max_build_duration: 60
 
@@ -10,90 +10,75 @@ workflows:
         - tahalil_alakkad_release
 
     scripts:
-
-      - name: Extract DUAL PDF QR V36 project
+      - name: Extract QR CUSTOMER V37 project
         script: |
           set -euo pipefail
 
-          ZIP_FILE="$CM_BUILD_DIR/Project3_AK_SECURE_DUAL_PDF_QR_V36.zip"
+          ZIP_FILE="$CM_BUILD_DIR/Project3_AK_SECURE_QR_CUSTOMER_V37.zip"
           WORK_DIR="$CM_BUILD_DIR/android_project"
 
-          echo "Looking for project ZIP..."
-          ls -lah "$CM_BUILD_DIR"
-
           if [ ! -f "$ZIP_FILE" ]; then
-            echo "ERROR: Project ZIP not found:"
-            echo "$ZIP_FILE"
+            echo "ERROR: Project3_AK_SECURE_QR_CUSTOMER_V37.zip not found"
+            ls -lah "$CM_BUILD_DIR"
             exit 1
           fi
 
           rm -rf "$WORK_DIR"
           mkdir -p "$WORK_DIR"
-
-          echo "Extracting project..."
           unzip -q -o "$ZIP_FILE" -d "$WORK_DIR"
 
           SETTINGS_FILE=$(find "$WORK_DIR" -type f -name "settings.gradle.kts" -print -quit)
-
           if [ -z "$SETTINGS_FILE" ]; then
             echo "ERROR: settings.gradle.kts not found"
             exit 1
           fi
 
           PROJECT_DIR=$(dirname "$SETTINGS_FILE")
-
-          echo "PROJECT_DIR=$PROJECT_DIR"
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$CM_ENV"
+          echo "PROJECT_DIR=$PROJECT_DIR"
 
-          echo "Project extracted successfully"
-
-
-      - name: Verify DUAL PDF QR V36
+      - name: Verify QR CUSTOMER V37
         script: |
           set -euo pipefail
 
-          echo "Verifying core project files..."
-
-          test -f "$PROJECT_DIR/settings.gradle.kts"
           test -f "$PROJECT_DIR/app/build.gradle.kts"
           test -f "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
-          test -f "$PROJECT_DIR/app/src/main/res/values/strings.xml"
-
-          test -f "$PROJECT_DIR/app/src/main/java/com/example/MainActivity.kt"
-          test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-          test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
           test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/CustomerSystemDialog.kt"
-          test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/OperationsV14Dialog.kt"
-          test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/OrderPdfShareDialog.kt"
-
+          test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
           test -f "$PROJECT_DIR/app/src/main/java/com/example/util/PdfGenerator.kt"
+          test -f "$PROJECT_DIR/QR_CUSTOMER_SEARCH_PDF_LAYOUT_V37_NOTES.txt"
 
-          echo "Checking application version..."
+          grep -q 'versionCode = 42' "$PROJECT_DIR/app/build.gradle.kts"
+          grep -q 'versionName = "4.13-qr-customer-v37"' "$PROJECT_DIR/app/build.gradle.kts"
 
-          grep -q 'versionCode = 41' \
+          grep -q 'com.google.android.gms:play-services-code-scanner:16.1.0' \
             "$PROJECT_DIR/app/build.gradle.kts"
 
-          grep -q 'versionName = "4.12-dual-pdf-qr-v36"' \
-            "$PROJECT_DIR/app/build.gradle.kts"
+          grep -q 'com.google.mlkit.vision.DEPENDENCIES' \
+            "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
 
-          grep -q '<string name="app_name">تحاليل العقاد</string>' \
-            "$PROJECT_DIR/app/src/main/res/values/strings.xml"
+          grep -q 'android:value="barcode_ui"' \
+            "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
 
-          echo "Checking V36 PDF functions..."
+          grep -q 'بحث بـ QR العميل' \
+            "$PROJECT_DIR/app/src/main/java/com/example/ui/CustomerSystemDialog.kt"
 
-          grep -q 'generateDualOrderPdfs' \
+          grep -q 'GmsBarcodeScanning.getClient' \
+            "$PROJECT_DIR/app/src/main/java/com/example/ui/CustomerSystemDialog.kt"
+
+          grep -q 'enableAutoZoom' \
+            "$PROJECT_DIR/app/src/main/java/com/example/ui/CustomerSystemDialog.kt"
+
+          grep -q 'findCustomerByQrPayload' \
+            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
+
+          grep -q 'TAHALIL_ALAKKAD_CUSTOMER|V=1|ID=' \
             "$PROJECT_DIR/app/src/main/java/com/example/util/PdfGenerator.kt"
 
-          grep -q 'createCustomerQrBitmap' \
+          grep -q 'V37: full-width clinic identity header' \
             "$PROJECT_DIR/app/src/main/java/com/example/util/PdfGenerator.kt"
 
-          grep -q 'OrderPdfBundle' \
-            "$PROJECT_DIR/app/src/main/java/com/example/util/PdfGenerator.kt"
-
-          grep -q 'بيانات الحالة' \
-            "$PROJECT_DIR/app/src/main/java/com/example/util/PdfGenerator.kt"
-
-          grep -q 'التحاليل المطلوبة' \
+          grep -q 'V37: organized full-width clinic footer' \
             "$PROJECT_DIR/app/src/main/java/com/example/util/PdfGenerator.kt"
 
           grep -q '01102233167' \
@@ -105,20 +90,8 @@ workflows:
           grep -q '59 شارع فيصل الرئيسي' \
             "$PROJECT_DIR/app/src/main/java/com/example/util/PdfGenerator.kt"
 
-          echo "Checking QR dependency..."
-
-          grep -q 'com.google.zxing:core:3.5.3' \
-            "$PROJECT_DIR/app/build.gradle.kts"
-
-          echo "Checking PDF share screen..."
-
-          grep -q 'إرسال طلب المعمل' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/OrderPdfShareDialog.kt"
-
-          grep -q 'إرسال PDF العميل' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/OrderPdfShareDialog.kt"
-
-          echo "Checking security..."
+          grep -q 'generateDualOrderPdfs' \
+            "$PROJECT_DIR/app/src/main/java/com/example/util/PdfGenerator.kt"
 
           grep -q 'FLAG_SECURE' \
             "$PROJECT_DIR/app/src/main/java/com/example/MainActivity.kt"
@@ -129,8 +102,13 @@ workflows:
           grep -q 'android:usesCleartextTraffic="false"' \
             "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
 
-          echo "DUAL PDF QR V36 verification passed"
+          grep -q 'isMinifyEnabled = true' \
+            "$PROJECT_DIR/app/build.gradle.kts"
 
+          grep -q 'isShrinkResources = true' \
+            "$PROJECT_DIR/app/build.gradle.kts"
+
+          echo "QR CUSTOMER V37 verification passed"
 
       - name: Configure Android SDK
         script: |
@@ -146,7 +124,6 @@ workflows:
 
           echo "ANDROID_HOME=$ANDROID_HOME" >> "$CM_ENV"
           echo "ANDROID_SDK_ROOT=$ANDROID_HOME" >> "$CM_ENV"
-
           echo "sdk.dir=$ANDROID_HOME" > "$PROJECT_DIR/local.properties"
 
           yes | "$SDKMANAGER" --licenses >/dev/null 2>&1 || true
@@ -154,9 +131,6 @@ workflows:
           "$SDKMANAGER" "platform-tools"
           "$SDKMANAGER" "platforms;android-36.1"
           "$SDKMANAGER" "build-tools;36.0.0"
-
-          echo "Android SDK configured"
-
 
       - name: Install Gradle 9.3.1
         script: |
@@ -167,15 +141,9 @@ workflows:
           GRADLE_BIN="$GRADLE_DIR/bin/gradle"
 
           if [ ! -x "$GRADLE_BIN" ]; then
-
-            echo "Downloading Gradle $GRADLE_VERSION..."
-
             rm -f /tmp/gradle.zip
 
-            curl \
-              --fail \
-              --location \
-              --retry 3 \
+            curl --fail --location --retry 3 \
               "https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip" \
               -o /tmp/gradle.zip
 
@@ -188,52 +156,31 @@ workflows:
           fi
 
           echo "GRADLE_BIN=$GRADLE_BIN" >> "$CM_ENV"
-
           "$GRADLE_BIN" --version
-
 
       - name: Validate release signing
         script: |
           set -euo pipefail
 
-          echo "Checking release signing..."
-
-          if [ -z "${CM_KEYSTORE_PATH:-}" ]; then
-            echo "ERROR: CM_KEYSTORE_PATH is empty"
+          if [ -z "${CM_KEYSTORE_PATH:-}" ] || [ ! -f "$CM_KEYSTORE_PATH" ]; then
+            echo "ERROR: Release keystore missing"
             exit 1
           fi
 
-          if [ ! -f "$CM_KEYSTORE_PATH" ]; then
-            echo "ERROR: Keystore file not found"
+          if [ -z "${CM_KEYSTORE_PASSWORD:-}" ] || \
+             [ -z "${CM_KEY_ALIAS:-}" ] || \
+             [ -z "${CM_KEY_PASSWORD:-}" ]; then
+            echo "ERROR: Signing credentials incomplete"
             exit 1
           fi
 
-          if [ -z "${CM_KEYSTORE_PASSWORD:-}" ]; then
-            echo "ERROR: CM_KEYSTORE_PASSWORD missing"
-            exit 1
-          fi
-
-          if [ -z "${CM_KEY_ALIAS:-}" ]; then
-            echo "ERROR: CM_KEY_ALIAS missing"
-            exit 1
-          fi
-
-          if [ -z "${CM_KEY_PASSWORD:-}" ]; then
-            echo "ERROR: CM_KEY_PASSWORD missing"
-            exit 1
-          fi
-
-          keytool \
-            -list \
+          keytool -list \
             -keystore "$CM_KEYSTORE_PATH" \
             -storepass "$CM_KEYSTORE_PASSWORD" \
             -alias "$CM_KEY_ALIAS" \
             >/dev/null
 
-          echo "Release signing OK"
-
-
-      - name: Build DUAL PDF QR V36 APK and AAB
+      - name: Build QR CUSTOMER V37 APK and AAB
         script: |
           set -euo pipefail
 
@@ -242,12 +189,7 @@ workflows:
           export KEY_PASSWORD="$CM_KEY_PASSWORD"
           export KEY_ALIAS="$CM_KEY_ALIAS"
 
-          echo "Project directory:"
-          echo "$PROJECT_DIR"
-
           cd "$PROJECT_DIR"
-
-          echo "Starting Android Release build..."
 
           "$GRADLE_BIN" \
             --no-daemon \
@@ -261,29 +203,13 @@ workflows:
           APK_FILE=$(find app/build/outputs/apk/release -type f -name "*.apk" -print -quit)
           AAB_FILE=$(find app/build/outputs/bundle/release -type f -name "*.aab" -print -quit)
 
-          echo "APK:"
-          echo "$APK_FILE"
-
-          echo "AAB:"
-          echo "$AAB_FILE"
-
-          if [ -z "$APK_FILE" ]; then
-            echo "ERROR: APK path not found"
+          if [ -z "$APK_FILE" ] || [ ! -f "$APK_FILE" ]; then
+            echo "ERROR: APK was not generated"
             exit 1
           fi
 
-          if [ ! -f "$APK_FILE" ]; then
-            echo "ERROR: APK file does not exist"
-            exit 1
-          fi
-
-          if [ -z "$AAB_FILE" ]; then
-            echo "ERROR: AAB path not found"
-            exit 1
-          fi
-
-          if [ ! -f "$AAB_FILE" ]; then
-            echo "ERROR: AAB file does not exist"
+          if [ -z "$AAB_FILE" ] || [ ! -f "$AAB_FILE" ]; then
+            echo "ERROR: AAB was not generated"
             exit 1
           fi
 
@@ -292,30 +218,17 @@ workflows:
           rm -rf "$RELEASE_DIR"
           mkdir -p "$RELEASE_DIR"
 
-          cp \
-            "$APK_FILE" \
-            "$RELEASE_DIR/Tahalil-Alakkad-DUAL-PDF-QR-V36.apk"
+          cp "$APK_FILE" \
+            "$RELEASE_DIR/Tahalil-Alakkad-QR-CUSTOMER-V37.apk"
 
-          cp \
-            "$AAB_FILE" \
-            "$RELEASE_DIR/Tahalil-Alakkad-DUAL-PDF-QR-V36.aab"
+          cp "$AAB_FILE" \
+            "$RELEASE_DIR/Tahalil-Alakkad-QR-CUSTOMER-V37.aab"
 
-          if [ ! -f "$RELEASE_DIR/Tahalil-Alakkad-DUAL-PDF-QR-V36.apk" ]; then
-            echo "ERROR: Final APK copy failed"
-            exit 1
-          fi
+          test -f "$RELEASE_DIR/Tahalil-Alakkad-QR-CUSTOMER-V37.apk"
+          test -f "$RELEASE_DIR/Tahalil-Alakkad-QR-CUSTOMER-V37.aab"
 
-          if [ ! -f "$RELEASE_DIR/Tahalil-Alakkad-DUAL-PDF-QR-V36.aab" ]; then
-            echo "ERROR: Final AAB copy failed"
-            exit 1
-          fi
-
-          echo "=========================================="
-          echo "V36 BUILD COMPLETED SUCCESSFULLY"
-          echo "=========================================="
-
+          echo "V37 APK and AAB created successfully"
           ls -lah "$RELEASE_DIR"
-
 
     artifacts:
       - release/*.apk
