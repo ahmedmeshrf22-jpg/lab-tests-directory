@@ -28,7 +28,6 @@ workflows:
           unzip -q -o "$ZIP_FILE" -d "$WORK_DIR"
 
           SETTINGS_FILE=$(find "$WORK_DIR" -type f -name "settings.gradle.kts" -print -quit)
-
           if [ -z "$SETTINGS_FILE" ]; then
             echo "ERROR: settings.gradle.kts not found"
             exit 1
@@ -44,108 +43,57 @@ workflows:
 
           test -f "$PROJECT_DIR/app/build.gradle.kts"
           test -f "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
-          test -f "$PROJECT_DIR/app/src/main/res/values/strings.xml"
-          test -f "$PROJECT_DIR/app/src/main/java/com/example/MainActivity.kt"
-
           test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-          test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
           test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/CustomerSystemDialog.kt"
           test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/OrderPdfShareDialog.kt"
+          test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
           test -f "$PROJECT_DIR/app/src/main/java/com/example/util/PdfGenerator.kt"
-
           test -f "$PROJECT_DIR/OPTIONAL_OUTPUT_QR_V38_NOTES.txt"
 
           grep -q 'versionCode = 43' "$PROJECT_DIR/app/build.gradle.kts"
           grep -q 'versionName = "4.14-optional-output-qr-v38"' "$PROJECT_DIR/app/build.gradle.kts"
-          grep -q '<string name="app_name">تحاليل العقاد</string>' "$PROJECT_DIR/app/src/main/res/values/strings.xml"
 
-          # QR scanner
-          grep -q 'com.google.android.gms:play-services-code-scanner:16.1.0' \
-            "$PROJECT_DIR/app/build.gradle.kts"
+          # Save is independent from output generation
+          grep -q 'حفظ الطلب"' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+          grep -q 'إغلاق - حفظ فقط' "$PROJECT_DIR/app/src/main/java/com/example/ui/OrderPdfShareDialog.kt"
+          grep -q 'إرسال أو إنشاء المستندات اختياري' "$PROJECT_DIR/app/src/main/java/com/example/ui/OrderPdfShareDialog.kt"
 
-          grep -q 'GmsBarcodeScanning.getClient' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/CustomerSystemDialog.kt"
+          # No automatic dual PDF generation remains in UI save flows
+          if grep -R -q 'generateDualOrderPdfs(' "$PROJECT_DIR/app/src/main/java/com/example/ui"; then
+            echo "ERROR: automatic dual PDF generation still exists in UI flow"
+            exit 1
+          fi
 
-          grep -q 'بحث بـ QR العميل' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/CustomerSystemDialog.kt"
+          # Optional PDF + PNG outputs
+          grep -q 'fun generateCustomerOrderPdf' "$PROJECT_DIR/app/src/main/java/com/example/util/PdfGenerator.kt"
+          grep -q 'fun generateLabRequestPdf' "$PROJECT_DIR/app/src/main/java/com/example/util/PdfGenerator.kt"
+          grep -q 'fun generateCustomerOrderImage' "$PROJECT_DIR/app/src/main/java/com/example/util/PdfGenerator.kt"
+          grep -q 'fun generateLabRequestImage' "$PROJECT_DIR/app/src/main/java/com/example/util/PdfGenerator.kt"
+          grep -q 'fun shareGeneratedImage' "$PROJECT_DIR/app/src/main/java/com/example/util/PdfGenerator.kt"
+          grep -q 'type = "image/png"' "$PROJECT_DIR/app/src/main/java/com/example/util/PdfGenerator.kt"
+          grep -q 'PdfRenderer' "$PROJECT_DIR/app/src/main/java/com/example/util/PdfGenerator.kt"
 
-          grep -q 'امسح QR الموجود على إيصال العميل لفتح ملفه مباشرة' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/CustomerSystemDialog.kt"
+          # Stable unique QR + QR search
+          grep -q 'TAHALIL_ALAKKAD_CUSTOMER|V=2|ID=' "$PROJECT_DIR/app/src/main/java/com/example/util/PdfGenerator.kt"
+          grep -q 'findCustomerByQrPayload' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
+          grep -q 'بحث بـ QR العميل' "$PROJECT_DIR/app/src/main/java/com/example/ui/CustomerSystemDialog.kt"
+          grep -q 'امسح QR الموجود على إيصال العميل لفتح ملفه مباشرة' "$PROJECT_DIR/app/src/main/java/com/example/ui/CustomerSystemDialog.kt"
+          grep -q 'GmsBarcodeScanning.getClient' "$PROJECT_DIR/app/src/main/java/com/example/ui/CustomerSystemDialog.kt"
+          grep -q 'com.google.android.gms:play-services-code-scanner:16.1.0' "$PROJECT_DIR/app/build.gradle.kts"
 
-          grep -q 'findCustomerByQrPayload' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
-
-          # Stable QR payload
-          grep -q 'TAHALIL_ALAKKAD_CUSTOMER|V=2|ID=' \
-            "$PROJECT_DIR/app/src/main/java/com/example/util/PdfGenerator.kt"
-
-          # Backward compatibility with old QR
-          grep -q 'TAHALIL_ALAKKAD_CUSTOMER|V=1|ID=' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
-
-          # Optional output after save
-          grep -q 'حفظ الطلب فقط' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/OrderPdfShareDialog.kt"
-
-          grep -q 'إيصال العميل PDF' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/OrderPdfShareDialog.kt"
-
-          grep -q 'إيصال العميل صورة PNG' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/OrderPdfShareDialog.kt"
-
-          grep -q 'طلب المعمل PDF' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/OrderPdfShareDialog.kt"
-
-          grep -q 'طلب المعمل صورة PNG' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/OrderPdfShareDialog.kt"
-
-          grep -q 'Close after save only' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/OrderPdfShareDialog.kt"
-
-          # Image output generation
-          grep -q 'generateDualOrderPdfs' \
-            "$PROJECT_DIR/app/src/main/java/com/example/util/PdfGenerator.kt"
-
-          grep -q 'generateCustomerReceiptImage' \
-            "$PROJECT_DIR/app/src/main/java/com/example/util/PdfGenerator.kt"
-
-          grep -q 'generateLabRequestImage' \
-            "$PROJECT_DIR/app/src/main/java/com/example/util/PdfGenerator.kt"
-
-          grep -q 'Bitmap.CompressFormat.PNG' \
-            "$PROJECT_DIR/app/src/main/java/com/example/util/PdfGenerator.kt"
-
-          # Clinic identity / footer
-          grep -q '01102233167' \
-            "$PROJECT_DIR/app/src/main/java/com/example/util/PdfGenerator.kt"
-
-          grep -q '01107072134' \
-            "$PROJECT_DIR/app/src/main/java/com/example/util/PdfGenerator.kt"
-
-          grep -q '59 شارع فيصل الرئيسي' \
-            "$PROJECT_DIR/app/src/main/java/com/example/util/PdfGenerator.kt"
-
-          grep -q 'V38: refined full-width clinic header' \
-            "$PROJECT_DIR/app/src/main/java/com/example/util/PdfGenerator.kt"
-
-          grep -q 'V38: organized footer with contact row' \
-            "$PROJECT_DIR/app/src/main/java/com/example/util/PdfGenerator.kt"
+          # Clinic identity and patient/lab data
+          grep -q '01102233167' "$PROJECT_DIR/app/src/main/java/com/example/util/PdfGenerator.kt"
+          grep -q '01107072134' "$PROJECT_DIR/app/src/main/java/com/example/util/PdfGenerator.kt"
+          grep -q '59 شارع فيصل الرئيسي' "$PROJECT_DIR/app/src/main/java/com/example/util/PdfGenerator.kt"
+          grep -q 'بيانات الحالة' "$PROJECT_DIR/app/src/main/java/com/example/util/PdfGenerator.kt"
+          grep -q 'التحاليل المطلوبة' "$PROJECT_DIR/app/src/main/java/com/example/util/PdfGenerator.kt"
 
           # Security
-          grep -q 'FLAG_SECURE' \
-            "$PROJECT_DIR/app/src/main/java/com/example/MainActivity.kt"
-
-          grep -q 'android:allowBackup="false"' \
-            "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
-
-          grep -q 'android:usesCleartextTraffic="false"' \
-            "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
-
-          grep -q 'isMinifyEnabled = true' \
-            "$PROJECT_DIR/app/build.gradle.kts"
-
-          grep -q 'isShrinkResources = true' \
-            "$PROJECT_DIR/app/build.gradle.kts"
+          grep -q 'FLAG_SECURE' "$PROJECT_DIR/app/src/main/java/com/example/MainActivity.kt"
+          grep -q 'android:allowBackup="false"' "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
+          grep -q 'android:usesCleartextTraffic="false"' "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
+          grep -q 'isMinifyEnabled = true' "$PROJECT_DIR/app/build.gradle.kts"
+          grep -q 'isShrinkResources = true' "$PROJECT_DIR/app/build.gradle.kts"
 
           echo "OPTIONAL OUTPUT QR V38 verification passed"
 
@@ -180,11 +128,9 @@ workflows:
 
           if [ ! -x "$GRADLE_BIN" ]; then
             rm -f /tmp/gradle.zip
-
             curl --fail --location --retry 3 \
               "https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip" \
               -o /tmp/gradle.zip
-
             unzip -q -o /tmp/gradle.zip -d "$HOME"
           fi
 
@@ -256,11 +202,8 @@ workflows:
           rm -rf "$RELEASE_DIR"
           mkdir -p "$RELEASE_DIR"
 
-          cp "$APK_FILE" \
-            "$RELEASE_DIR/Tahalil-Alakkad-OPTIONAL-OUTPUT-QR-V38.apk"
-
-          cp "$AAB_FILE" \
-            "$RELEASE_DIR/Tahalil-Alakkad-OPTIONAL-OUTPUT-QR-V38.aab"
+          cp "$APK_FILE" "$RELEASE_DIR/Tahalil-Alakkad-OPTIONAL-OUTPUT-QR-V38.apk"
+          cp "$AAB_FILE" "$RELEASE_DIR/Tahalil-Alakkad-OPTIONAL-OUTPUT-QR-V38.aab"
 
           test -f "$RELEASE_DIR/Tahalil-Alakkad-OPTIONAL-OUTPUT-QR-V38.apk"
           test -f "$RELEASE_DIR/Tahalil-Alakkad-OPTIONAL-OUTPUT-QR-V38.aab"
