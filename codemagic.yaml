@@ -71,7 +71,8 @@ workflows:
           # V36 Dual PDF + QR
           test -f "$PROJECT_DIR/DUAL_PDF_QR_V36_NOTES.txt"
 
-          grep -q 'implementation("com.google.zxing:core:3.5.3")' "$PROJECT_DIR/app/build.gradle.kts"
+          grep -q 'implementation("com.google.zxing:core:3.5.3")' \
+            "$PROJECT_DIR/app/build.gradle.kts"
 
           grep -q 'createCustomerQrBitmap' \
             "$PROJECT_DIR/app/src/main/java/com/example/util/PdfGenerator.kt"
@@ -179,7 +180,7 @@ workflows:
           grep -q 'focusedManagerSearch' \
             "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
 
-          # Data Integrity
+          # V32 Data Integrity
           test -f "$PROJECT_DIR/DATA_INTEGRITY_V32_NOTES.txt"
 
           grep -q 'data class DataIntegrityIssue' \
@@ -316,17 +317,18 @@ workflows:
           grep -q 'LayoutDirection.Ltr' \
             "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
 
-          grep -q 'language = settings.language' \
+          grep -q 'LocalAppSettings.current' \
             "$PROJECT_DIR/app/src/main/java/com/example/ui/CustomerSystemDialog.kt"
 
           grep -q 'language = settings.language' \
             "$PROJECT_DIR/app/src/main/java/com/example/ui/OperationsV14Dialog.kt"
 
-          grep -q 'language = settings.language' \
+          grep -q 'LocalAppSettings.current' \
             "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
 
           # Offline / Sync
-          grep -q 'ACCESS_NETWORK_STATE' "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
+          grep -q 'ACCESS_NETWORK_STATE' \
+            "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
 
           grep -q 'class ConnectivityMonitor' \
             "$PROJECT_DIR/app/src/main/java/com/example/settings/ConnectivityMonitor.kt"
@@ -354,7 +356,7 @@ workflows:
 
           if grep -q 'runTransaction' \
             "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"; then
-            echo "ERROR: Firestore transaction found; V29 user operations must queue offline"
+            echo "ERROR: Firestore transaction found"
             exit 1
           fi
 
@@ -488,4 +490,4 @@ workflows:
           fi
 
           if [ -z "$AAB_FILE" ] || [ ! -f "$AAB_FILE" ]; then
-         
+            echo "ERROR: 
