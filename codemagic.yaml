@@ -1,6 +1,6 @@
 workflows:
   android-release:
-    name: Build Tahalil Alakkad SYSTEM HEALTH V30
+    name: Build Tahalil Alakkad SMART ADMIN ALERTS V31
     instance_type: mac_mini_m2
     max_build_duration: 60
 
@@ -10,18 +10,18 @@ workflows:
         - tahalil_alakkad_release
 
     scripts:
-      - name: Extract SYSTEM HEALTH V30 project
+      - name: Extract SMART ADMIN ALERTS V31 project
         script: |
           set -euo pipefail
 
-          ZIP_FILE="$CM_BUILD_DIR/Project3_AK_SECURE_SYSTEM_HEALTH_V30.zip"
+          ZIP_FILE="$CM_BUILD_DIR/Project3_AK_SECURE_SMART_ADMIN_ALERTS_V31.zip"
           WORK_DIR="$CM_BUILD_DIR/android_project"
 
           rm -rf "$WORK_DIR"
           mkdir -p "$WORK_DIR"
 
           if [ ! -f "$ZIP_FILE" ]; then
-            echo "ERROR: Project3_AK_SECURE_SYSTEM_HEALTH_V30.zip not found"
+            echo "ERROR: Project3_AK_SECURE_SMART_ADMIN_ALERTS_V31.zip not found"
             ls -lah "$CM_BUILD_DIR"
             exit 1
           fi
@@ -38,7 +38,7 @@ workflows:
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$CM_ENV"
           echo "PROJECT_DIR=$PROJECT_DIR"
 
-      - name: Verify SYSTEM HEALTH V30
+      - name: Verify SMART ADMIN ALERTS V31
         script: |
           set -euo pipefail
 
@@ -62,9 +62,21 @@ workflows:
           test -f "$PROJECT_DIR/app/src/main/java/com/example/util/PdfGenerator.kt"
           test -f "$PROJECT_DIR/firestore.rules"
 
-          grep -q 'versionCode = 35' "$PROJECT_DIR/app/build.gradle.kts"
-          grep -q 'versionName = "4.6-system-health-v30"' "$PROJECT_DIR/app/build.gradle.kts"
+          grep -q 'versionCode = 36' "$PROJECT_DIR/app/build.gradle.kts"
+          grep -q 'versionName = "4.7-smart-admin-alerts-v31"' "$PROJECT_DIR/app/build.gradle.kts"
           grep -q '<string name="app_name">تحاليل العقاد</string>' "$PROJECT_DIR/app/src/main/res/values/strings.xml"
+
+          test -f "$PROJECT_DIR/SMART_ADMIN_ALERTS_V31_NOTES.txt"
+          grep -q 'data class AdminAlert' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
+          grep -q 'fun refreshAdminAlerts()' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
+          grep -q 'fun markAdminAlertRead' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
+          grep -q 'fun markAllAdminAlertsRead' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
+          grep -q 'HIGH_ACTIVITY_ALERT_COUNT = 20' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
+          grep -q 'LARGE_DEBT_ALERT = 5_000.0' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
+          grep -q 'private fun SmartAlertsScreen' "$PROJECT_DIR/app/src/main/java/com/example/ui/OperationsV14Dialog.kt"
+          grep -q 'onOpen("alerts")' "$PROJECT_DIR/app/src/main/java/com/example/ui/OperationsV14Dialog.kt"
+          grep -q 'Alert Center' "$PROJECT_DIR/app/src/main/java/com/example/ui/OperationsV14Dialog.kt"
+          grep -q 'Mark all as read' "$PROJECT_DIR/app/src/main/java/com/example/ui/OperationsV14Dialog.kt"
 
           test -f "$PROJECT_DIR/SYSTEM_HEALTH_V30_NOTES.txt"
           grep -q 'data class SystemHealthState' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
@@ -130,7 +142,7 @@ workflows:
           grep -q 'isMinifyEnabled = true' "$PROJECT_DIR/app/build.gradle.kts"
           grep -q 'isShrinkResources = true' "$PROJECT_DIR/app/build.gradle.kts"
 
-          echo "SYSTEM HEALTH V30 verification passed"
+          echo "SMART ADMIN ALERTS V31 verification passed"
 
       - name: Configure Android SDK
         script: |
@@ -197,7 +209,7 @@ workflows:
             -alias "$CM_KEY_ALIAS" \
             >/dev/null
 
-      - name: Build SYSTEM HEALTH V30 APK and AAB
+      - name: Build SMART ADMIN ALERTS V31 APK and AAB
         script: |
           set -euo pipefail
 
@@ -230,8 +242,8 @@ workflows:
 
           mkdir -p "$CM_BUILD_DIR/release"
 
-          cp "$APK_FILE" "$CM_BUILD_DIR/release/Tahalil-Alakkad-SYSTEM-HEALTH-V30.apk"
-          cp "$AAB_FILE" "$CM_BUILD_DIR/release/Tahalil-Alakkad-SYSTEM-HEALTH-V30.aab"
+          cp "$APK_FILE" "$CM_BUILD_DIR/release/Tahalil-Alakkad-SMART-ADMIN-ALERTS-V31.apk"
+          cp "$AAB_FILE" "$CM_BUILD_DIR/release/Tahalil-Alakkad-SMART-ADMIN-ALERTS-V31.aab"
 
           ls -lh "$CM_BUILD_DIR/release"
 
