@@ -1,6 +1,6 @@
 workflows:
   android-release:
-    name: Build Tahalil Alakkad TEST DOCUMENT IMPORT V40
+    name: Build Tahalil Alakkad FOCUSED WORKSPACE V41
     instance_type: mac_mini_m2
     max_build_duration: 60
 
@@ -10,15 +10,15 @@ workflows:
         - tahalil_alakkad_release
 
     scripts:
-      - name: Extract TEST DOCUMENT IMPORT V40 project
+      - name: Extract FOCUSED WORKSPACE V41 project
         script: |
           set -euo pipefail
 
-          ZIP_FILE="$CM_BUILD_DIR/Project3_AK_SECURE_TEST_DOCUMENT_IMPORT_V40.zip"
+          ZIP_FILE="$CM_BUILD_DIR/Project3_AK_SECURE_FOCUSED_WORKSPACE_V41.zip"
           WORK_DIR="$CM_BUILD_DIR/android_project"
 
           if [ ! -f "$ZIP_FILE" ]; then
-            echo "ERROR: Project3_AK_SECURE_TEST_DOCUMENT_IMPORT_V40.zip not found"
+            echo "ERROR: Project3_AK_SECURE_FOCUSED_WORKSPACE_V41.zip not found"
             ls -lah "$CM_BUILD_DIR"
             exit 1
           fi
@@ -37,7 +37,7 @@ workflows:
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$CM_ENV"
           echo "PROJECT_DIR=$PROJECT_DIR"
 
-      - name: Verify TEST DOCUMENT IMPORT V40
+      - name: Verify FOCUSED WORKSPACE V41
         script: |
           set -euo pipefail
 
@@ -47,68 +47,53 @@ workflows:
           test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
           test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/CustomerSystemDialog.kt"
           test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
+          test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/OrderPdfShareDialog.kt"
           test -f "$PROJECT_DIR/app/src/main/java/com/example/util/PdfGenerator.kt"
           test -f "$PROJECT_DIR/app/src/main/java/com/example/util/CustomerQrImport.kt"
-          test -f "$PROJECT_DIR/QR_IMPORT_SHARE_V39_NOTES.txt"
-          test -f "$PROJECT_DIR/OPTIONAL_OUTPUT_QR_V38_NOTES.txt"
-          test -f "$PROJECT_DIR/TEST_DOCUMENT_IMPORT_V40_NOTES.txt"
           test -f "$PROJECT_DIR/app/src/main/java/com/example/util/TestDocumentImport.kt"
+          test -f "$PROJECT_DIR/FOCUSED_WORKSPACE_V41_NOTES.txt"
 
-          grep -q 'versionCode = 45' "$PROJECT_DIR/app/build.gradle.kts"
-          grep -q 'versionName = "4.16-test-document-import-v40"' "$PROJECT_DIR/app/build.gradle.kts"
+          grep -q 'versionCode = 46' "$PROJECT_DIR/app/build.gradle.kts"
+          grep -q 'versionName = "4.17-focused-workspace-v41"' "$PROJECT_DIR/app/build.gradle.kts"
 
-          # Keep V38 optional order outputs.
+          # V41 focused workspace structure.
+          grep -q 'private fun FocusedWorkspaceHeader' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+          grep -q 'private fun OrderWorkspaceCustomerBar' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+          grep -q 'private fun WorkspaceMoreSection' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+          grep -q 'private fun WorkspaceMoreButton' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+          grep -q 'val currentWorkspaceMode = if (managerMainMode == "home") "order" else managerMainMode' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+          grep -q 'المهام اللي مش بتستخدمها دلوقتي' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+          grep -q 'المزيد والإدارة' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+          grep -q 'السجلات و QR' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+          grep -q 'bottomContent: (@Composable () -> Unit)? = null' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+
+          # V40 OCR test import remains available.
+          grep -q 'com.google.mlkit:text-recognition:16.0.1' "$PROJECT_DIR/app/build.gradle.kts"
+          grep -q 'object TestDocumentImport' "$PROJECT_DIR/app/src/main/java/com/example/util/TestDocumentImport.kt"
+          grep -q 'TextRecognition.getClient' "$PROJECT_DIR/app/src/main/java/com/example/util/TestDocumentImport.kt"
+          grep -q 'قراءة التحاليل من صورة أو PDF' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+
+          # V39 QR camera/file/share remains available.
+          grep -q 'object CustomerQrImport' "$PROJECT_DIR/app/src/main/java/com/example/util/CustomerQrImport.kt"
+          grep -q 'findCustomerByQrPayload' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
+          grep -q 'مسح QR بالكاميرا' "$PROJECT_DIR/app/src/main/java/com/example/ui/CustomerSystemDialog.kt"
+          grep -q 'android.intent.action.SEND' "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
+
+          # V38 optional PDF/PNG output remains available.
           grep -q 'fun generateCustomerOrderPdf' "$PROJECT_DIR/app/src/main/java/com/example/util/PdfGenerator.kt"
           grep -q 'fun generateLabRequestPdf' "$PROJECT_DIR/app/src/main/java/com/example/util/PdfGenerator.kt"
           grep -q 'fun generateCustomerOrderImage' "$PROJECT_DIR/app/src/main/java/com/example/util/PdfGenerator.kt"
           grep -q 'fun generateLabRequestImage' "$PROJECT_DIR/app/src/main/java/com/example/util/PdfGenerator.kt"
           grep -q 'إغلاق - حفظ فقط' "$PROJECT_DIR/app/src/main/java/com/example/ui/OrderPdfShareDialog.kt"
 
-          # V39 local image/PDF QR import.
-          grep -q 'object CustomerQrImport' "$PROJECT_DIR/app/src/main/java/com/example/util/CustomerQrImport.kt"
-          grep -q 'PdfRenderer' "$PROJECT_DIR/app/src/main/java/com/example/util/CustomerQrImport.kt"
-          grep -q 'MultiFormatReader' "$PROJECT_DIR/app/src/main/java/com/example/util/CustomerQrImport.kt"
-          grep -q 'ActivityResultContracts.OpenDocument' "$PROJECT_DIR/app/src/main/java/com/example/ui/CustomerSystemDialog.kt"
-          grep -q 'قراءة QR من صورة أو PDF' "$PROJECT_DIR/app/src/main/java/com/example/ui/CustomerSystemDialog.kt"
-          grep -q 'مسح QR بالكاميرا' "$PROJECT_DIR/app/src/main/java/com/example/ui/CustomerSystemDialog.kt"
-          grep -q 'CustomerQrImport.readQrPayload' "$PROJECT_DIR/app/src/main/java/com/example/ui/CustomerSystemDialog.kt"
-
-          # V39 Android Share target and pending shared URI flow.
-          grep -q 'android.intent.action.SEND' "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
-          grep -q 'android:mimeType="image/\*"' "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
-          grep -q 'android:mimeType="application/pdf"' "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
-          grep -q 'handleIncomingQrShare' "$PROJECT_DIR/app/src/main/java/com/example/MainActivity.kt"
-          grep -q 'Intent.EXTRA_STREAM' "$PROJECT_DIR/app/src/main/java/com/example/MainActivity.kt"
-          grep -q 'queueSharedQrUri' "$PROJECT_DIR/app/src/main/java/com/example/MainActivity.kt"
-          grep -q 'pendingSharedQrUri' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
-          grep -q 'consumeSharedQrUri' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
-          grep -q 'initialQrUri = pendingSharedQrUri' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-
-          # Stable unique customer QR and server/local lookup remain intact.
-          grep -q 'TAHALIL_ALAKKAD_CUSTOMER|V=2|ID=' "$PROJECT_DIR/app/src/main/java/com/example/util/PdfGenerator.kt"
-          grep -q 'findCustomerByQrPayload' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
-          grep -q 'GmsBarcodeScanning.getClient' "$PROJECT_DIR/app/src/main/java/com/example/ui/CustomerSystemDialog.kt"
-          grep -q 'com.google.zxing:core:3.5.3' "$PROJECT_DIR/app/build.gradle.kts"
-          grep -q 'com.google.android.gms:play-services-code-scanner:16.1.0' "$PROJECT_DIR/app/build.gradle.kts"
-
-          # V40 OCR test-name import from local image/PDF.
-          grep -q 'com.google.mlkit:text-recognition:16.0.1' "$PROJECT_DIR/app/build.gradle.kts"
-          grep -q 'object TestDocumentImport' "$PROJECT_DIR/app/src/main/java/com/example/util/TestDocumentImport.kt"
-          grep -q 'TextRecognition.getClient' "$PROJECT_DIR/app/src/main/java/com/example/util/TestDocumentImport.kt"
-          grep -q 'PdfRenderer' "$PROJECT_DIR/app/src/main/java/com/example/util/TestDocumentImport.kt"
-          grep -q 'ActivityResultContracts.OpenDocument' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-          grep -q 'قراءة التحاليل من صورة أو PDF' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-          grep -q 'detectTestsFromRecognizedText' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
-          grep -q 'applyRecognizedTestsToSearch' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
-
-          # Security stays enabled.
+          # Security remains enabled.
           grep -q 'FLAG_SECURE' "$PROJECT_DIR/app/src/main/java/com/example/MainActivity.kt"
           grep -q 'android:allowBackup="false"' "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
           grep -q 'android:usesCleartextTraffic="false"' "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
           grep -q 'isMinifyEnabled = true' "$PROJECT_DIR/app/build.gradle.kts"
           grep -q 'isShrinkResources = true' "$PROJECT_DIR/app/build.gradle.kts"
 
-          echo "TEST DOCUMENT IMPORT V40 verification passed"
+          echo "FOCUSED WORKSPACE V41 verification passed"
 
       - name: Configure Android SDK
         script: |
@@ -177,7 +162,7 @@ workflows:
             -alias "$CM_KEY_ALIAS" \
             >/dev/null
 
-      - name: Build TEST DOCUMENT IMPORT V40 APK and AAB
+      - name: Build FOCUSED WORKSPACE V41 APK and AAB
         script: |
           set -euo pipefail
 
@@ -214,13 +199,13 @@ workflows:
           rm -rf "$RELEASE_DIR"
           mkdir -p "$RELEASE_DIR"
 
-          cp "$APK_FILE" "$RELEASE_DIR/Tahalil-Alakkad-TEST-DOCUMENT-IMPORT-V40.apk"
-          cp "$AAB_FILE" "$RELEASE_DIR/Tahalil-Alakkad-TEST-DOCUMENT-IMPORT-V40.aab"
+          cp "$APK_FILE" "$RELEASE_DIR/Tahalil-Alakkad-FOCUSED-WORKSPACE-V41.apk"
+          cp "$AAB_FILE" "$RELEASE_DIR/Tahalil-Alakkad-FOCUSED-WORKSPACE-V41.aab"
 
-          test -f "$RELEASE_DIR/Tahalil-Alakkad-TEST-DOCUMENT-IMPORT-V40.apk"
-          test -f "$RELEASE_DIR/Tahalil-Alakkad-TEST-DOCUMENT-IMPORT-V40.aab"
+          test -f "$RELEASE_DIR/Tahalil-Alakkad-FOCUSED-WORKSPACE-V41.apk"
+          test -f "$RELEASE_DIR/Tahalil-Alakkad-FOCUSED-WORKSPACE-V41.aab"
 
-          echo "V40 APK and AAB created successfully"
+          echo "V41 APK and AAB created successfully"
           ls -lah "$RELEASE_DIR"
 
     artifacts:
