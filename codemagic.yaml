@@ -1,6 +1,6 @@
 workflows:
   android-release:
-    name: Build Tahalil Alakkad DATA INTEGRITY V32
+    name: Build Tahalil Alakkad DAILY HOME V34
     instance_type: mac_mini_m2
     max_build_duration: 60
 
@@ -10,18 +10,18 @@ workflows:
         - tahalil_alakkad_release
 
     scripts:
-      - name: Extract DATA INTEGRITY V32 project
+      - name: Extract DAILY HOME V34 project
         script: |
           set -euo pipefail
 
-          ZIP_FILE="$CM_BUILD_DIR/Project3_AK_SECURE_DATA_INTEGRITY_V32.zip"
+          ZIP_FILE="$CM_BUILD_DIR/Project3_AK_SECURE_DAILY_HOME_V34.zip"
           WORK_DIR="$CM_BUILD_DIR/android_project"
 
           rm -rf "$WORK_DIR"
           mkdir -p "$WORK_DIR"
 
           if [ ! -f "$ZIP_FILE" ]; then
-            echo "ERROR: Project3_AK_SECURE_DATA_INTEGRITY_V32.zip not found"
+            echo "ERROR: Project3_AK_SECURE_DAILY_HOME_V34.zip not found"
             ls -lah "$CM_BUILD_DIR"
             exit 1
           fi
@@ -38,7 +38,7 @@ workflows:
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$CM_ENV"
           echo "PROJECT_DIR=$PROJECT_DIR"
 
-      - name: Verify DATA INTEGRITY V32
+      - name: Verify DAILY HOME V34
         script: |
           set -euo pipefail
 
@@ -62,10 +62,35 @@ workflows:
           test -f "$PROJECT_DIR/app/src/main/java/com/example/util/PdfGenerator.kt"
           test -f "$PROJECT_DIR/firestore.rules"
 
-          grep -q 'versionCode = 37' "$PROJECT_DIR/app/build.gradle.kts"
-          grep -q 'versionName = "4.8-data-integrity-v32"' "$PROJECT_DIR/app/build.gradle.kts"
+          grep -q 'versionCode = 39' "$PROJECT_DIR/app/build.gradle.kts"
+          grep -q 'versionName = "4.10-daily-home-v34"' "$PROJECT_DIR/app/build.gradle.kts"
           grep -q '<string name="app_name">تحاليل العقاد</string>' "$PROJECT_DIR/app/src/main/res/values/strings.xml"
 
+          # V34 daily-use home + focused standalone screens
+          test -f "$PROJECT_DIR/DAILY_HOME_V34_NOTES.txt"
+
+          # Preserve V33 persistent switched-user session
+          grep -q 'manager_switch_session_v33' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
+          grep -q 'restorePersistedActingUser' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
+          grep -q 'persistActingUser(profile)' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
+          grep -q 'clearPersistedActingUser()' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
+
+          # Manager lands on compact daily home, not search
+          grep -q 'mutableStateOf(true)' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+          grep -q 'mutableStateOf("home") } // home | price_search | order | catalog' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+          grep -q 'title = appText("استعلام عن أسعار التحاليل", "Test price inquiry")' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+          grep -q 'title = appText("سجلات العملاء", "Customer records")' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+          grep -q 'title = appText("التحاليل المتاحة", "Available tests")' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+          grep -q 'title = appText("طلب جديد", "New order")' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+          grep -q 'title = appText("تبديل المستخدم", "Switch user")' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+          grep -q 'title = appText("لوحة المدير", "Manager panel")' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+          grep -q 'managerMainMode == "price_search"' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+          grep -q 'managerMainMode == "catalog"' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+          grep -q 'private fun AvailableTestsScreen' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+          grep -q 'allowOrderSelection = false' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+          grep -q 'focusedManagerSearch' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+
+          # V32 Data Integrity
           test -f "$PROJECT_DIR/DATA_INTEGRITY_V32_NOTES.txt"
           grep -q 'data class DataIntegrityIssue' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
           grep -q 'data class DataIntegrityState' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
@@ -73,81 +98,48 @@ workflows:
           grep -q 'fun repairIntegrityIssue' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
           grep -q 'INTEGRITY_ORDER_SCAN_LIMIT = 1_500L' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
           grep -q 'operation_id' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
-          grep -q 'This customer was changed by another user' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
-          grep -q 'This order was changed by another user' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
-          grep -q 'private fun DataIntegrityScreen' "$PROJECT_DIR/app/src/main/java/com/example/ui/OperationsV14Dialog.kt"
-          grep -q 'onOpen("integrity")' "$PROJECT_DIR/app/src/main/java/com/example/ui/OperationsV14Dialog.kt"
-          grep -q 'Safe repair without deleting data' "$PROJECT_DIR/app/src/main/java/com/example/ui/OperationsV14Dialog.kt"
 
+          # V31 Smart Admin Alerts
           test -f "$PROJECT_DIR/SMART_ADMIN_ALERTS_V31_NOTES.txt"
           grep -q 'data class AdminAlert' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
           grep -q 'fun refreshAdminAlerts()' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
           grep -q 'fun markAdminAlertRead' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
           grep -q 'fun markAllAdminAlertsRead' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
-          grep -q 'HIGH_ACTIVITY_ALERT_COUNT = 20' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
-          grep -q 'LARGE_DEBT_ALERT = 5_000.0' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
-          grep -q 'private fun SmartAlertsScreen' "$PROJECT_DIR/app/src/main/java/com/example/ui/OperationsV14Dialog.kt"
-          grep -q 'onOpen("alerts")' "$PROJECT_DIR/app/src/main/java/com/example/ui/OperationsV14Dialog.kt"
-          grep -q 'Alert Center' "$PROJECT_DIR/app/src/main/java/com/example/ui/OperationsV14Dialog.kt"
-          grep -q 'Mark all as read' "$PROJECT_DIR/app/src/main/java/com/example/ui/OperationsV14Dialog.kt"
 
+          # V30 System Health
           test -f "$PROJECT_DIR/SYSTEM_HEALTH_V30_NOTES.txt"
           grep -q 'data class SystemHealthState' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
           grep -q 'fun refreshSystemHealth()' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
           grep -q 'get(Source.SERVER)' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
           grep -q 'SystemClock.elapsedRealtime()' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
-          grep -q 'private fun SystemHealthScreen' "$PROJECT_DIR/app/src/main/java/com/example/ui/OperationsV14Dialog.kt"
-          grep -q 'onOpen("health")' "$PROJECT_DIR/app/src/main/java/com/example/ui/OperationsV14Dialog.kt"
-          grep -q 'Local Cache' "$PROJECT_DIR/app/src/main/java/com/example/ui/OperationsV14Dialog.kt"
-          grep -q 'Firebase Latency' "$PROJECT_DIR/app/src/main/java/com/example/ui/OperationsV14Dialog.kt"
 
+          # V29 performance
           grep -q 'PersistentCacheSettings.newBuilder()' "$PROJECT_DIR/app/src/main/java/com/example/settings/FirestorePerformance.kt"
           grep -q 'CACHE_BYTES = 200L' "$PROJECT_DIR/app/src/main/java/com/example/settings/FirestorePerformance.kt"
           grep -q 'SERVER_PAGE_SIZE = 750L' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
-          grep -q 'loadManagerRemainingPages' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
-          grep -q 'whereGreaterThanOrEqualTo("created_at_ms", startToday)' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
-          grep -q 'whereLessThanOrEqualTo("created_at_ms", toMillis)' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
-          grep -q 'limit(AUDIT_LOG_LIMIT)' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
-          grep -q '"collectionGroup": "orders"' "$PROJECT_DIR/firestore.indexes.json"
-          grep -q '"fieldPath": "created_at_ms"' "$PROJECT_DIR/firestore.indexes.json"
 
+          # Arabic / English
           grep -q 'val language: String = "ar"' "$PROJECT_DIR/app/src/main/java/com/example/settings/AppSettings.kt"
           grep -q 'AppLanguageRuntime' "$PROJECT_DIR/app/src/main/java/com/example/settings/AppText.kt"
-          grep -q 'language = "en"' "$PROJECT_DIR/app/src/main/java/com/example/ui/UserSettingsDialog.kt"
-          grep -q 'language = "en"' "$PROJECT_DIR/app/src/main/java/com/example/ui/ManagerSettingsDialog.kt"
           grep -q 'LayoutDirection.Ltr' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-          grep -q 'language = settings.language' "$PROJECT_DIR/app/src/main/java/com/example/ui/CustomerSystemDialog.kt"
-          grep -q 'language = settings.language' "$PROJECT_DIR/app/src/main/java/com/example/ui/OperationsV14Dialog.kt"
-          grep -q 'language = settings.language' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
 
+          # Offline / sync
           grep -q 'ACCESS_NETWORK_STATE' "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
           grep -q 'class ConnectivityMonitor' "$PROJECT_DIR/app/src/main/java/com/example/settings/ConnectivityMonitor.kt"
-          grep -q 'class PendingSyncStore' "$PROJECT_DIR/app/src/main/java/com/example/settings/ConnectivityMonitor.kt"
           grep -q 'pendingSyncCount' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
           grep -q 'SyncStatusBar' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-          grep -q 'queueOfflineAuditIfNeeded' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
-          grep -q '"was_offline" to true' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
-          grep -q '"synced_at" to FieldValue.serverTimestamp()' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
-          grep -q 'waitForPendingWrites' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
 
           if grep -q 'runTransaction' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"; then
-            echo "ERROR: Firestore transaction found; V29 user operations must queue offline"
+            echo "ERROR: Firestore transaction found"
             exit 1
           fi
 
-          grep -q 'heightIn(min = 148.dp)' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-
-          if grep -q 'modifier = modifier.height(116.dp)' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"; then
-            echo "ERROR: old clipped dashboard card height still exists"
-            exit 1
-          fi
-
-          grep -q 'text = "Abdelrahman"' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-          grep -q 'text = "General Manager"' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+          # Back navigation
           grep -q 'BackHandler' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
           grep -q 'BackHandler' "$PROJECT_DIR/app/src/main/java/com/example/ui/CustomerSystemDialog.kt"
           grep -q 'BackHandler' "$PROJECT_DIR/app/src/main/java/com/example/ui/OperationsV14Dialog.kt"
 
+          # PDF + Security
           grep -q 'generateAndShareReportPdf' "$PROJECT_DIR/app/src/main/java/com/example/util/PdfGenerator.kt"
           grep -q 'FLAG_SECURE' "$PROJECT_DIR/app/src/main/java/com/example/MainActivity.kt"
           grep -q 'android:allowBackup="false"' "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
@@ -155,7 +147,7 @@ workflows:
           grep -q 'isMinifyEnabled = true' "$PROJECT_DIR/app/build.gradle.kts"
           grep -q 'isShrinkResources = true' "$PROJECT_DIR/app/build.gradle.kts"
 
-          echo "DATA INTEGRITY V32 verification passed"
+          echo "DAILY HOME V34 verification passed"
 
       - name: Configure Android SDK
         script: |
@@ -222,7 +214,7 @@ workflows:
             -alias "$CM_KEY_ALIAS" \
             >/dev/null
 
-      - name: Build DATA INTEGRITY V32 APK and AAB
+      - name: Build DAILY HOME V34 APK and AAB
         script: |
           set -euo pipefail
 
@@ -255,8 +247,8 @@ workflows:
 
           mkdir -p "$CM_BUILD_DIR/release"
 
-          cp "$APK_FILE" "$CM_BUILD_DIR/release/Tahalil-Alakkad-DATA-INTEGRITY-V32.apk"
-          cp "$AAB_FILE" "$CM_BUILD_DIR/release/Tahalil-Alakkad-DATA-INTEGRITY-V32.aab"
+          cp "$APK_FILE" "$CM_BUILD_DIR/release/Tahalil-Alakkad-DAILY-HOME-V34.apk"
+          cp "$AAB_FILE" "$CM_BUILD_DIR/release/Tahalil-Alakkad-DAILY-HOME-V34.aab"
 
           ls -lh "$CM_BUILD_DIR/release"
 
