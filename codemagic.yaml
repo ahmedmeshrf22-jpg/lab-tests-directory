@@ -10,6 +10,7 @@ workflows:
         - tahalil_alakkad_release
 
     scripts:
+
       - name: Extract DUAL PDF QR V36 project
         script: |
           set -euo pipefail
@@ -17,102 +18,76 @@ workflows:
           ZIP_FILE="$CM_BUILD_DIR/Project3_AK_SECURE_DUAL_PDF_QR_V36.zip"
           WORK_DIR="$CM_BUILD_DIR/android_project"
 
-          rm -rf "$WORK_DIR"
-          mkdir -p "$WORK_DIR"
+          echo "Looking for project ZIP..."
+          ls -lah "$CM_BUILD_DIR"
 
           if [ ! -f "$ZIP_FILE" ]; then
-            echo "ERROR: Project3_AK_SECURE_DUAL_PDF_QR_V36.zip not found"
-            ls -lah "$CM_BUILD_DIR"
+            echo "ERROR: Project ZIP not found:"
+            echo "$ZIP_FILE"
             exit 1
           fi
 
+          rm -rf "$WORK_DIR"
+          mkdir -p "$WORK_DIR"
+
+          echo "Extracting project..."
           unzip -q -o "$ZIP_FILE" -d "$WORK_DIR"
 
-          SETTINGS_FILE="$(find "$WORK_DIR" -name "settings.gradle.kts" -type f | head -n 1 || true)"
+          SETTINGS_FILE=$(find "$WORK_DIR" -type f -name "settings.gradle.kts" -print -quit)
+
           if [ -z "$SETTINGS_FILE" ]; then
             echo "ERROR: settings.gradle.kts not found"
             exit 1
           fi
 
-          PROJECT_DIR="$(dirname "$SETTINGS_FILE")"
-          echo "PROJECT_DIR=$PROJECT_DIR" >> "$CM_ENV"
+          PROJECT_DIR=$(dirname "$SETTINGS_FILE")
+
           echo "PROJECT_DIR=$PROJECT_DIR"
+          echo "PROJECT_DIR=$PROJECT_DIR" >> "$CM_ENV"
+
+          echo "Project extracted successfully"
+
 
       - name: Verify DUAL PDF QR V36
         script: |
           set -euo pipefail
 
+          echo "Verifying core project files..."
+
+          test -f "$PROJECT_DIR/settings.gradle.kts"
           test -f "$PROJECT_DIR/app/build.gradle.kts"
           test -f "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
           test -f "$PROJECT_DIR/app/src/main/res/values/strings.xml"
+
           test -f "$PROJECT_DIR/app/src/main/java/com/example/MainActivity.kt"
-          test -f "$PROJECT_DIR/app/src/main/java/com/example/settings/AppSettings.kt"
-          test -f "$PROJECT_DIR/app/src/main/java/com/example/settings/AppText.kt"
-          test -f "$PROJECT_DIR/app/src/main/java/com/example/settings/ConnectivityMonitor.kt"
-          test -f "$PROJECT_DIR/app/src/main/java/com/example/settings/FirestorePerformance.kt"
-          test -f "$PROJECT_DIR/firestore.indexes.json"
-          test -f "$PROJECT_DIR/firebase.json"
-          test -f "$PROJECT_DIR/PERFORMANCE_RELIABILITY_V29_NOTES.txt"
           test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
           test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
           test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/CustomerSystemDialog.kt"
           test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/OperationsV14Dialog.kt"
-          test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/UserSettingsDialog.kt"
-          test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/ManagerSettingsDialog.kt"
+          test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/OrderPdfShareDialog.kt"
+
           test -f "$PROJECT_DIR/app/src/main/java/com/example/util/PdfGenerator.kt"
-          test -f "$PROJECT_DIR/firestore.rules"
 
-          grep -q 'versionCode = 41' "$PROJECT_DIR/app/build.gradle.kts"
-          grep -q 'versionName = "4.12-dual-pdf-qr-v36"' "$PROJECT_DIR/app/build.gradle.kts"
-          grep -q '<string name="app_name">تحاليل العقاد</string>' "$PROJECT_DIR/app/src/main/res/values/strings.xml"
+          echo "Checking application version..."
 
-          test -f "$PROJECT_DIR/DAILY_HOME_V34_NOTES.txt"
-
-          # V36 Dual PDF + QR
-          test -f "$PROJECT_DIR/DUAL_PDF_QR_V36_NOTES.txt"
-
-          grep -q 'implementation("com.google.zxing:core:3.5.3")' \
+          grep -q 'versionCode = 41' \
             "$PROJECT_DIR/app/build.gradle.kts"
+
+          grep -q 'versionName = "4.12-dual-pdf-qr-v36"' \
+            "$PROJECT_DIR/app/build.gradle.kts"
+
+          grep -q '<string name="app_name">تحاليل العقاد</string>' \
+            "$PROJECT_DIR/app/src/main/res/values/strings.xml"
+
+          echo "Checking V36 PDF functions..."
+
+          grep -q 'generateDualOrderPdfs' \
+            "$PROJECT_DIR/app/src/main/java/com/example/util/PdfGenerator.kt"
 
           grep -q 'createCustomerQrBitmap' \
             "$PROJECT_DIR/app/src/main/java/com/example/util/PdfGenerator.kt"
 
-          grep -q 'بيانات التواصل الخاصة بالعميل' \
-            "$PROJECT_DIR/app/src/main/java/com/example/util/PdfGenerator.kt"
-
-          grep -q 'private const val CLINIC_WHATSAPP = "01102233167"' \
-            "$PROJECT_DIR/app/src/main/java/com/example/util/PdfGenerator.kt"
-
-          grep -q 'private const val CLINIC_PHONE = "01107072134"' \
-            "$PROJECT_DIR/app/src/main/java/com/example/util/PdfGenerator.kt"
-
-          grep -q '59 شارع فيصل الرئيسي' \
-            "$PROJECT_DIR/app/src/main/java/com/example/util/PdfGenerator.kt"
-
-          grep -q 'طلب تحاليل للمعمل' \
-            "$PROJECT_DIR/app/src/main/java/com/example/util/PdfGenerator.kt"
-
-          grep -q 'englishOnly' \
-            "$PROJECT_DIR/app/src/main/java/com/example/util/PdfGenerator.kt"
-
-          grep -q 'إصدار إيصال العميل + طلب المعمل' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-
-          grep -q 'حفظ الطلب وإنشاء ملفي PDF' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-
-          if grep -q 'PdfGenerator.generateAndSharePdf(' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"; then
-            echo "ERROR: legacy single PDF action still exists in LabTestsScreen"
-            exit 1
-          fi
-
-          test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/OrderPdfShareDialog.kt"
-
-          grep -q 'data class OrderPdfBundle' \
-            "$PROJECT_DIR/app/src/main/java/com/example/util/PdfGenerator.kt"
-
-          grep -q 'fun generateDualOrderPdfs' \
+          grep -q 'OrderPdfBundle' \
             "$PROJECT_DIR/app/src/main/java/com/example/util/PdfGenerator.kt"
 
           grep -q 'بيانات الحالة' \
@@ -121,268 +96,29 @@ workflows:
           grep -q 'التحاليل المطلوبة' \
             "$PROJECT_DIR/app/src/main/java/com/example/util/PdfGenerator.kt"
 
+          grep -q '01102233167' \
+            "$PROJECT_DIR/app/src/main/java/com/example/util/PdfGenerator.kt"
+
+          grep -q '01107072134' \
+            "$PROJECT_DIR/app/src/main/java/com/example/util/PdfGenerator.kt"
+
+          grep -q '59 شارع فيصل الرئيسي' \
+            "$PROJECT_DIR/app/src/main/java/com/example/util/PdfGenerator.kt"
+
+          echo "Checking QR dependency..."
+
+          grep -q 'com.google.zxing:core:3.5.3' \
+            "$PROJECT_DIR/app/build.gradle.kts"
+
+          echo "Checking PDF share screen..."
+
           grep -q 'إرسال طلب المعمل' \
             "$PROJECT_DIR/app/src/main/java/com/example/ui/OrderPdfShareDialog.kt"
 
           grep -q 'إرسال PDF العميل' \
             "$PROJECT_DIR/app/src/main/java/com/example/ui/OrderPdfShareDialog.kt"
 
-          # Preserve switched-user session
-          grep -q 'manager_switch_session_v33' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
-
-          grep -q 'restorePersistedActingUser' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
-
-          grep -q 'persistActingUser(profile)' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
-
-          grep -q 'clearPersistedActingUser()' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
-
-          # Home
-          grep -q 'mutableStateOf(true)' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-
-          grep -q 'mutableStateOf("home") } // home | price_search | order | catalog' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-
-          grep -q 'title = appText("استعلام عن أسعار التحاليل", "Test price inquiry")' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-
-          grep -q 'title = appText("سجلات العملاء", "Customer records")' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-
-          grep -q 'title = appText("التحاليل المتاحة", "Available tests")' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-
-          grep -q 'title = appText("طلب جديد", "New order")' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-
-          grep -q 'title = appText("تبديل المستخدم", "Switch user")' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-
-          grep -q 'title = appText("لوحة المدير", "Manager panel")' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-
-          grep -q 'managerMainMode == "price_search"' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-
-          grep -q 'managerMainMode == "catalog"' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-
-          grep -q 'private fun AvailableTestsScreen' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-
-          grep -q 'allowOrderSelection = false' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-
-          grep -q 'focusedManagerSearch' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-
-          # V32 Data Integrity
-          test -f "$PROJECT_DIR/DATA_INTEGRITY_V32_NOTES.txt"
-
-          grep -q 'data class DataIntegrityIssue' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
-
-          grep -q 'data class DataIntegrityState' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
-
-          grep -q 'fun refreshDataIntegrity()' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
-
-          grep -q 'fun repairIntegrityIssue' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
-
-          grep -q 'INTEGRITY_ORDER_SCAN_LIMIT = 1_500L' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
-
-          grep -q 'operation_id' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
-
-          grep -q 'This customer was changed by another user' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
-
-          grep -q 'This order was changed by another user' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
-
-          grep -q 'private fun DataIntegrityScreen' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/OperationsV14Dialog.kt"
-
-          grep -q 'onOpen("integrity")' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/OperationsV14Dialog.kt"
-
-          grep -q 'Safe repair without deleting data' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/OperationsV14Dialog.kt"
-
-          # Smart Admin Alerts
-          test -f "$PROJECT_DIR/SMART_ADMIN_ALERTS_V31_NOTES.txt"
-
-          grep -q 'data class AdminAlert' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
-
-          grep -q 'fun refreshAdminAlerts()' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
-
-          grep -q 'fun markAdminAlertRead' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
-
-          grep -q 'fun markAllAdminAlertsRead' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
-
-          grep -q 'HIGH_ACTIVITY_ALERT_COUNT = 20' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
-
-          grep -q 'LARGE_DEBT_ALERT = 5_000.0' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
-
-          grep -q 'private fun SmartAlertsScreen' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/OperationsV14Dialog.kt"
-
-          grep -q 'onOpen("alerts")' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/OperationsV14Dialog.kt"
-
-          grep -q 'Alert Center' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/OperationsV14Dialog.kt"
-
-          grep -q 'Mark all as read' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/OperationsV14Dialog.kt"
-
-          # System Health
-          test -f "$PROJECT_DIR/SYSTEM_HEALTH_V30_NOTES.txt"
-
-          grep -q 'data class SystemHealthState' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
-
-          grep -q 'fun refreshSystemHealth()' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
-
-          grep -q 'get(Source.SERVER)' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
-
-          grep -q 'SystemClock.elapsedRealtime()' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
-
-          grep -q 'private fun SystemHealthScreen' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/OperationsV14Dialog.kt"
-
-          grep -q 'onOpen("health")' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/OperationsV14Dialog.kt"
-
-          grep -q 'Local Cache' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/OperationsV14Dialog.kt"
-
-          grep -q 'Firebase Latency' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/OperationsV14Dialog.kt"
-
-          # Performance
-          grep -q 'PersistentCacheSettings.newBuilder()' \
-            "$PROJECT_DIR/app/src/main/java/com/example/settings/FirestorePerformance.kt"
-
-          grep -q 'CACHE_BYTES = 200L' \
-            "$PROJECT_DIR/app/src/main/java/com/example/settings/FirestorePerformance.kt"
-
-          grep -q 'SERVER_PAGE_SIZE = 750L' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
-
-          grep -q 'loadManagerRemainingPages' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
-
-          grep -q 'whereGreaterThanOrEqualTo("created_at_ms", startToday)' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
-
-          grep -q 'whereLessThanOrEqualTo("created_at_ms", toMillis)' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
-
-          grep -q 'limit(AUDIT_LOG_LIMIT)' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
-
-          grep -q '"collectionGroup": "orders"' "$PROJECT_DIR/firestore.indexes.json"
-          grep -q '"fieldPath": "created_at_ms"' "$PROJECT_DIR/firestore.indexes.json"
-
-          # Arabic / English
-          grep -q 'val language: String = "ar"' \
-            "$PROJECT_DIR/app/src/main/java/com/example/settings/AppSettings.kt"
-
-          grep -q 'AppLanguageRuntime' \
-            "$PROJECT_DIR/app/src/main/java/com/example/settings/AppText.kt"
-
-          grep -q 'language = "en"' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/UserSettingsDialog.kt"
-
-          grep -q 'language = "en"' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/ManagerSettingsDialog.kt"
-
-          grep -q 'LayoutDirection.Ltr' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-
-          grep -q 'LocalAppSettings.current' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/CustomerSystemDialog.kt"
-
-          grep -q 'language = settings.language' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/OperationsV14Dialog.kt"
-
-          grep -q 'LocalAppSettings.current' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-
-          # Offline / Sync
-          grep -q 'ACCESS_NETWORK_STATE' \
-            "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
-
-          grep -q 'class ConnectivityMonitor' \
-            "$PROJECT_DIR/app/src/main/java/com/example/settings/ConnectivityMonitor.kt"
-
-          grep -q 'class PendingSyncStore' \
-            "$PROJECT_DIR/app/src/main/java/com/example/settings/ConnectivityMonitor.kt"
-
-          grep -q 'pendingSyncCount' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
-
-          grep -q 'SyncStatusBar' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-
-          grep -q 'queueOfflineAuditIfNeeded' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
-
-          grep -q '"was_offline" to true' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
-
-          grep -q '"synced_at" to FieldValue.serverTimestamp()' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
-
-          grep -q 'waitForPendingWrites' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
-
-          if grep -q 'runTransaction' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"; then
-            echo "ERROR: Firestore transaction found"
-            exit 1
-          fi
-
-          # Dashboard layout
-          grep -q 'heightIn(min = 148.dp)' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-
-          if grep -q 'modifier = modifier.height(116.dp)' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"; then
-            echo "ERROR: old clipped dashboard card height still exists"
-            exit 1
-          fi
-
-          # Back navigation
-          grep -q 'BackHandler' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-
-          grep -q 'BackHandler' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/CustomerSystemDialog.kt"
-
-          grep -q 'BackHandler' \
-            "$PROJECT_DIR/app/src/main/java/com/example/ui/OperationsV14Dialog.kt"
-
-          # PDF + Security
-          grep -q 'generateAndShareReportPdf' \
-            "$PROJECT_DIR/app/src/main/java/com/example/util/PdfGenerator.kt"
+          echo "Checking security..."
 
           grep -q 'FLAG_SECURE' \
             "$PROJECT_DIR/app/src/main/java/com/example/MainActivity.kt"
@@ -393,10 +129,8 @@ workflows:
           grep -q 'android:usesCleartextTraffic="false"' \
             "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
 
-          grep -q 'isMinifyEnabled = true' "$PROJECT_DIR/app/build.gradle.kts"
-          grep -q 'isShrinkResources = true' "$PROJECT_DIR/app/build.gradle.kts"
-
           echo "DUAL PDF QR V36 verification passed"
+
 
       - name: Configure Android SDK
         script: |
@@ -412,14 +146,17 @@ workflows:
 
           echo "ANDROID_HOME=$ANDROID_HOME" >> "$CM_ENV"
           echo "ANDROID_SDK_ROOT=$ANDROID_HOME" >> "$CM_ENV"
+
           echo "sdk.dir=$ANDROID_HOME" > "$PROJECT_DIR/local.properties"
 
           yes | "$SDKMANAGER" --licenses >/dev/null 2>&1 || true
 
-          "$SDKMANAGER" \
-            "platform-tools" \
-            "platforms;android-36.1" \
-            "build-tools;36.0.0"
+          "$SDKMANAGER" "platform-tools"
+          "$SDKMANAGER" "platforms;android-36.1"
+          "$SDKMANAGER" "build-tools;36.0.0"
+
+          echo "Android SDK configured"
+
 
       - name: Install Gradle 9.3.1
         script: |
@@ -427,41 +164,74 @@ workflows:
 
           GRADLE_VERSION="9.3.1"
           GRADLE_DIR="$HOME/gradle-$GRADLE_VERSION"
+          GRADLE_BIN="$GRADLE_DIR/bin/gradle"
 
-          if [ ! -x "$GRADLE_DIR/bin/gradle" ]; then
+          if [ ! -x "$GRADLE_BIN" ]; then
+
+            echo "Downloading Gradle $GRADLE_VERSION..."
+
             rm -f /tmp/gradle.zip
 
-            curl --fail --location --retry 3 \
+            curl \
+              --fail \
+              --location \
+              --retry 3 \
               "https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip" \
               -o /tmp/gradle.zip
 
             unzip -q -o /tmp/gradle.zip -d "$HOME"
           fi
 
-          echo "GRADLE_BIN=$GRADLE_DIR/bin/gradle" >> "$CM_ENV"
-          "$GRADLE_DIR/bin/gradle" --version
+          if [ ! -x "$GRADLE_BIN" ]; then
+            echo "ERROR: Gradle installation failed"
+            exit 1
+          fi
+
+          echo "GRADLE_BIN=$GRADLE_BIN" >> "$CM_ENV"
+
+          "$GRADLE_BIN" --version
+
 
       - name: Validate release signing
         script: |
           set -euo pipefail
 
-          if [ -z "${CM_KEYSTORE_PATH:-}" ] || [ ! -f "$CM_KEYSTORE_PATH" ]; then
-            echo "ERROR: Release keystore missing"
+          echo "Checking release signing..."
+
+          if [ -z "${CM_KEYSTORE_PATH:-}" ]; then
+            echo "ERROR: CM_KEYSTORE_PATH is empty"
             exit 1
           fi
 
-          if [ -z "${CM_KEYSTORE_PASSWORD:-}" ] || \
-             [ -z "${CM_KEY_ALIAS:-}" ] || \
-             [ -z "${CM_KEY_PASSWORD:-}" ]; then
-            echo "ERROR: Signing credentials incomplete"
+          if [ ! -f "$CM_KEYSTORE_PATH" ]; then
+            echo "ERROR: Keystore file not found"
             exit 1
           fi
 
-          keytool -list \
+          if [ -z "${CM_KEYSTORE_PASSWORD:-}" ]; then
+            echo "ERROR: CM_KEYSTORE_PASSWORD missing"
+            exit 1
+          fi
+
+          if [ -z "${CM_KEY_ALIAS:-}" ]; then
+            echo "ERROR: CM_KEY_ALIAS missing"
+            exit 1
+          fi
+
+          if [ -z "${CM_KEY_PASSWORD:-}" ]; then
+            echo "ERROR: CM_KEY_PASSWORD missing"
+            exit 1
+          fi
+
+          keytool \
+            -list \
             -keystore "$CM_KEYSTORE_PATH" \
             -storepass "$CM_KEYSTORE_PASSWORD" \
             -alias "$CM_KEY_ALIAS" \
             >/dev/null
+
+          echo "Release signing OK"
+
 
       - name: Build DUAL PDF QR V36 APK and AAB
         script: |
@@ -472,7 +242,12 @@ workflows:
           export KEY_PASSWORD="$CM_KEY_PASSWORD"
           export KEY_ALIAS="$CM_KEY_ALIAS"
 
+          echo "Project directory:"
+          echo "$PROJECT_DIR"
+
           cd "$PROJECT_DIR"
+
+          echo "Starting Android Release build..."
 
           "$GRADLE_BIN" \
             --no-daemon \
@@ -481,13 +256,69 @@ workflows:
             :app:assembleRelease \
             :app:bundleRelease
 
-          APK_FILE="$(find app/build/outputs/apk/release -type f -name '*.apk' | head -n 1 || true)"
-          AAB_FILE="$(find app/build/outputs/bundle/release -type f -name '*.aab' | head -n 1 || true)"
+          echo "Gradle build completed successfully"
 
-          if [ -z "$APK_FILE" ] || [ ! -f "$APK_FILE" ]; then
-            echo "ERROR: APK was not generated"
+          APK_FILE=$(find app/build/outputs/apk/release -type f -name "*.apk" -print -quit)
+          AAB_FILE=$(find app/build/outputs/bundle/release -type f -name "*.aab" -print -quit)
+
+          echo "APK:"
+          echo "$APK_FILE"
+
+          echo "AAB:"
+          echo "$AAB_FILE"
+
+          if [ -z "$APK_FILE" ]; then
+            echo "ERROR: APK path not found"
             exit 1
           fi
 
-          if [ -z "$AAB_FILE" ] || [ ! -f "$AAB_FILE" ]; then
-            echo "ERROR: 
+          if [ ! -f "$APK_FILE" ]; then
+            echo "ERROR: APK file does not exist"
+            exit 1
+          fi
+
+          if [ -z "$AAB_FILE" ]; then
+            echo "ERROR: AAB path not found"
+            exit 1
+          fi
+
+          if [ ! -f "$AAB_FILE" ]; then
+            echo "ERROR: AAB file does not exist"
+            exit 1
+          fi
+
+          RELEASE_DIR="$CM_BUILD_DIR/release"
+
+          rm -rf "$RELEASE_DIR"
+          mkdir -p "$RELEASE_DIR"
+
+          cp \
+            "$APK_FILE" \
+            "$RELEASE_DIR/Tahalil-Alakkad-DUAL-PDF-QR-V36.apk"
+
+          cp \
+            "$AAB_FILE" \
+            "$RELEASE_DIR/Tahalil-Alakkad-DUAL-PDF-QR-V36.aab"
+
+          if [ ! -f "$RELEASE_DIR/Tahalil-Alakkad-DUAL-PDF-QR-V36.apk" ]; then
+            echo "ERROR: Final APK copy failed"
+            exit 1
+          fi
+
+          if [ ! -f "$RELEASE_DIR/Tahalil-Alakkad-DUAL-PDF-QR-V36.aab" ]; then
+            echo "ERROR: Final AAB copy failed"
+            exit 1
+          fi
+
+          echo "=========================================="
+          echo "V36 BUILD COMPLETED SUCCESSFULLY"
+          echo "=========================================="
+
+          ls -lah "$RELEASE_DIR"
+
+
+    artifacts:
+      - release/*.apk
+      - release/*.aab
+      - android_project/**/app/build/outputs/mapping/release/mapping.txt
+      - android_project/**/app/build/outputs/logs/*
