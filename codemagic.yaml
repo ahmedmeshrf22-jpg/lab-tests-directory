@@ -1,6 +1,6 @@
 workflows:
   android-release:
-    name: Build Tahalil Alakkad QR IMPORT SHARE V39
+    name: Build Tahalil Alakkad TEST DOCUMENT IMPORT V40
     instance_type: mac_mini_m2
     max_build_duration: 60
 
@@ -10,15 +10,15 @@ workflows:
         - tahalil_alakkad_release
 
     scripts:
-      - name: Extract QR IMPORT SHARE V39 project
+      - name: Extract TEST DOCUMENT IMPORT V40 project
         script: |
           set -euo pipefail
 
-          ZIP_FILE="$CM_BUILD_DIR/Project3_AK_SECURE_QR_IMPORT_SHARE_V39.zip"
+          ZIP_FILE="$CM_BUILD_DIR/Project3_AK_SECURE_TEST_DOCUMENT_IMPORT_V40.zip"
           WORK_DIR="$CM_BUILD_DIR/android_project"
 
           if [ ! -f "$ZIP_FILE" ]; then
-            echo "ERROR: Project3_AK_SECURE_QR_IMPORT_SHARE_V39.zip not found"
+            echo "ERROR: Project3_AK_SECURE_TEST_DOCUMENT_IMPORT_V40.zip not found"
             ls -lah "$CM_BUILD_DIR"
             exit 1
           fi
@@ -37,7 +37,7 @@ workflows:
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$CM_ENV"
           echo "PROJECT_DIR=$PROJECT_DIR"
 
-      - name: Verify QR IMPORT SHARE V39
+      - name: Verify TEST DOCUMENT IMPORT V40
         script: |
           set -euo pipefail
 
@@ -51,9 +51,11 @@ workflows:
           test -f "$PROJECT_DIR/app/src/main/java/com/example/util/CustomerQrImport.kt"
           test -f "$PROJECT_DIR/QR_IMPORT_SHARE_V39_NOTES.txt"
           test -f "$PROJECT_DIR/OPTIONAL_OUTPUT_QR_V38_NOTES.txt"
+          test -f "$PROJECT_DIR/TEST_DOCUMENT_IMPORT_V40_NOTES.txt"
+          test -f "$PROJECT_DIR/app/src/main/java/com/example/util/TestDocumentImport.kt"
 
-          grep -q 'versionCode = 44' "$PROJECT_DIR/app/build.gradle.kts"
-          grep -q 'versionName = "4.15-qr-import-share-v39"' "$PROJECT_DIR/app/build.gradle.kts"
+          grep -q 'versionCode = 45' "$PROJECT_DIR/app/build.gradle.kts"
+          grep -q 'versionName = "4.16-test-document-import-v40"' "$PROJECT_DIR/app/build.gradle.kts"
 
           # Keep V38 optional order outputs.
           grep -q 'fun generateCustomerOrderPdf' "$PROJECT_DIR/app/src/main/java/com/example/util/PdfGenerator.kt"
@@ -89,6 +91,16 @@ workflows:
           grep -q 'com.google.zxing:core:3.5.3' "$PROJECT_DIR/app/build.gradle.kts"
           grep -q 'com.google.android.gms:play-services-code-scanner:16.1.0' "$PROJECT_DIR/app/build.gradle.kts"
 
+          # V40 OCR test-name import from local image/PDF.
+          grep -q 'com.google.mlkit:text-recognition:16.0.1' "$PROJECT_DIR/app/build.gradle.kts"
+          grep -q 'object TestDocumentImport' "$PROJECT_DIR/app/src/main/java/com/example/util/TestDocumentImport.kt"
+          grep -q 'TextRecognition.getClient' "$PROJECT_DIR/app/src/main/java/com/example/util/TestDocumentImport.kt"
+          grep -q 'PdfRenderer' "$PROJECT_DIR/app/src/main/java/com/example/util/TestDocumentImport.kt"
+          grep -q 'ActivityResultContracts.OpenDocument' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+          grep -q 'قراءة التحاليل من صورة أو PDF' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+          grep -q 'detectTestsFromRecognizedText' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
+          grep -q 'applyRecognizedTestsToSearch' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
+
           # Security stays enabled.
           grep -q 'FLAG_SECURE' "$PROJECT_DIR/app/src/main/java/com/example/MainActivity.kt"
           grep -q 'android:allowBackup="false"' "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
@@ -96,7 +108,7 @@ workflows:
           grep -q 'isMinifyEnabled = true' "$PROJECT_DIR/app/build.gradle.kts"
           grep -q 'isShrinkResources = true' "$PROJECT_DIR/app/build.gradle.kts"
 
-          echo "QR IMPORT SHARE V39 verification passed"
+          echo "TEST DOCUMENT IMPORT V40 verification passed"
 
       - name: Configure Android SDK
         script: |
@@ -165,7 +177,7 @@ workflows:
             -alias "$CM_KEY_ALIAS" \
             >/dev/null
 
-      - name: Build QR IMPORT SHARE V39 APK and AAB
+      - name: Build TEST DOCUMENT IMPORT V40 APK and AAB
         script: |
           set -euo pipefail
 
@@ -202,13 +214,13 @@ workflows:
           rm -rf "$RELEASE_DIR"
           mkdir -p "$RELEASE_DIR"
 
-          cp "$APK_FILE" "$RELEASE_DIR/Tahalil-Alakkad-QR-IMPORT-SHARE-V39.apk"
-          cp "$AAB_FILE" "$RELEASE_DIR/Tahalil-Alakkad-QR-IMPORT-SHARE-V39.aab"
+          cp "$APK_FILE" "$RELEASE_DIR/Tahalil-Alakkad-TEST-DOCUMENT-IMPORT-V40.apk"
+          cp "$AAB_FILE" "$RELEASE_DIR/Tahalil-Alakkad-TEST-DOCUMENT-IMPORT-V40.aab"
 
-          test -f "$RELEASE_DIR/Tahalil-Alakkad-QR-IMPORT-SHARE-V39.apk"
-          test -f "$RELEASE_DIR/Tahalil-Alakkad-QR-IMPORT-SHARE-V39.aab"
+          test -f "$RELEASE_DIR/Tahalil-Alakkad-TEST-DOCUMENT-IMPORT-V40.apk"
+          test -f "$RELEASE_DIR/Tahalil-Alakkad-TEST-DOCUMENT-IMPORT-V40.aab"
 
-          echo "V39 APK and AAB created successfully"
+          echo "V40 APK and AAB created successfully"
           ls -lah "$RELEASE_DIR"
 
     artifacts:
