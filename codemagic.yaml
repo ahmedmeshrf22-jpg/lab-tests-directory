@@ -1,6 +1,6 @@
 workflows:
   android-release:
-    name: Build Tahalil Alakkad PERFORMANCE RELIABILITY V29
+    name: Build Tahalil Alakkad SYSTEM HEALTH V30
     instance_type: mac_mini_m2
     max_build_duration: 60
 
@@ -10,18 +10,18 @@ workflows:
         - tahalil_alakkad_release
 
     scripts:
-      - name: Extract PERFORMANCE RELIABILITY V29 project
+      - name: Extract SYSTEM HEALTH V30 project
         script: |
           set -euo pipefail
 
-          ZIP_FILE="$CM_BUILD_DIR/Project3_AK_SECURE_PERFORMANCE_RELIABILITY_V29.zip"
+          ZIP_FILE="$CM_BUILD_DIR/Project3_AK_SECURE_SYSTEM_HEALTH_V30.zip"
           WORK_DIR="$CM_BUILD_DIR/android_project"
 
           rm -rf "$WORK_DIR"
           mkdir -p "$WORK_DIR"
 
           if [ ! -f "$ZIP_FILE" ]; then
-            echo "ERROR: Project3_AK_SECURE_PERFORMANCE_RELIABILITY_V29.zip not found"
+            echo "ERROR: Project3_AK_SECURE_SYSTEM_HEALTH_V30.zip not found"
             ls -lah "$CM_BUILD_DIR"
             exit 1
           fi
@@ -38,7 +38,7 @@ workflows:
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$CM_ENV"
           echo "PROJECT_DIR=$PROJECT_DIR"
 
-      - name: Verify PERFORMANCE RELIABILITY V29
+      - name: Verify SYSTEM HEALTH V30
         script: |
           set -euo pipefail
 
@@ -62,9 +62,19 @@ workflows:
           test -f "$PROJECT_DIR/app/src/main/java/com/example/util/PdfGenerator.kt"
           test -f "$PROJECT_DIR/firestore.rules"
 
-          grep -q 'versionCode = 34' "$PROJECT_DIR/app/build.gradle.kts"
-          grep -q 'versionName = "4.5-performance-reliability-v29"' "$PROJECT_DIR/app/build.gradle.kts"
+          grep -q 'versionCode = 35' "$PROJECT_DIR/app/build.gradle.kts"
+          grep -q 'versionName = "4.6-system-health-v30"' "$PROJECT_DIR/app/build.gradle.kts"
           grep -q '<string name="app_name">تحاليل العقاد</string>' "$PROJECT_DIR/app/src/main/res/values/strings.xml"
+
+          test -f "$PROJECT_DIR/SYSTEM_HEALTH_V30_NOTES.txt"
+          grep -q 'data class SystemHealthState' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
+          grep -q 'fun refreshSystemHealth()' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
+          grep -q 'get(Source.SERVER)' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
+          grep -q 'SystemClock.elapsedRealtime()' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
+          grep -q 'private fun SystemHealthScreen' "$PROJECT_DIR/app/src/main/java/com/example/ui/OperationsV14Dialog.kt"
+          grep -q 'onOpen("health")' "$PROJECT_DIR/app/src/main/java/com/example/ui/OperationsV14Dialog.kt"
+          grep -q 'Local Cache' "$PROJECT_DIR/app/src/main/java/com/example/ui/OperationsV14Dialog.kt"
+          grep -q 'Firebase Latency' "$PROJECT_DIR/app/src/main/java/com/example/ui/OperationsV14Dialog.kt"
 
           grep -q 'PersistentCacheSettings.newBuilder()' "$PROJECT_DIR/app/src/main/java/com/example/settings/FirestorePerformance.kt"
           grep -q 'CACHE_BYTES = 200L' "$PROJECT_DIR/app/src/main/java/com/example/settings/FirestorePerformance.kt"
@@ -109,20 +119,18 @@ workflows:
 
           grep -q 'text = "Abdelrahman"' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
           grep -q 'text = "General Manager"' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-
           grep -q 'BackHandler' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
           grep -q 'BackHandler' "$PROJECT_DIR/app/src/main/java/com/example/ui/CustomerSystemDialog.kt"
           grep -q 'BackHandler' "$PROJECT_DIR/app/src/main/java/com/example/ui/OperationsV14Dialog.kt"
 
           grep -q 'generateAndShareReportPdf' "$PROJECT_DIR/app/src/main/java/com/example/util/PdfGenerator.kt"
-
           grep -q 'FLAG_SECURE' "$PROJECT_DIR/app/src/main/java/com/example/MainActivity.kt"
           grep -q 'android:allowBackup="false"' "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
           grep -q 'android:usesCleartextTraffic="false"' "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
           grep -q 'isMinifyEnabled = true' "$PROJECT_DIR/app/build.gradle.kts"
           grep -q 'isShrinkResources = true' "$PROJECT_DIR/app/build.gradle.kts"
 
-          echo "PERFORMANCE RELIABILITY V29 verification passed"
+          echo "SYSTEM HEALTH V30 verification passed"
 
       - name: Configure Android SDK
         script: |
@@ -189,7 +197,7 @@ workflows:
             -alias "$CM_KEY_ALIAS" \
             >/dev/null
 
-      - name: Build PERFORMANCE RELIABILITY V29 APK and AAB
+      - name: Build SYSTEM HEALTH V30 APK and AAB
         script: |
           set -euo pipefail
 
@@ -222,8 +230,8 @@ workflows:
 
           mkdir -p "$CM_BUILD_DIR/release"
 
-          cp "$APK_FILE" "$CM_BUILD_DIR/release/Tahalil-Alakkad-PERFORMANCE-RELIABILITY-V29.apk"
-          cp "$AAB_FILE" "$CM_BUILD_DIR/release/Tahalil-Alakkad-PERFORMANCE-RELIABILITY-V29.aab"
+          cp "$APK_FILE" "$CM_BUILD_DIR/release/Tahalil-Alakkad-SYSTEM-HEALTH-V30.apk"
+          cp "$AAB_FILE" "$CM_BUILD_DIR/release/Tahalil-Alakkad-SYSTEM-HEALTH-V30.aab"
 
           ls -lh "$CM_BUILD_DIR/release"
 
