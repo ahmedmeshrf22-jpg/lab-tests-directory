@@ -56,19 +56,16 @@ workflows:
           grep -q 'versionCode = 50' "$PROJECT_DIR/app/build.gradle.kts"
           grep -q 'versionName = "4.21-security-hardening-v45"' "$PROJECT_DIR/app/build.gradle.kts"
 
-          # V45 overlay/tapjacking protection
           grep -q 'android.permission.HIDE_OVERLAY_WINDOWS' "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
           grep -q 'window.setHideOverlayWindows(true)' "$PROJECT_DIR/app/src/main/java/com/example/MainActivity.kt"
           grep -q 'FLAG_SECURE' "$PROJECT_DIR/app/src/main/java/com/example/MainActivity.kt"
 
-          # V45 restricted incoming files
           grep -q 'android:mimeType="image/jpeg"' "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
           grep -q 'android:mimeType="image/png"' "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
           grep -q 'android:mimeType="image/webp"' "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
           grep -q 'android:mimeType="application/pdf"' "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
           grep -q 'uri.scheme == ContentResolver.SCHEME_CONTENT' "$PROJECT_DIR/app/src/main/java/com/example/MainActivity.kt"
 
-          # V45 malicious/oversized file defense
           grep -q 'object SecureFileGuard' "$PROJECT_DIR/app/src/main/java/com/example/util/SecureFileGuard.kt"
           grep -q 'MAX_IMAGE_BYTES = 20L' "$PROJECT_DIR/app/src/main/java/com/example/util/SecureFileGuard.kt"
           grep -q 'MAX_PDF_BYTES = 30L' "$PROJECT_DIR/app/src/main/java/com/example/util/SecureFileGuard.kt"
@@ -78,7 +75,6 @@ workflows:
           grep -q 'SecureFileGuard.validate' "$PROJECT_DIR/app/src/main/java/com/example/util/CustomerQrImport.kt"
           grep -q 'raw.length > 512' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
 
-          # Existing security
           grep -q 'android:allowBackup="false"' "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
           grep -q 'android:usesCleartextTraffic="false"' "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
           grep -q '<certificates src="system"' "$PROJECT_DIR/app/src/main/res/xml/network_security_config.xml"
@@ -87,7 +83,6 @@ workflows:
           grep -q 'isDebuggable = false' "$PROJECT_DIR/app/build.gradle.kts"
           grep -q 'PlayIntegrityAppCheckProviderFactory' "$PROJECT_DIR/app/src/main/java/com/example/MainActivity.kt"
 
-          # V44 staff visual home
           grep -q 'private fun StaffHomeDashboard' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
           grep -q 'private fun StaffVisualActionCard' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
           grep -q 'private fun StaffFeatureIllustration' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
@@ -116,28 +111,72 @@ workflows:
           "$SDKMANAGER" "platforms;android-36.1"
           "$SDKMANAGER" "build-tools;36.0.0"
 
-      - name: Install Gradle 9.3.1
+      - name: Set up Gradle 9.3.1
         script: |
           set -euo pipefail
 
           GRADLE_VERSION="9.3.1"
           GRADLE_DIR="$HOME/gradle-$GRADLE_VERSION"
           GRADLE_BIN="$GRADLE_DIR/bin/gradle"
+          GRADLE_ZIP="$CM_BUILD_DIR/gradle-${GRADLE_VERSION}-bin.zip"
 
           if [ ! -x "$GRADLE_BIN" ]; then
-            rm -f /tmp/gradle.zip
-            curl --fail --location --retry 3 \
-              "https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip" \
-              -o /tmp/gradle.zip
-            unzip -q -o /tmp/gradle.zip -d "$HOME"
+            echo "Gradle $GRADLE_VERSION is not preinstalled. Installing it..."
+
+            rm -rf "$GRADLE_DIR"
+            rm -f "$GRADLE_ZIP"
+
+            echo "Trying direct Gradle download..."
+
+            if ! curl --http1.1 --fail --location \
+              --retry 5 \
+              --retry-all-errors \
+              --retry-delay 3 \
+              --connect-timeout 30 \
+              --max-time 900 \
+              "https://downloads.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip" \
+              -o "$GRADLE_ZIP"; then
+
+              echo "Direct download failed. Trying Gradle services fallback..."
+
+              rm -f "$GRADLE_ZIP"
+
+              if ! wget \
+                --tries=5 \
+                --timeout=30 \
+                --read-timeout=120 \
+                --output-document="$GRADLE_ZIP" \
+                "https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip"; then
+
+                echo "ERROR: Could not download Gradle $GRADLE_VERSION from either source"
+                exit 1
+              fi
+            fi
+
+            if [ ! -s "$GRADLE_ZIP" ]; then
+              echo "ERROR: Gradle archive is empty"
+              exit 1
+            fi
+
+            echo "Downloaded Gradle archive:"
+            ls -lh "$GRADLE_ZIP"
+
+            if ! unzip -tq "$GRADLE_ZIP" >/dev/null; then
+              echo "ERROR: Downloaded Gradle ZIP is corrupt"
+              exit 1
+            fi
+
+            unzip -q -o "$GRADLE_ZIP" -d "$HOME"
           fi
 
           if [ ! -x "$GRADLE_BIN" ]; then
-            echo "ERROR: Gradle installation failed"
+            echo "ERROR: Gradle $GRADLE_VERSION installation failed"
             exit 1
           fi
 
           echo "GRADLE_BIN=$GRADLE_BIN" >> "$CM_ENV"
+
+          echo "Using Gradle:"
           "$GRADLE_BIN" --version
 
       - name: Validate release signing
@@ -152,6 +191,7 @@ workflows:
           if [ -z "${CM_KEYSTORE_PASSWORD:-}" ] || \
              [ -z "${CM_KEY_ALIAS:-}" ] || \
              [ -z "${CM_KEY_PASSWORD:-}" ]; then
+
             echo "ERROR: Signing credentials incomplete"
             exit 1
           fi
@@ -196,6 +236,7 @@ workflows:
           fi
 
           RELEASE_DIR="$CM_BUILD_DIR/release"
+
           rm -rf "$RELEASE_DIR"
           mkdir -p "$RELEASE_DIR"
 
@@ -206,6 +247,7 @@ workflows:
           test -f "$RELEASE_DIR/Tahalil-Alakkad-SECURITY-HARDENING-V45.aab"
 
           echo "V45 APK and AAB created successfully"
+
           ls -lah "$RELEASE_DIR"
 
     artifacts:
