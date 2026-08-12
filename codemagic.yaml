@@ -1,6 +1,6 @@
 workflows:
   android-release:
-    name: Build Tahalil Alakkad SECURITY V45 NO GRADLE DOWNLOAD
+    name: Build Tahalil Alakkad V45 RESCUE
     instance_type: mac_mini_m2
     max_build_duration: 60
 
@@ -10,52 +10,137 @@ workflows:
         - tahalil_alakkad_release
 
     scripts:
-      - name: Extract SECURITY V45 fixed project
+      - name: Prepare existing V45 project
         script: |
           set -euo pipefail
 
-          ZIP_FILE="$CM_BUILD_DIR/Project3_AK_SECURE_SECURITY_HARDENING_V45_NO_DOWNLOAD.zip"
           WORK_DIR="$CM_BUILD_DIR/android_project"
+          rm -rf "$WORK_DIR"
+          mkdir -p "$WORK_DIR"
 
-          if [ ! -f "$ZIP_FILE" ]; then
-            echo "ERROR: $ZIP_FILE not found"
-            ls -lah "$CM_BUILD_DIR"
+          ZIP_FILE=""
+
+          # First use the V45 filename that already worked in the previous build.
+          if [ -f "$CM_BUILD_DIR/Project3_AK_SECURE_SECURITY_HARDENING_V45.zip" ]; then
+            ZIP_FILE="$CM_BUILD_DIR/Project3_AK_SECURE_SECURITY_HARDENING_V45.zip"
+          elif [ -f "$CM_BUILD_DIR/Project3_AK_SECURE_SECURITY_HARDENING_V45_NO_DOWNLOAD.zip" ]; then
+            ZIP_FILE="$CM_BUILD_DIR/Project3_AK_SECURE_SECURITY_HARDENING_V45_NO_DOWNLOAD.zip"
+          else
+            # Do not depend on an exact filename. Find any V45 project archive.
+            while IFS= read -r candidate; do
+              if unzip -l "$candidate" 2>/dev/null | grep -q 'settings.gradle.kts'; then
+                ZIP_FILE="$candidate"
+                break
+              fi
+            done < <(find "$CM_BUILD_DIR" -maxdepth 2 -type f -iname '*V45*.zip' -print)
+          fi
+
+          if [ -z "$ZIP_FILE" ]; then
+            echo "ERROR: No usable V45 ZIP found in repository."
+            echo "ZIP files actually present:"
+            find "$CM_BUILD_DIR" -maxdepth 2 -type f -iname '*.zip' -print || true
             exit 1
           fi
 
-          rm -rf "$WORK_DIR"
-          mkdir -p "$WORK_DIR"
+          echo "Using V45 ZIP: $ZIP_FILE"
+
           unzip -q -o "$ZIP_FILE" -d "$WORK_DIR"
 
-          SETTINGS_FILE=$(find "$WORK_DIR" -type f -name "settings.gradle.kts" -print -quit)
+          SETTINGS_FILE=$(find "$WORK_DIR" -type f -name 'settings.gradle.kts' -print -quit)
           if [ -z "$SETTINGS_FILE" ]; then
-            echo "ERROR: settings.gradle.kts not found"
+            echo "ERROR: settings.gradle.kts not found after extraction"
             exit 1
           fi
 
           PROJECT_DIR=$(dirname "$SETTINGS_FILE")
+
+          if [ ! -f "$PROJECT_DIR/app/build.gradle.kts" ]; then
+            echo "ERROR: app/build.gradle.kts not found in extracted project"
+            exit 1
+          fi
+
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$CM_ENV"
           echo "PROJECT_DIR=$PROJECT_DIR"
 
-      - name: Verify build compatibility fix
+      - name: Make V45 compatible with preinstalled Gradle
         script: |
           set -euo pipefail
 
-          test -f "$PROJECT_DIR/app/build.gradle.kts"
-          test -f "$PROJECT_DIR/gradle/libs.versions.toml"
-          test -f "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
-          test -f "$PROJECT_DIR/app/src/main/java/com/example/MainActivity.kt"
-          test -f "$PROJECT_DIR/app/src/main/java/com/example/util/SecureFileGuard.kt"
-          test -f "$PROJECT_DIR/BUILD_SYSTEM_FIX_V45_NOTES.txt"
+          python3 - "$PROJECT_DIR" <<'PY'
+          from pathlib import Path
+          import re
+          import sys
+
+          root = Path(sys.argv[1])
+          libs = root / "gradle" / "libs.versions.toml"
+          app = root / "app" / "build.gradle.kts"
+          top = root / "build.gradle.kts"
+
+          for p in (libs, app, top):
+              if not p.is_file():
+                  raise SystemExit(f"Missing required build file: {p}")
+
+          s = libs.read_text(encoding="utf-8")
+          s, n = re.subn(r'(?m)^agp\s*=\s*"[^"]+"', 'agp = "8.13.2"', s, count=1)
+          if n != 1:
+              raise SystemExit("Could not update AGP version")
+
+          if "kotlin-android =" not in s:
+              marker = "[plugins]\n"
+              if marker not in s:
+                  raise SystemExit("[plugins] section missing in libs.versions.toml")
+              s = s.replace(
+                  marker,
+                  marker + 'kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }\n',
+                  1,
+              )
+          libs.write_text(s, encoding="utf-8")
+
+          s = app.read_text(encoding="utf-8")
+          if "alias(libs.plugins.kotlin.android)" not in s:
+              needle = "  alias(libs.plugins.android.application)\n"
+              if needle not in s:
+                  raise SystemExit("Android application plugin line missing in app build file")
+              s = s.replace(
+                  needle,
+                  needle + "  alias(libs.plugins.kotlin.android)\n",
+                  1,
+              )
+          app.write_text(s, encoding="utf-8")
+
+          s = top.read_text(encoding="utf-8")
+          if "alias(libs.plugins.kotlin.android) apply false" not in s:
+              needle = "  alias(libs.plugins.android.application) apply false\n"
+              if needle not in s:
+                  raise SystemExit("Android application plugin line missing in root build file")
+              s = s.replace(
+                  needle,
+                  needle + "  alias(libs.plugins.kotlin.android) apply false\n",
+                  1,
+              )
+          top.write_text(s, encoding="utf-8")
+          PY
 
           grep -q 'agp = "8.13.2"' "$PROJECT_DIR/gradle/libs.versions.toml"
           grep -q 'kotlin-android = { id = "org.jetbrains.kotlin.android"' "$PROJECT_DIR/gradle/libs.versions.toml"
           grep -q 'alias(libs.plugins.kotlin.android)' "$PROJECT_DIR/app/build.gradle.kts"
-          grep -q 'buildToolsVersion = "36.0.0"' "$PROJECT_DIR/app/build.gradle.kts"
+          grep -q 'alias(libs.plugins.kotlin.android) apply false' "$PROJECT_DIR/build.gradle.kts"
+
+          echo "V45 build toolchain patched successfully"
+
+      - name: Verify V45 application files
+        script: |
+          set -euo pipefail
+
+          test -f "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
+          test -f "$PROJECT_DIR/app/src/main/java/com/example/MainActivity.kt"
+          test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+          test -f "$PROJECT_DIR/app/src/main/java/com/example/util/SecureFileGuard.kt"
+
           grep -q 'versionCode = 50' "$PROJECT_DIR/app/build.gradle.kts"
           grep -q 'versionName = "4.21-security-hardening-v45"' "$PROJECT_DIR/app/build.gradle.kts"
 
-          # Preserve V45 security hardening.
+          # Preserve the actual V45 security changes.
           grep -q 'android.permission.HIDE_OVERLAY_WINDOWS' "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
           grep -q 'window.setHideOverlayWindows(true)' "$PROJECT_DIR/app/src/main/java/com/example/MainActivity.kt"
           grep -q 'FLAG_SECURE' "$PROJECT_DIR/app/src/main/java/com/example/MainActivity.kt"
@@ -66,7 +151,7 @@ workflows:
           grep -q 'isDebuggable = false' "$PROJECT_DIR/app/build.gradle.kts"
           grep -q 'object SecureFileGuard' "$PROJECT_DIR/app/src/main/java/com/example/util/SecureFileGuard.kt"
 
-          echo "V45 build compatibility verification passed"
+          echo "V45 application verification passed"
 
       - name: Configure Android SDK
         script: |
@@ -76,7 +161,7 @@ workflows:
           SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
 
           if [ ! -x "$SDKMANAGER" ]; then
-            echo "ERROR: sdkmanager not found"
+            echo "ERROR: sdkmanager not found at $SDKMANAGER"
             exit 1
           fi
 
@@ -87,22 +172,43 @@ workflows:
           yes | "$SDKMANAGER" --licenses >/dev/null 2>&1 || true
           "$SDKMANAGER" "platform-tools"
           "$SDKMANAGER" "platforms;android-36.1"
-          "$SDKMANAGER" "build-tools;36.0.0"
+          "$SDKMANAGER" "build-tools;35.0.0"
 
-      - name: Use preinstalled Gradle 8.14.1
+      - name: Use Codemagic Gradle 8.x
         script: |
           set -euo pipefail
 
-          GRADLE_BIN="/Users/builder/programs/gradle-8.14.1/bin/gradle"
+          GRADLE_BIN=""
 
-          if [ ! -x "$GRADLE_BIN" ]; then
-            echo "ERROR: Codemagic preinstalled Gradle 8.14.1 was not found"
-            echo "Available Gradle installations:"
-            find /Users/builder/programs -maxdepth 3 -type f -name gradle -print 2>/dev/null || true
+          # Prefer the known Codemagic 8.14.1 installation when present.
+          for candidate in \
+            "$HOME/programs/gradle-8.14.1/bin/gradle" \
+            "/Users/builder/programs/gradle-8.14.1/bin/gradle" \
+            "$(command -v gradle 2>/dev/null || true)"
+          do
+            if [ -n "$candidate" ] && [ -x "$candidate" ]; then
+              version=$($candidate --version | awk '/^Gradle / {print $2; exit}')
+              major=${version%%.*}
+              rest=${version#*.}
+              minor=${rest%%.*}
+
+              if [ "$major" -eq 8 ] && [ "$minor" -ge 13 ]; then
+                GRADLE_BIN="$candidate"
+                break
+              fi
+            fi
+          done
+
+          if [ -z "$GRADLE_BIN" ]; then
+            echo "ERROR: No compatible preinstalled Gradle 8.13+ executable found"
+            echo "Gradle executables found:"
+            find "$HOME/programs" /Users/builder/programs /usr/local /opt/homebrew \
+              -type f -path '*/bin/gradle' -perm -111 -print 2>/dev/null || true
             exit 1
           fi
 
           echo "GRADLE_BIN=$GRADLE_BIN" >> "$CM_ENV"
+          echo "Using Gradle: $GRADLE_BIN"
           "$GRADLE_BIN" --version
 
       - name: Validate release signing
@@ -145,8 +251,8 @@ workflows:
             :app:assembleRelease \
             :app:bundleRelease
 
-          APK_FILE=$(find app/build/outputs/apk/release -type f -name "*.apk" -print -quit)
-          AAB_FILE=$(find app/build/outputs/bundle/release -type f -name "*.aab" -print -quit)
+          APK_FILE=$(find app/build/outputs/apk/release -type f -name '*.apk' -print -quit)
+          AAB_FILE=$(find app/build/outputs/bundle/release -type f -name '*.aab' -print -quit)
 
           if [ -z "$APK_FILE" ] || [ ! -f "$APK_FILE" ]; then
             echo "ERROR: APK was not generated"
