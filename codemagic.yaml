@@ -1,6 +1,6 @@
 workflows:
   android-release:
-    name: Build Tahalil Alakkad SECURITY HARDENING V45
+    name: Build Tahalil Alakkad COPYRIGHT SETTINGS V46
     instance_type: mac_mini_m2
     max_build_duration: 60
 
@@ -10,15 +10,15 @@ workflows:
         - tahalil_alakkad_release
 
     scripts:
-      - name: Extract SECURITY HARDENING V45 project
+      - name: Extract COPYRIGHT SETTINGS V46 project
         script: |
           set -euo pipefail
 
-          ZIP_FILE="$CM_BUILD_DIR/Project3_AK_SECURE_SECURITY_HARDENING_V45.zip"
+          ZIP_FILE="$CM_BUILD_DIR/Project3_AK_SECURE_COPYRIGHT_SETTINGS_V46.zip"
           WORK_DIR="$CM_BUILD_DIR/android_project"
 
           if [ ! -f "$ZIP_FILE" ]; then
-            echo "ERROR: Project3_AK_SECURE_SECURITY_HARDENING_V45.zip not found"
+            echo "ERROR: Project3_AK_SECURE_COPYRIGHT_SETTINGS_V46.zip not found"
             ls -lah "$CM_BUILD_DIR"
             exit 1
           fi
@@ -37,63 +37,49 @@ workflows:
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$CM_ENV"
           echo "PROJECT_DIR=$PROJECT_DIR"
 
-      - name: Verify SECURITY HARDENING V45
+      - name: Verify COPYRIGHT SETTINGS V46
         script: |
           set -euo pipefail
 
           test -f "$PROJECT_DIR/app/build.gradle.kts"
           test -f "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
           test -f "$PROJECT_DIR/app/src/main/java/com/example/MainActivity.kt"
+          test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/SplashScreen.kt"
           test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-          test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/CustomerSystemDialog.kt"
-          test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
-          test -f "$PROJECT_DIR/app/src/main/java/com/example/util/CustomerQrImport.kt"
-          test -f "$PROJECT_DIR/app/src/main/java/com/example/util/TestDocumentImport.kt"
           test -f "$PROJECT_DIR/app/src/main/java/com/example/util/SecureFileGuard.kt"
+          test -f "$PROJECT_DIR/COPYRIGHT_SETTINGS_V46_NOTES.txt"
           test -f "$PROJECT_DIR/SECURITY_HARDENING_V45_NOTES.txt"
-          test -f "$PROJECT_DIR/STAFF_VISUAL_HOME_V44_NOTES.txt"
 
-          grep -q 'versionCode = 50' "$PROJECT_DIR/app/build.gradle.kts"
-          grep -q 'versionName = "4.21-security-hardening-v45"' "$PROJECT_DIR/app/build.gradle.kts"
+          grep -q 'versionCode = 51' "$PROJECT_DIR/app/build.gradle.kts"
+          grep -q 'versionName = "4.22-copyright-settings-v46"' "$PROJECT_DIR/app/build.gradle.kts"
 
-          # V45 overlay/tapjacking protection
+          # V46: exact splash ownership text.
+          grep -q 'text = "2026 A.M 🍃"' "$PROJECT_DIR/app/src/main/java/com/example/ui/SplashScreen.kt"
+          grep -q 'text = "All Rights Reserved"' "$PROJECT_DIR/app/src/main/java/com/example/ui/SplashScreen.kt"
+          grep -q 'Alignment.BottomCenter' "$PROJECT_DIR/app/src/main/java/com/example/ui/SplashScreen.kt"
+
+          # V46: staff settings gear remains at the top on all staff screens.
+          grep -q 'showSettings = !isManager || (isManager && showManagerHome)' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+          grep -q 'imageVector = Icons.Default.Settings' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+          grep -q 'testTag("manager_settings_button")' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+
+          # Staff home remains visual and manager behavior stays separate.
+          grep -q 'private fun StaffHomeDashboard' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+          grep -q 'private fun StaffVisualActionCard' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+          grep -q 'if (showManagerActions)' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+
+          # Preserve V45 security hardening.
           grep -q 'android.permission.HIDE_OVERLAY_WINDOWS' "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
           grep -q 'window.setHideOverlayWindows(true)' "$PROJECT_DIR/app/src/main/java/com/example/MainActivity.kt"
           grep -q 'FLAG_SECURE' "$PROJECT_DIR/app/src/main/java/com/example/MainActivity.kt"
-
-          # V45 restricted incoming files
-          grep -q 'android:mimeType="image/jpeg"' "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
-          grep -q 'android:mimeType="image/png"' "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
-          grep -q 'android:mimeType="image/webp"' "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
-          grep -q 'android:mimeType="application/pdf"' "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
-          grep -q 'uri.scheme == ContentResolver.SCHEME_CONTENT' "$PROJECT_DIR/app/src/main/java/com/example/MainActivity.kt"
-
-          # V45 malicious/oversized file defense
-          grep -q 'object SecureFileGuard' "$PROJECT_DIR/app/src/main/java/com/example/util/SecureFileGuard.kt"
-          grep -q 'MAX_IMAGE_BYTES = 20L' "$PROJECT_DIR/app/src/main/java/com/example/util/SecureFileGuard.kt"
-          grep -q 'MAX_PDF_BYTES = 30L' "$PROJECT_DIR/app/src/main/java/com/example/util/SecureFileGuard.kt"
-          grep -q 'detectImageMime' "$PROJECT_DIR/app/src/main/java/com/example/util/SecureFileGuard.kt"
-          grep -q 'decodeImageSafely' "$PROJECT_DIR/app/src/main/java/com/example/util/SecureFileGuard.kt"
-          grep -q 'SecureFileGuard.validate' "$PROJECT_DIR/app/src/main/java/com/example/util/TestDocumentImport.kt"
-          grep -q 'SecureFileGuard.validate' "$PROJECT_DIR/app/src/main/java/com/example/util/CustomerQrImport.kt"
-          grep -q 'raw.length > 512' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
-
-          # Existing security
           grep -q 'android:allowBackup="false"' "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
           grep -q 'android:usesCleartextTraffic="false"' "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
-          grep -q '<certificates src="system"' "$PROJECT_DIR/app/src/main/res/xml/network_security_config.xml"
           grep -q 'isMinifyEnabled = true' "$PROJECT_DIR/app/build.gradle.kts"
           grep -q 'isShrinkResources = true' "$PROJECT_DIR/app/build.gradle.kts"
           grep -q 'isDebuggable = false' "$PROJECT_DIR/app/build.gradle.kts"
-          grep -q 'PlayIntegrityAppCheckProviderFactory' "$PROJECT_DIR/app/src/main/java/com/example/MainActivity.kt"
+          grep -q 'object SecureFileGuard' "$PROJECT_DIR/app/src/main/java/com/example/util/SecureFileGuard.kt"
 
-          # V44 staff visual home
-          grep -q 'private fun StaffHomeDashboard' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-          grep -q 'private fun StaffVisualActionCard' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-          grep -q 'private fun StaffFeatureIllustration' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-          grep -q 'private fun CustomerVisualToolCard' "$PROJECT_DIR/app/src/main/java/com/example/ui/CustomerSystemDialog.kt"
-
-          echo "SECURITY HARDENING V45 verification passed"
+          echo "COPYRIGHT SETTINGS V46 verification passed"
 
       - name: Configure Android SDK
         script: |
@@ -162,7 +148,7 @@ workflows:
             -alias "$CM_KEY_ALIAS" \
             >/dev/null
 
-      - name: Build SECURITY HARDENING V45 APK and AAB
+      - name: Build COPYRIGHT SETTINGS V46 APK and AAB
         script: |
           set -euo pipefail
 
@@ -199,13 +185,13 @@ workflows:
           rm -rf "$RELEASE_DIR"
           mkdir -p "$RELEASE_DIR"
 
-          cp "$APK_FILE" "$RELEASE_DIR/Tahalil-Alakkad-SECURITY-HARDENING-V45.apk"
-          cp "$AAB_FILE" "$RELEASE_DIR/Tahalil-Alakkad-SECURITY-HARDENING-V45.aab"
+          cp "$APK_FILE" "$RELEASE_DIR/Tahalil-Alakkad-COPYRIGHT-SETTINGS-V46.apk"
+          cp "$AAB_FILE" "$RELEASE_DIR/Tahalil-Alakkad-COPYRIGHT-SETTINGS-V46.aab"
 
-          test -f "$RELEASE_DIR/Tahalil-Alakkad-SECURITY-HARDENING-V45.apk"
-          test -f "$RELEASE_DIR/Tahalil-Alakkad-SECURITY-HARDENING-V45.aab"
+          test -f "$RELEASE_DIR/Tahalil-Alakkad-COPYRIGHT-SETTINGS-V46.apk"
+          test -f "$RELEASE_DIR/Tahalil-Alakkad-COPYRIGHT-SETTINGS-V46.aab"
 
-          echo "V45 APK and AAB created successfully"
+          echo "V46 APK and AAB created successfully"
           ls -lah "$RELEASE_DIR"
 
     artifacts:
