@@ -58,45 +58,48 @@ workflows:
           grep -q 'versionCode = 49' "$PROJECT_DIR/app/build.gradle.kts"
           grep -q 'versionName = "4.20-staff-visual-home-v44"' "$PROJECT_DIR/app/build.gradle.kts"
 
-          # V44 staff visual home
-          grep -q 'private fun StaffVisualHomeScreen' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-          grep -q 'private fun StaffFeatureCard' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-          grep -q 'private fun StaffSecondaryFeatureCard' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-          grep -q 'private fun StaffVisualSectionTitle' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-          grep -q 'بحث عن تحليل' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-          grep -q 'طلب جديد' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-          grep -q 'قراءة صورة أو PDF' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-          grep -q 'QR العميل' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-          grep -q 'سجلات العملاء' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-          grep -q 'التحاليل المتاحة' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-          grep -q 'المزيد' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-          grep -q 'showStaffVisualHome' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+          # V44 visual staff home
+          grep -q 'private fun StaffHomeDashboard' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+          grep -q 'private fun StaffVisualActionCard' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+          grep -q 'private fun StaffFeatureIllustration' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+          grep -q 'private fun StaffSecondaryActionCard' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+          grep -q 'else if (!isManager && managerMainMode == "home")' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
 
-          # Staff-focused QR + import cards
-          grep -q 'مسح QR بالكاميرا' "$PROJECT_DIR/app/src/main/java/com/example/ui/CustomerSystemDialog.kt"
-          grep -q 'قراءة QR من صورة أو PDF' "$PROJECT_DIR/app/src/main/java/com/example/ui/CustomerSystemDialog.kt"
-          grep -q 'قراءة التحاليل من صورة أو PDF' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+          grep -q '"شغلك اليومي"' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+          grep -q '"بحث عن تحليل"' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+          grep -q '"قراءة صورة / PDF"' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+          grep -q '"QR العميل"' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+          grep -q '"سجلات العملاء"' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+          grep -q '"التحاليل المتاحة"' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
 
-          # Preserve V43 staff accounts
+          grep -q 'private fun CustomerVisualToolCard' "$PROJECT_DIR/app/src/main/java/com/example/ui/CustomerSystemDialog.kt"
+          grep -q '"QR بالكاميرا"' "$PROJECT_DIR/app/src/main/java/com/example/ui/CustomerSystemDialog.kt"
+          grep -q '"QR من ملف"' "$PROJECT_DIR/app/src/main/java/com/example/ui/CustomerSystemDialog.kt"
+
+          # V43 staff accounts
           grep -q 'private fun UsersScreen' "$PROJECT_DIR/app/src/main/java/com/example/ui/OperationsV14Dialog.kt"
+          grep -q 'private fun StaffSummaryCard' "$PROJECT_DIR/app/src/main/java/com/example/ui/OperationsV14Dialog.kt"
           grep -q 'private fun StaffUserCard' "$PROJECT_DIR/app/src/main/java/com/example/ui/OperationsV14Dialog.kt"
-          grep -q '"حسابات الاستاف"' "$PROJECT_DIR/app/src/main/java/com/example/ui/OperationsV14Dialog.kt"
 
-          # Preserve V42 smart daily workflow
+          # V42 smart daily flow
+          grep -q 'private fun RecentCustomerCard' "$PROJECT_DIR/app/src/main/java/com/example/ui/CustomerSystemDialog.kt"
           grep -q 'fun prepareRepeatOrder' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
           grep -q 'fun updateOrderWorkflowStatus' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
           grep -q 'private fun OrderWorkflowStatusBar' "$PROJECT_DIR/app/src/main/java/com/example/ui/CustomerSystemDialog.kt"
 
-          # Preserve V40 OCR import
-          grep -q 'object TestDocumentImport' "$PROJECT_DIR/app/src/main/java/com/example/util/TestDocumentImport.kt"
-          grep -q 'TextRecognition.getClient' "$PROJECT_DIR/app/src/main/java/com/example/util/TestDocumentImport.kt"
+          # V41 focused workspace
+          grep -q 'private fun FocusedWorkspaceHeader' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+          grep -q 'private fun WorkspaceMoreSection' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
 
-          # Preserve V39 QR import/share
+          # OCR + QR import/share
+          grep -q 'object TestDocumentImport' "$PROJECT_DIR/app/src/main/java/com/example/util/TestDocumentImport.kt"
+          grep -q 'قراءة التحاليل من صورة أو PDF' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+
           grep -q 'object CustomerQrImport' "$PROJECT_DIR/app/src/main/java/com/example/util/CustomerQrImport.kt"
           grep -q 'findCustomerByQrPayload' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
           grep -q 'android.intent.action.SEND' "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
 
-          # Preserve V38 optional outputs
+          # Optional PDF / PNG outputs
           grep -q 'fun generateCustomerOrderPdf' "$PROJECT_DIR/app/src/main/java/com/example/util/PdfGenerator.kt"
           grep -q 'fun generateLabRequestPdf' "$PROJECT_DIR/app/src/main/java/com/example/util/PdfGenerator.kt"
           grep -q 'fun generateCustomerOrderImage' "$PROJECT_DIR/app/src/main/java/com/example/util/PdfGenerator.kt"
