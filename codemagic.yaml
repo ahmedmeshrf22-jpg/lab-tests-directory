@@ -1,6 +1,6 @@
 workflows:
   android-release:
-    name: Build Tahalil Alakkad STAFF ACCOUNTS V43
+    name: Build Tahalil Alakkad STAFF VISUAL HOME V44
     instance_type: mac_mini_m2
     max_build_duration: 60
 
@@ -10,15 +10,15 @@ workflows:
         - tahalil_alakkad_release
 
     scripts:
-      - name: Extract STAFF ACCOUNTS V43 project
+      - name: Extract STAFF VISUAL HOME V44 project
         script: |
           set -euo pipefail
 
-          ZIP_FILE="$CM_BUILD_DIR/Project3_AK_SECURE_STAFF_ACCOUNTS_V43.zip"
+          ZIP_FILE="$CM_BUILD_DIR/Project3_AK_SECURE_STAFF_VISUAL_HOME_V44.zip"
           WORK_DIR="$CM_BUILD_DIR/android_project"
 
           if [ ! -f "$ZIP_FILE" ]; then
-            echo "ERROR: Project3_AK_SECURE_STAFF_ACCOUNTS_V43.zip not found"
+            echo "ERROR: Project3_AK_SECURE_STAFF_VISUAL_HOME_V44.zip not found"
             ls -lah "$CM_BUILD_DIR"
             exit 1
           fi
@@ -37,14 +37,13 @@ workflows:
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$CM_ENV"
           echo "PROJECT_DIR=$PROJECT_DIR"
 
-      - name: Verify STAFF ACCOUNTS V43
+      - name: Verify STAFF VISUAL HOME V44
         script: |
           set -euo pipefail
 
           test -f "$PROJECT_DIR/app/build.gradle.kts"
           test -f "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
           test -f "$PROJECT_DIR/app/src/main/java/com/example/MainActivity.kt"
-          test -f "$PROJECT_DIR/app/src/main/java/com/example/data/model/Customer.kt"
           test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
           test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/CustomerSystemDialog.kt"
           test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/OperationsV14Dialog.kt"
@@ -53,51 +52,65 @@ workflows:
           test -f "$PROJECT_DIR/app/src/main/java/com/example/util/PdfGenerator.kt"
           test -f "$PROJECT_DIR/app/src/main/java/com/example/util/CustomerQrImport.kt"
           test -f "$PROJECT_DIR/app/src/main/java/com/example/util/TestDocumentImport.kt"
-          test -f "$PROJECT_DIR/SMART_DAILY_WORKFLOW_V42_NOTES.txt"
+          test -f "$PROJECT_DIR/STAFF_VISUAL_HOME_V44_NOTES.txt"
           test -f "$PROJECT_DIR/STAFF_ACCOUNTS_V43_NOTES.txt"
 
-          grep -q 'versionCode = 48' "$PROJECT_DIR/app/build.gradle.kts"
-          grep -q 'versionName = "4.19-staff-accounts-v43"' "$PROJECT_DIR/app/build.gradle.kts"
+          grep -q 'versionCode = 49' "$PROJECT_DIR/app/build.gradle.kts"
+          grep -q 'versionName = "4.20-staff-visual-home-v44"' "$PROJECT_DIR/app/build.gradle.kts"
 
+          # V44 staff visual home
+          grep -q 'private fun StaffVisualHomeScreen' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+          grep -q 'private fun StaffFeatureCard' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+          grep -q 'private fun StaffSecondaryFeatureCard' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+          grep -q 'private fun StaffVisualSectionTitle' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+          grep -q 'بحث عن تحليل' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+          grep -q 'طلب جديد' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+          grep -q 'قراءة صورة أو PDF' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+          grep -q 'QR العميل' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+          grep -q 'سجلات العملاء' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+          grep -q 'التحاليل المتاحة' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+          grep -q 'المزيد' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+          grep -q 'showStaffVisualHome' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+
+          # Staff-focused QR + import cards
+          grep -q 'مسح QR بالكاميرا' "$PROJECT_DIR/app/src/main/java/com/example/ui/CustomerSystemDialog.kt"
+          grep -q 'قراءة QR من صورة أو PDF' "$PROJECT_DIR/app/src/main/java/com/example/ui/CustomerSystemDialog.kt"
+          grep -q 'قراءة التحاليل من صورة أو PDF' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+
+          # Preserve V43 staff accounts
           grep -q 'private fun UsersScreen' "$PROJECT_DIR/app/src/main/java/com/example/ui/OperationsV14Dialog.kt"
-          grep -q 'private fun StaffSummaryCard' "$PROJECT_DIR/app/src/main/java/com/example/ui/OperationsV14Dialog.kt"
           grep -q 'private fun StaffUserCard' "$PROJECT_DIR/app/src/main/java/com/example/ui/OperationsV14Dialog.kt"
           grep -q '"حسابات الاستاف"' "$PROJECT_DIR/app/src/main/java/com/example/ui/OperationsV14Dialog.kt"
-          grep -q '"كل الحسابات"' "$PROJECT_DIR/app/src/main/java/com/example/ui/OperationsV14Dialog.kt"
-          grep -q '"ابحث بالاسم أو الإيميل أو الدور"' "$PROJECT_DIR/app/src/main/java/com/example/ui/OperationsV14Dialog.kt"
-          grep -q '"إضافة حساب استاف جديد"' "$PROJECT_DIR/app/src/main/java/com/example/ui/OperationsV14Dialog.kt"
-          grep -q '"إدارة الحساب والصلاحيات"' "$PROJECT_DIR/app/src/main/java/com/example/ui/OperationsV14Dialog.kt"
-          grep -q 'DialogProperties(usePlatformDefaultWidth = false)' "$PROJECT_DIR/app/src/main/java/com/example/ui/OperationsV14Dialog.kt"
-          grep -q '"الصلاحيات اليومية"' "$PROJECT_DIR/app/src/main/java/com/example/ui/OperationsV14Dialog.kt"
-          grep -q '"إعادة ضبط PIN عند الفتح القادم"' "$PROJECT_DIR/app/src/main/java/com/example/ui/OperationsV14Dialog.kt"
 
-          grep -q 'private fun RecentCustomerCard' "$PROJECT_DIR/app/src/main/java/com/example/ui/CustomerSystemDialog.kt"
+          # Preserve V42 smart daily workflow
           grep -q 'fun prepareRepeatOrder' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
           grep -q 'fun updateOrderWorkflowStatus' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
           grep -q 'private fun OrderWorkflowStatusBar' "$PROJECT_DIR/app/src/main/java/com/example/ui/CustomerSystemDialog.kt"
 
-          grep -q 'private fun FocusedWorkspaceHeader' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-          grep -q 'private fun WorkspaceMoreSection' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-
+          # Preserve V40 OCR import
           grep -q 'object TestDocumentImport' "$PROJECT_DIR/app/src/main/java/com/example/util/TestDocumentImport.kt"
-          grep -q 'قراءة التحاليل من صورة أو PDF' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+          grep -q 'TextRecognition.getClient' "$PROJECT_DIR/app/src/main/java/com/example/util/TestDocumentImport.kt"
+
+          # Preserve V39 QR import/share
           grep -q 'object CustomerQrImport' "$PROJECT_DIR/app/src/main/java/com/example/util/CustomerQrImport.kt"
           grep -q 'findCustomerByQrPayload' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
           grep -q 'android.intent.action.SEND' "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
 
+          # Preserve V38 optional outputs
           grep -q 'fun generateCustomerOrderPdf' "$PROJECT_DIR/app/src/main/java/com/example/util/PdfGenerator.kt"
           grep -q 'fun generateLabRequestPdf' "$PROJECT_DIR/app/src/main/java/com/example/util/PdfGenerator.kt"
           grep -q 'fun generateCustomerOrderImage' "$PROJECT_DIR/app/src/main/java/com/example/util/PdfGenerator.kt"
           grep -q 'fun generateLabRequestImage' "$PROJECT_DIR/app/src/main/java/com/example/util/PdfGenerator.kt"
           grep -q 'إغلاق - حفظ فقط' "$PROJECT_DIR/app/src/main/java/com/example/ui/OrderPdfShareDialog.kt"
 
+          # Security
           grep -q 'FLAG_SECURE' "$PROJECT_DIR/app/src/main/java/com/example/MainActivity.kt"
           grep -q 'android:allowBackup="false"' "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
           grep -q 'android:usesCleartextTraffic="false"' "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
           grep -q 'isMinifyEnabled = true' "$PROJECT_DIR/app/build.gradle.kts"
           grep -q 'isShrinkResources = true' "$PROJECT_DIR/app/build.gradle.kts"
 
-          echo "STAFF ACCOUNTS V43 verification passed"
+          echo "STAFF VISUAL HOME V44 verification passed"
 
       - name: Configure Android SDK
         script: |
@@ -166,7 +179,7 @@ workflows:
             -alias "$CM_KEY_ALIAS" \
             >/dev/null
 
-      - name: Build STAFF ACCOUNTS V43 APK and AAB
+      - name: Build STAFF VISUAL HOME V44 APK and AAB
         script: |
           set -euo pipefail
 
@@ -203,13 +216,13 @@ workflows:
           rm -rf "$RELEASE_DIR"
           mkdir -p "$RELEASE_DIR"
 
-          cp "$APK_FILE" "$RELEASE_DIR/Tahalil-Alakkad-STAFF-ACCOUNTS-V43.apk"
-          cp "$AAB_FILE" "$RELEASE_DIR/Tahalil-Alakkad-STAFF-ACCOUNTS-V43.aab"
+          cp "$APK_FILE" "$RELEASE_DIR/Tahalil-Alakkad-STAFF-VISUAL-HOME-V44.apk"
+          cp "$AAB_FILE" "$RELEASE_DIR/Tahalil-Alakkad-STAFF-VISUAL-HOME-V44.aab"
 
-          test -f "$RELEASE_DIR/Tahalil-Alakkad-STAFF-ACCOUNTS-V43.apk"
-          test -f "$RELEASE_DIR/Tahalil-Alakkad-STAFF-ACCOUNTS-V43.aab"
+          test -f "$RELEASE_DIR/Tahalil-Alakkad-STAFF-VISUAL-HOME-V44.apk"
+          test -f "$RELEASE_DIR/Tahalil-Alakkad-STAFF-VISUAL-HOME-V44.aab"
 
-          echo "V43 APK and AAB created successfully"
+          echo "V44 APK and AAB created successfully"
           ls -lah "$RELEASE_DIR"
 
     artifacts:
