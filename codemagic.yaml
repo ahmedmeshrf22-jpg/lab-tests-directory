@@ -14,7 +14,7 @@ workflows:
         script: |
           set -euo pipefail
 
-          ZIP_FILE="$CM_BUILD_DIR/Project3_AK_SECURE_ADMIN_PIN_V60_LOGIN_FIX.zip"
+          ZIP_FILE="$CM_BUILD_DIR/Project3_AK_SECURE_ADMIN_PIN_V60.zip"
           WORK_DIR="$CM_BUILD_DIR/android_project"
 
           if [ ! -f "$ZIP_FILE" ]; then
