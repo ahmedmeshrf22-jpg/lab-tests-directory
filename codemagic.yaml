@@ -1,6 +1,6 @@
 workflows:
   android-release:
-    name: Build Tahalil Alakkad V58 UNIFIED ADMIN PASSWORD FIXED
+    name: Build Tahalil Alakkad V59 UNIFIED ADMIN GATE
     instance_type: mac_mini_m2
     max_build_duration: 60
 
@@ -10,15 +10,15 @@ workflows:
         - tahalil_alakkad_release
 
     scripts:
-      - name: Extract V58 project
+      - name: Extract V59 project
         script: |
           set -euo pipefail
 
-          ZIP_FILE="$CM_BUILD_DIR/Project3_AK_SECURE_UNIFIED_ADMIN_PASSWORD_V58.zip"
+          ZIP_FILE="$CM_BUILD_DIR/Project3_AK_SECURE_UNIFIED_ADMIN_GATE_V59.zip"
           WORK_DIR="$CM_BUILD_DIR/android_project"
 
           if [ ! -f "$ZIP_FILE" ]; then
-            echo "ERROR: V58 ZIP not found: $ZIP_FILE"
+            echo "ERROR: V59 ZIP not found: $ZIP_FILE"
             find "$CM_BUILD_DIR" -maxdepth 2 -type f -iname '*.zip' -print || true
             exit 1
           fi
@@ -27,7 +27,7 @@ workflows:
           mkdir -p "$WORK_DIR"
           unzip -q -o "$ZIP_FILE" -d "$WORK_DIR"
 
-          SETTINGS_FILE=$(find "$WORK_DIR" -type f -name settings.gradle.kts -print -quit)
+          SETTINGS_FILE=$(find "$WORK_DIR" -type f -name 'settings.gradle.kts' -print -quit)
           if [ -z "$SETTINGS_FILE" ]; then
             echo "ERROR: settings.gradle.kts not found"
             exit 1
@@ -37,7 +37,7 @@ workflows:
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$CM_ENV"
           echo "PROJECT_DIR=$PROJECT_DIR"
 
-      - name: Verify V58 project
+      - name: Verify V59 project
         script: |
           set -euo pipefail
 
@@ -50,14 +50,15 @@ workflows:
           required_files = [
               "app/build.gradle.kts",
               "gradle/libs.versions.toml",
+              "gradle.properties",
               "app/src/main/AndroidManifest.xml",
               "app/google-services.json",
-              "gradle.properties",
-              "BUILD_ONLY_FIX_V45_NOTES.txt",
-              "ALL_ICON_SERVICES_V55_NOTES.txt",
-              "THREED_ICON_UI_V56_NOTES.txt",
-              "AVAILABLE_TESTS_PRICING_V57_NOTES.txt",
-              "UNIFIED_ADMIN_PASSWORD_V58_NOTES.txt",
+              "UNIFIED_ADMIN_GATE_V59_NOTES.txt",
+              "app/src/main/java/com/example/MainActivity.kt",
+              "app/src/main/java/com/example/ui/LabTestsViewModel.kt",
+              "app/src/main/java/com/example/ui/LabTestsScreen.kt",
+              "app/src/main/java/com/example/ui/CustomerSystemDialog.kt",
+              "app/src/main/java/com/example/ui/OperationsV14Dialog.kt",
               "app/src/main/res/drawable-nodpi/mgr_reports_3d.png",
               "app/src/main/res/drawable-nodpi/mgr_staff_3d.png",
               "app/src/main/res/drawable-nodpi/mgr_devices_3d.png",
@@ -78,77 +79,106 @@ workflows:
           if missing:
               raise SystemExit("Missing required files:\n" + "\n".join(missing))
 
-          def require_text(rel, needles):
-              text = (root / rel).read_text(encoding="utf-8")
-              missing_needles = [n for n in needles if n not in text]
+          def text(rel):
+              return (root / rel).read_text(encoding="utf-8")
+
+          def require(rel, needles):
+              body = text(rel)
+              missing_needles = [n for n in needles if n not in body]
               if missing_needles:
                   raise SystemExit(
                       f"Verification failed in {rel}:\n" + "\n".join(missing_needles)
                   )
 
-          require_text("gradle/libs.versions.toml", [
+          require("gradle/libs.versions.toml", [
               'agp = "8.10.0"',
               'kotlin = "2.2.10"',
               'googleDevtoolsKsp = "2.3.6"',
               'kotlin-android = { id = "org.jetbrains.kotlin.android"',
           ])
 
-          require_text("app/build.gradle.kts", [
-              "alias(libs.plugins.kotlin.android)",
+          require("app/build.gradle.kts", [
+              'applicationId = "com.aistudio.labtestsdirectory.egypt"',
               "compileSdk = 36",
               'buildToolsVersion = "35.0.0"',
+              "minSdk = 24",
+              "targetSdk = 36",
+              "versionCode = 59",
+              'versionName = "4.26-unified-admin-gate-v59"',
               "jvmTarget.set(JvmTarget.JVM_11)",
               "targetCompatibility = JavaVersion.VERSION_11",
-              "versionCode = 58",
-              'versionName = "4.25-unified-admin-password-v58"',
+              "isMinifyEnabled = true",
+              "isShrinkResources = true",
+              "isDebuggable = false",
           ])
 
-          require_text("gradle.properties", [
+          require("gradle.properties", [
+              "android.useAndroidX=true",
               "org.gradle.parallel=false",
               "org.gradle.configuration-cache=false",
               "org.gradle.workers.max=2",
-              "android.useAndroidX=true",
           ])
 
-          require_text("app/src/main/java/com/example/ui/LabTestsScreen.kt", [
-              "private fun GlossyServiceCard",
-              "R.drawable.mgr_reports_3d",
-              "R.drawable.staff_search_3d",
-              "R.drawable.settings_3d",
-              "private fun AvailableTestPriceCard",
-              "customerPriceOverrides = customerPriceOverrides",
-              "lab2LabPrices = lab2LabPrices",
-              "catalog_edit_prices_",
-              'appText("تعديل الأسعار", "Edit prices")',
-              "val isManager = adminUnlocked",
-              "showAdminPasswordDialog",
-              'appText("دخول الإدارة", "Administration access")',
-              "locked = !adminUnlocked",
-          ])
+          vm = text("app/src/main/java/com/example/ui/LabTestsViewModel.kt")
 
-          require_text("app/src/main/java/com/example/ui/LabTestsViewModel.kt", [
+          require("app/src/main/java/com/example/ui/LabTestsViewModel.kt", [
+              "private fun hasAdminAccess(): Boolean = _adminUnlocked.value",
               'private const val ADMIN_UNLOCK_APP = "TahalilAdminUnlock"',
-              "val adminUnlocked: StateFlow<Boolean>",
               "fun unlockAdmin(password: String",
+              "FirebaseAuth.getInstance(app)",
               "FirebaseAppCheck.getInstance(app)",
               "FirebaseFirestore.getInstance(app)",
-              "private fun privilegedFirestore()",
+              "private fun privilegedFirestore(): FirebaseFirestore",
+              "fun lockAdmin()",
+              "_lab2LabPrices.value = emptyMap()",
+              "fun approveCurrentDeviceWithAdminPassword",
           ])
 
-          require_text("app/src/main/java/com/example/ui/CustomerSystemDialog.kt", [
-              "viewModel.adminUnlocked.collectAsState()",
-          ])
-
-          vm = (root / "app/src/main/java/com/example/ui/LabTestsViewModel.kt").read_text(encoding="utf-8")
-          forbidden = [
+          forbidden_vm = [
+              "private fun hasAdminAccess(): Boolean = _actualManager.value || _adminUnlocked.value",
+              "private fun hasAdminAccess(): Boolean = _isManager.value || _adminUnlocked.value",
               "حسابك غير مصرح له بإضافة خصومات",
               "حسابك غير مصرح له بتحصيل دفعات",
           ]
-          found = [x for x in forbidden if x in vm]
-          if found:
-              raise SystemExit("Legacy role gates still exist: " + ", ".join(found))
 
-          print("V58 verification passed")
+          found = [x for x in forbidden_vm if x in vm]
+
+          if found:
+              raise SystemExit(
+                  "Legacy manager/permission bypass found:\n" +
+                  "\n".join(found)
+              )
+
+          require("app/src/main/java/com/example/MainActivity.kt", [
+              "Lifecycle.Event.ON_STOP",
+              "viewModel.lockAdmin()",
+          ])
+
+          screen = text("app/src/main/java/com/example/ui/LabTestsScreen.kt")
+
+          require("app/src/main/java/com/example/ui/LabTestsScreen.kt", [
+              "val adminUnlocked by viewModel.adminUnlocked.collectAsState()",
+              "val isManager = adminUnlocked",
+              "ManagerHomeDashboard(",
+              "locked = !adminUnlocked",
+              "showAdminPasswordDialog",
+              'appText("دخول الإدارة", "Administration access")',
+              "private fun AvailableTestPriceCard",
+              'appText("تعديل الأسعار", "Edit prices")',
+              "R.drawable.staff_search_3d",
+              "R.drawable.mgr_reports_3d",
+          ])
+
+          if "StaffHomeDashboard(" in screen[:screen.find("private fun StaffHomeDashboard")]:
+              raise SystemExit(
+                  "Legacy separate staff home route is still active"
+              )
+
+          require("app/src/main/java/com/example/ui/CustomerSystemDialog.kt", [
+              "viewModel.adminUnlocked.collectAsState()",
+          ])
+
+          print("V59 verification passed")
           PY
 
       - name: Configure Android SDK 36
@@ -168,7 +198,11 @@ workflows:
           echo "sdk.dir=$ANDROID_HOME" > "$PROJECT_DIR/local.properties"
 
           yes | "$SDKMANAGER" --licenses >/dev/null 2>&1 || true
-          "$SDKMANAGER" "platform-tools" "platforms;android-36" "build-tools;35.0.0"
+
+          "$SDKMANAGER" \
+            "platform-tools" \
+            "platforms;android-36" \
+            "build-tools;35.0.0"
 
       - name: Use compatible preinstalled Gradle
         script: |
@@ -193,19 +227,28 @@ workflows:
             exit 1
           fi
 
-          GRADLE_VERSION=$($GRADLE_BIN --version | awk '/^Gradle / {print $2; exit}')
+          GRADLE_VERSION=$(
+            "$GRADLE_BIN" --version |
+            awk '/^Gradle / {print $2; exit}'
+          )
+
           echo "Detected Gradle $GRADLE_VERSION at $GRADLE_BIN"
 
           python3 - "$GRADLE_VERSION" <<'PY'
           import sys
+
           parts = sys.argv[1].split('.')
           major = int(parts[0])
           minor = int(parts[1]) if len(parts) > 1 else 0
+
           if major != 8 or minor < 11:
-              raise SystemExit(f"Gradle {sys.argv[1]} is incompatible; need Gradle 8.11+ and <9")
+              raise SystemExit(
+                  f"Gradle {sys.argv[1]} is incompatible; need Gradle 8.11+ and <9"
+              )
           PY
 
           echo "GRADLE_BIN=$GRADLE_BIN" >> "$CM_ENV"
+
           "$GRADLE_BIN" --version
 
       - name: Validate release signing
@@ -217,7 +260,9 @@ workflows:
             exit 1
           fi
 
-          if [ -z "${CM_KEYSTORE_PASSWORD:-}" ] || [ -z "${CM_KEY_ALIAS:-}" ] || [ -z "${CM_KEY_PASSWORD:-}" ]; then
+          if [ -z "${CM_KEYSTORE_PASSWORD:-}" ] || \
+             [ -z "${CM_KEY_ALIAS:-}" ] || \
+             [ -z "${CM_KEY_PASSWORD:-}" ]; then
             echo "ERROR: Signing credentials incomplete"
             exit 1
           fi
@@ -228,7 +273,7 @@ workflows:
             -alias "$CM_KEY_ALIAS" \
             >/dev/null
 
-      - name: Build V58 release APK and AAB
+      - name: Build V59 release APK and AAB
         script: |
           set -euo pipefail
 
@@ -236,14 +281,15 @@ workflows:
           export STORE_PASSWORD="$CM_KEYSTORE_PASSWORD"
           export KEY_PASSWORD="$CM_KEY_PASSWORD"
           export KEY_ALIAS="$CM_KEY_ALIAS"
-          export GRADLE_USER_HOME="$CM_BUILD_DIR/.gradle-v58"
+          export GRADLE_USER_HOME="$CM_BUILD_DIR/.gradle-v59"
 
           cd "$PROJECT_DIR"
 
-          BUILD_LOG="$CM_BUILD_DIR/v58-build.log"
+          BUILD_LOG="$CM_BUILD_DIR/v59-build.log"
           rm -f "$BUILD_LOG"
 
           set +e
+
           "$GRADLE_BIN" \
             --no-daemon \
             --no-configuration-cache \
@@ -254,19 +300,40 @@ workflows:
             :app:assembleRelease \
             :app:bundleRelease \
             2>&1 | tee "$BUILD_LOG"
+
           BUILD_STATUS=${PIPESTATUS[0]}
+
           set -e
 
           if [ "$BUILD_STATUS" -ne 0 ]; then
             echo ""
             echo "================ BUILD ERROR SUMMARY ================"
-            grep -nE '(^e: |error:|FAILURE:|What went wrong:|Execution failed for task|Caused by:|Could not resolve|Could not find|Inconsistent JVM|Compilation error)' "$BUILD_LOG" | head -120 || true
+
+            grep -nE \
+              '(^e: |error:|FAILURE:|What went wrong:|Execution failed for task|Caused by:|Could not resolve|Could not find|Inconsistent JVM|Compilation error)' \
+              "$BUILD_LOG" |
+              head -140 || true
+
             echo "====================================================="
+
             exit "$BUILD_STATUS"
           fi
 
-          APK_FILE=$(find app/build/outputs/apk/release -type f -name '*.apk' -print -quit)
-          AAB_FILE=$(find app/build/outputs/bundle/release -type f -name '*.aab' -print -quit)
+          APK_FILE=$(
+            find app/build/outputs/apk/release \
+              -type f \
+              -name '*.apk' \
+              -print \
+              -quit
+          )
+
+          AAB_FILE=$(
+            find app/build/outputs/bundle/release \
+              -type f \
+              -name '*.aab' \
+              -print \
+              -quit
+          )
 
           if [ -z "$APK_FILE" ] || [ ! -f "$APK_FILE" ]; then
             echo "ERROR: APK was not generated"
@@ -279,19 +346,68 @@ workflows:
           fi
 
           RELEASE_DIR="$CM_BUILD_DIR/release"
+
           rm -rf "$RELEASE_DIR"
           mkdir -p "$RELEASE_DIR"
 
-          cp "$APK_FILE" "$RELEASE_DIR/Tahalil-Alakkad-V58-UNIFIED-ADMIN-PASSWORD.apk"
-          cp "$AAB_FILE" "$RELEASE_DIR/Tahalil-Alakkad-V58-UNIFIED-ADMIN-PASSWORD.aab"
-          cp "$BUILD_LOG" "$RELEASE_DIR/v58-build.log"
+          cp \
+            "$APK_FILE" \
+            "$RELEASE_DIR/Tahalil-Alakkad-V59-UNIFIED-ADMIN-GATE.apk"
 
-          echo "BUILD SUCCESSFUL - V58 APK and AAB created"
+          cp \
+            "$AAB_FILE" \
+            "$RELEASE_DIR/Tahalil-Alakkad-V59-UNIFIED-ADMIN-GATE.aab"
+
+          cp \
+            "$BUILD_LOG" \
+            "$RELEASE_DIR/v59-build.log"
+
+          echo "BUILD SUCCESSFUL - V59 APK and AAB created"
+
           ls -lah "$RELEASE_DIR"
+
+      - name: Verify V59 release artifacts
+        script: |
+          set -euo pipefail
+
+          APK_FILE="$CM_BUILD_DIR/release/Tahalil-Alakkad-V59-UNIFIED-ADMIN-GATE.apk"
+          AAB_FILE="$CM_BUILD_DIR/release/Tahalil-Alakkad-V59-UNIFIED-ADMIN-GATE.aab"
+
+          APKSIGNER="$ANDROID_HOME/build-tools/35.0.0/apksigner"
+          AAPT="$ANDROID_HOME/build-tools/35.0.0/aapt"
+
+          test -f "$APK_FILE"
+          test -f "$AAB_FILE"
+          test -x "$APKSIGNER"
+          test -x "$AAPT"
+
+          "$APKSIGNER" verify \
+            --verbose \
+            --print-certs \
+            "$APK_FILE"
+
+          BADGING=$(
+            "$AAPT" dump badging "$APK_FILE" |
+            head -1
+          )
+
+          echo "$BADGING"
+
+          echo "$BADGING" |
+            grep -q "name='com.aistudio.labtestsdirectory.egypt'"
+
+          echo "$BADGING" |
+            grep -q "versionCode='59'"
+
+          echo "$BADGING" |
+            grep -q "versionName='4.26-unified-admin-gate-v59'"
+
+          jarsigner -verify "$AAB_FILE" >/dev/null
+
+          echo "V59 release artifacts verified successfully"
 
     artifacts:
       - release/*.apk
       - release/*.aab
       - release/*.log
       - android_project/**/app/build/outputs/mapping/release/mapping.txt
-      
