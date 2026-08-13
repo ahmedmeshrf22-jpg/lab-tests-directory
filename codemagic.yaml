@@ -1,6 +1,6 @@
 workflows:
   android-release:
-    name: Build Tahalil Alakkad V55 ALL ICON SERVICES
+    name: Build Tahalil Alakkad V56 3D ICON UI
     instance_type: mac_mini_m2
     max_build_duration: 60
 
@@ -14,7 +14,7 @@ workflows:
         script: |
           set -euo pipefail
 
-          ZIP_FILE="$CM_BUILD_DIR/Project3_AK_SECURE_ALL_ICON_SERVICES_V55.zip"
+          ZIP_FILE="$CM_BUILD_DIR/Project3_AK_SECURE_3D_ICON_UI_V56.zip"
           WORK_DIR="$CM_BUILD_DIR/android_project"
 
           if [ ! -f "$ZIP_FILE" ]; then
@@ -48,20 +48,28 @@ workflows:
           test -f "$PROJECT_DIR/app/google-services.json"
           test -f "$PROJECT_DIR/BUILD_ONLY_FIX_V45_NOTES.txt"
           test -f "$PROJECT_DIR/ALL_ICON_SERVICES_V55_NOTES.txt"
+          test -f "$PROJECT_DIR/THREED_ICON_UI_V56_NOTES.txt"
 
-          # V55 icon-first service navigation
-          grep -q 'showSettings = true' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-          grep -q 'text = appText("كل الخدمات", "All services")' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-          grep -q 'text = appText("الإدارة", "Administration")' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-          grep -q 'onAdminPage("reports")' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-          grep -q 'onAdminPage("users")' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-          grep -q 'onAdminPage("devices")' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-          grep -q 'onAdminPage("alerts")' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-          grep -q 'onAdminPage("integrity")' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-          grep -q 'onAdminPage("health")' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-          grep -q 'onAdminPage("audit")' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-          grep -q 'private fun OpsMenuCard' "$PROJECT_DIR/app/src/main/java/com/example/ui/OperationsV14Dialog.kt"
-          grep -q 'appText("كل خدمات الإدارة", "All administration services")' "$PROJECT_DIR/app/src/main/java/com/example/ui/OperationsV14Dialog.kt"
+          # V56 approved 3D icon UI
+          test -f "$PROJECT_DIR/app/src/main/res/drawable-nodpi/mgr_reports_3d.png"
+          test -f "$PROJECT_DIR/app/src/main/res/drawable-nodpi/mgr_staff_3d.png"
+          test -f "$PROJECT_DIR/app/src/main/res/drawable-nodpi/mgr_devices_3d.png"
+          test -f "$PROJECT_DIR/app/src/main/res/drawable-nodpi/mgr_alerts_3d.png"
+          test -f "$PROJECT_DIR/app/src/main/res/drawable-nodpi/mgr_integrity_3d.png"
+          test -f "$PROJECT_DIR/app/src/main/res/drawable-nodpi/mgr_health_3d.png"
+          test -f "$PROJECT_DIR/app/src/main/res/drawable-nodpi/mgr_audit_3d.png"
+          test -f "$PROJECT_DIR/app/src/main/res/drawable-nodpi/mgr_switch_3d.png"
+          test -f "$PROJECT_DIR/app/src/main/res/drawable-nodpi/settings_3d.png"
+          test -f "$PROJECT_DIR/app/src/main/res/drawable-nodpi/staff_search_3d.png"
+          test -f "$PROJECT_DIR/app/src/main/res/drawable-nodpi/staff_new_order_3d.png"
+          test -f "$PROJECT_DIR/app/src/main/res/drawable-nodpi/staff_pdf_3d.png"
+          test -f "$PROJECT_DIR/app/src/main/res/drawable-nodpi/staff_qr_3d.png"
+          test -f "$PROJECT_DIR/app/src/main/res/drawable-nodpi/staff_customers_3d.png"
+          test -f "$PROJECT_DIR/app/src/main/res/drawable-nodpi/staff_tests_3d.png"
+          grep -q 'private fun GlossyServiceCard' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+          grep -q 'R.drawable.mgr_reports_3d' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+          grep -q 'R.drawable.staff_search_3d' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+          grep -q 'R.drawable.settings_3d' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
 
           grep -q 'agp = "8.10.0"' "$PROJECT_DIR/gradle/libs.versions.toml"
           grep -q 'kotlin = "2.2.10"' "$PROJECT_DIR/gradle/libs.versions.toml"
@@ -72,14 +80,14 @@ workflows:
           grep -q 'buildToolsVersion = "35.0.0"' "$PROJECT_DIR/app/build.gradle.kts"
           grep -q 'jvmTarget.set(JvmTarget.JVM_11)' "$PROJECT_DIR/app/build.gradle.kts"
           grep -q 'targetCompatibility = JavaVersion.VERSION_11' "$PROJECT_DIR/app/build.gradle.kts"
-          grep -q 'versionCode = 55' "$PROJECT_DIR/app/build.gradle.kts"
-          grep -q 'versionName = "4.22-all-icon-services-v55"' "$PROJECT_DIR/app/build.gradle.kts"
+          grep -q 'versionCode = 56' "$PROJECT_DIR/app/build.gradle.kts"
+          grep -q 'versionName = "4.23-3d-icon-ui-v56"' "$PROJECT_DIR/app/build.gradle.kts"
           grep -q 'org.gradle.parallel=false' "$PROJECT_DIR/gradle.properties"
           grep -q 'org.gradle.configuration-cache=false' "$PROJECT_DIR/gradle.properties"
           grep -q 'org.gradle.workers.max=2' "$PROJECT_DIR/gradle.properties"
           grep -q 'android.useAndroidX=true' "$PROJECT_DIR/gradle.properties"
 
-          echo "V55 icon services configuration verification passed"
+          echo "V56 3D icon UI configuration verification passed"
 
       - name: Configure Android SDK 36
         script: |
@@ -160,7 +168,7 @@ workflows:
             -alias "$CM_KEY_ALIAS" \
             >/dev/null
 
-      - name: Build V55 release APK and AAB
+      - name: Build V56 release APK and AAB
         script: |
           set -euo pipefail
 
@@ -168,11 +176,11 @@ workflows:
           export STORE_PASSWORD="$CM_KEYSTORE_PASSWORD"
           export KEY_PASSWORD="$CM_KEY_PASSWORD"
           export KEY_ALIAS="$CM_KEY_ALIAS"
-          export GRADLE_USER_HOME="$CM_BUILD_DIR/.gradle-v55"
+          export GRADLE_USER_HOME="$CM_BUILD_DIR/.gradle-v56"
 
           cd "$PROJECT_DIR"
 
-          BUILD_LOG="$CM_BUILD_DIR/v55-build.log"
+          BUILD_LOG="$CM_BUILD_DIR/v56-build.log"
           rm -f "$BUILD_LOG"
 
           set +e
@@ -214,11 +222,11 @@ workflows:
           rm -rf "$RELEASE_DIR"
           mkdir -p "$RELEASE_DIR"
 
-          cp "$APK_FILE" "$RELEASE_DIR/Tahalil-Alakkad-V55-ALL-ICON-SERVICES.apk"
-          cp "$AAB_FILE" "$RELEASE_DIR/Tahalil-Alakkad-V55-ALL-ICON-SERVICES.aab"
-          cp "$BUILD_LOG" "$RELEASE_DIR/v55-build.log"
+          cp "$APK_FILE" "$RELEASE_DIR/Tahalil-Alakkad-V56-3D-ICON-UI.apk"
+          cp "$AAB_FILE" "$RELEASE_DIR/Tahalil-Alakkad-V56-3D-ICON-UI.aab"
+          cp "$BUILD_LOG" "$RELEASE_DIR/v56-build.log"
 
-          echo "BUILD SUCCESSFUL - V55 APK and AAB created"
+          echo "BUILD SUCCESSFUL - V56 APK and AAB created"
           ls -lah "$RELEASE_DIR"
 
     artifacts:
