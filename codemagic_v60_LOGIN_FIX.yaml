@@ -1,0 +1,295 @@
+workflows:
+  android-release:
+    name: Build Tahalil Alakkad V60 LOGIN FIX
+    instance_type: mac_mini_m2
+    max_build_duration: 60
+
+    environment:
+      java: 17
+      android_signing:
+        - tahalil_alakkad_release
+
+    scripts:
+      - name: Extract V60 login-fix project
+        script: |
+          set -euo pipefail
+
+          ZIP_FILE="$CM_BUILD_DIR/Project3_AK_SECURE_ADMIN_PIN_V60_LOGIN_FIX.zip"
+          WORK_DIR="$CM_BUILD_DIR/android_project"
+
+          if [ ! -f "$ZIP_FILE" ]; then
+            echo "ERROR: V60 login-fix ZIP not found: $ZIP_FILE"
+            find "$CM_BUILD_DIR" -maxdepth 2 -type f -iname '*.zip' -print || true
+            exit 1
+          fi
+
+          rm -rf "$WORK_DIR"
+          mkdir -p "$WORK_DIR"
+          unzip -q -o "$ZIP_FILE" -d "$WORK_DIR"
+
+          SETTINGS_FILE=$(find "$WORK_DIR" -type f -name settings.gradle.kts -print -quit)
+          if [ -z "$SETTINGS_FILE" ]; then
+            echo "ERROR: settings.gradle.kts not found"
+            exit 1
+          fi
+
+          PROJECT_DIR=$(dirname "$SETTINGS_FILE")
+          echo "PROJECT_DIR=$PROJECT_DIR" >> "$CM_ENV"
+          echo "PROJECT_DIR=$PROJECT_DIR"
+
+      - name: Verify V60 login behavior
+        script: |
+          set -euo pipefail
+
+          python3 - "$PROJECT_DIR" <<'PY'
+          from pathlib import Path
+          import sys
+
+          root = Path(sys.argv[1])
+
+          required = [
+              "app/build.gradle.kts",
+              "gradle/libs.versions.toml",
+              "app/src/main/AndroidManifest.xml",
+              "app/google-services.json",
+              "app/src/main/java/com/example/MainActivity.kt",
+              "app/src/main/java/com/example/ui/LabTestsViewModel.kt",
+              "app/src/main/java/com/example/ui/LabTestsScreen.kt",
+              "app/src/main/java/com/example/ui/CustomerSystemDialog.kt",
+              "app/src/main/java/com/example/ui/OperationsV14Dialog.kt",
+              "app/src/main/java/com/example/ui/DeviceAuthorizationScreen.kt",
+              "firestore.rules",
+              "V60_LOGIN_APPROVAL_FIX_NOTES.txt",
+              "app/src/main/res/drawable-nodpi/mgr_reports_3d.png",
+              "app/src/main/res/drawable-nodpi/mgr_staff_3d.png",
+              "app/src/main/res/drawable-nodpi/mgr_devices_3d.png",
+              "app/src/main/res/drawable-nodpi/mgr_alerts_3d.png",
+              "app/src/main/res/drawable-nodpi/mgr_integrity_3d.png",
+              "app/src/main/res/drawable-nodpi/mgr_health_3d.png",
+              "app/src/main/res/drawable-nodpi/mgr_audit_3d.png",
+              "app/src/main/res/drawable-nodpi/settings_3d.png",
+              "app/src/main/res/drawable-nodpi/staff_search_3d.png",
+              "app/src/main/res/drawable-nodpi/staff_new_order_3d.png",
+              "app/src/main/res/drawable-nodpi/staff_pdf_3d.png",
+              "app/src/main/res/drawable-nodpi/staff_qr_3d.png",
+              "app/src/main/res/drawable-nodpi/staff_customers_3d.png",
+              "app/src/main/res/drawable-nodpi/staff_tests_3d.png",
+          ]
+          missing = [p for p in required if not (root / p).is_file()]
+          if missing:
+              raise SystemExit("Missing required files:\n" + "\n".join(missing))
+
+          def read(rel):
+              return (root / rel).read_text(encoding="utf-8")
+
+          build = read("app/build.gradle.kts")
+          for needle in [
+              "compileSdk = 36",
+              'buildToolsVersion = "35.0.0"',
+              "versionCode = 60",
+              'versionName = "4.27-admin-pin-v60"',
+              "isMinifyEnabled = true",
+              "isShrinkResources = true",
+          ]:
+              if needle not in build:
+                  raise SystemExit(f"Build verification missing: {needle}")
+
+          main = read("app/src/main/java/com/example/MainActivity.kt")
+          forbidden_main = [
+              'deviceAccessStatus by viewModel.deviceAccessStatus.collectAsState()',
+              'currentUser != null && deviceAccessStatus == "checking"',
+              'currentUser != null && deviceAccessStatus != "approved"',
+              'DeviceAuthorizationScreen(',
+          ]
+          found = [x for x in forbidden_main if x in main]
+          if found:
+              raise SystemExit("Login is still gated by device approval: " + ", ".join(found))
+
+          vm = read("app/src/main/java/com/example/ui/LabTestsViewModel.kt")
+          required_vm = [
+              "private fun hasAdminAccess(): Boolean = _actualManager.value || _adminUnlocked.value",
+              "if (_actualManager.value) firestore",
+              "else adminFirestore ?: error(\"Admin access is not unlocked\")",
+              "fun unlockAdmin(pin: String",
+              "ADMIN_PIN_VERIFIER",
+              "loadManagerPriceState()",
+          ]
+          for needle in required_vm:
+              if needle not in vm:
+                  raise SystemExit(f"Manager/staff gate verification missing in ViewModel: {needle}")
+
+          screen = read("app/src/main/java/com/example/ui/LabTestsScreen.kt")
+          required_screen = [
+              "val actualManager by viewModel.actualManager.collectAsState()",
+              "val isManager = actualManager || adminUnlocked",
+              "if (isManager) {",
+              "showAdminPasswordDialog = true",
+              "adminAccess = isManager",
+              "showLockAdmin = adminUnlocked && !actualManager",
+          ]
+          for needle in required_screen:
+              if needle not in screen:
+                  raise SystemExit(f"Screen gate verification missing: {needle}")
+
+          customer = read("app/src/main/java/com/example/ui/CustomerSystemDialog.kt")
+          for needle in [
+              "val actualManager by viewModel.actualManager.collectAsState()",
+              "val isManager = actualManager || adminUnlocked",
+          ]:
+              if needle not in customer:
+                  raise SystemExit(f"Customer manager access verification missing: {needle}")
+
+          rules = read("firestore.rules")
+          for needle in [
+              "request.auth.uid == 'Wps5Y19pZSbeGooEzFfW5UFsshq2'",
+              "request.auth.token.email == 'tahalil.admin.gate.v60@tahali.com'",
+          ]:
+              if needle not in rules:
+                  raise SystemExit(f"Firestore manager/PIN identity missing: {needle}")
+
+          print("V60 LOGIN FIX verification passed")
+          PY
+
+      - name: Configure Android SDK 36
+        script: |
+          set -euo pipefail
+
+          ANDROID_HOME="/usr/local/share/android-sdk"
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+
+          if [ ! -x "$SDKMANAGER" ]; then
+            echo "ERROR: sdkmanager not found at $SDKMANAGER"
+            exit 1
+          fi
+
+          echo "ANDROID_HOME=$ANDROID_HOME" >> "$CM_ENV"
+          echo "ANDROID_SDK_ROOT=$ANDROID_HOME" >> "$CM_ENV"
+          echo "sdk.dir=$ANDROID_HOME" > "$PROJECT_DIR/local.properties"
+
+          yes | "$SDKMANAGER" --licenses >/dev/null 2>&1 || true
+          "$SDKMANAGER" "platform-tools" "platforms;android-36" "build-tools;35.0.0"
+
+      - name: Use compatible preinstalled Gradle
+        script: |
+          set -euo pipefail
+
+          GRADLE_BIN=$(command -v gradle || true)
+
+          if [ -z "$GRADLE_BIN" ] || [ ! -x "$GRADLE_BIN" ]; then
+            for candidate in \
+              "$HOME/programs/gradle-8.14.1/bin/gradle" \
+              "/Users/builder/programs/gradle-8.14.1/bin/gradle"
+            do
+              if [ -x "$candidate" ]; then
+                GRADLE_BIN="$candidate"
+                break
+              fi
+            done
+          fi
+
+          if [ -z "$GRADLE_BIN" ] || [ ! -x "$GRADLE_BIN" ]; then
+            echo "ERROR: No compatible preinstalled Gradle found"
+            exit 1
+          fi
+
+          GRADLE_VERSION=$($GRADLE_BIN --version | awk '/^Gradle / {print $2; exit}')
+          echo "Detected Gradle $GRADLE_VERSION at $GRADLE_BIN"
+
+          python3 - "$GRADLE_VERSION" <<'PY'
+          import sys
+          parts = sys.argv[1].split('.')
+          major = int(parts[0])
+          minor = int(parts[1]) if len(parts) > 1 else 0
+          if major != 8 or minor < 11:
+              raise SystemExit(f"Gradle {sys.argv[1]} is incompatible; need Gradle 8.11+ and <9")
+          PY
+
+          echo "GRADLE_BIN=$GRADLE_BIN" >> "$CM_ENV"
+          "$GRADLE_BIN" --version
+
+      - name: Validate release signing
+        script: |
+          set -euo pipefail
+
+          if [ -z "${CM_KEYSTORE_PATH:-}" ] || [ ! -f "$CM_KEYSTORE_PATH" ]; then
+            echo "ERROR: Release keystore missing"
+            exit 1
+          fi
+
+          if [ -z "${CM_KEYSTORE_PASSWORD:-}" ] || [ -z "${CM_KEY_ALIAS:-}" ] || [ -z "${CM_KEY_PASSWORD:-}" ]; then
+            echo "ERROR: Signing credentials incomplete"
+            exit 1
+          fi
+
+          keytool -list \
+            -keystore "$CM_KEYSTORE_PATH" \
+            -storepass "$CM_KEYSTORE_PASSWORD" \
+            -alias "$CM_KEY_ALIAS" \
+            >/dev/null
+
+      - name: Build V60 login-fix APK and AAB
+        script: |
+          set -euo pipefail
+
+          export KEYSTORE_PATH="$CM_KEYSTORE_PATH"
+          export STORE_PASSWORD="$CM_KEYSTORE_PASSWORD"
+          export KEY_PASSWORD="$CM_KEY_PASSWORD"
+          export KEY_ALIAS="$CM_KEY_ALIAS"
+          export GRADLE_USER_HOME="$CM_BUILD_DIR/.gradle-v60-login-fix"
+
+          cd "$PROJECT_DIR"
+
+          BUILD_LOG="$CM_BUILD_DIR/v60-login-fix-build.log"
+          rm -f "$BUILD_LOG"
+
+          set +e
+          "$GRADLE_BIN" \
+            --no-daemon \
+            --no-configuration-cache \
+            --no-parallel \
+            --max-workers=2 \
+            --console=plain \
+            clean \
+            :app:assembleRelease \
+            :app:bundleRelease \
+            2>&1 | tee "$BUILD_LOG"
+          BUILD_STATUS=${PIPESTATUS[0]}
+          set -e
+
+          if [ "$BUILD_STATUS" -ne 0 ]; then
+            echo ""
+            echo "================ BUILD ERROR SUMMARY ================"
+            grep -nE '(^e: |error:|FAILURE:|What went wrong:|Execution failed for task|Caused by:|Could not resolve|Could not find|Inconsistent JVM|Compilation error)' "$BUILD_LOG" | head -120 || true
+            echo "====================================================="
+            exit "$BUILD_STATUS"
+          fi
+
+          APK_FILE=$(find app/build/outputs/apk/release -type f -name '*.apk' -print -quit)
+          AAB_FILE=$(find app/build/outputs/bundle/release -type f -name '*.aab' -print -quit)
+
+          if [ -z "$APK_FILE" ] || [ ! -f "$APK_FILE" ]; then
+            echo "ERROR: APK was not generated"
+            exit 1
+          fi
+
+          if [ -z "$AAB_FILE" ] || [ ! -f "$AAB_FILE" ]; then
+            echo "ERROR: AAB was not generated"
+            exit 1
+          fi
+
+          RELEASE_DIR="$CM_BUILD_DIR/release"
+          rm -rf "$RELEASE_DIR"
+          mkdir -p "$RELEASE_DIR"
+
+          cp "$APK_FILE" "$RELEASE_DIR/Tahalil-Alakkad-V60-LOGIN-FIX.apk"
+          cp "$AAB_FILE" "$RELEASE_DIR/Tahalil-Alakkad-V60-LOGIN-FIX.aab"
+          cp "$BUILD_LOG" "$RELEASE_DIR/v60-login-fix-build.log"
+
+          echo "BUILD SUCCESSFUL - V60 LOGIN FIX APK and AAB created"
+          ls -lah "$RELEASE_DIR"
+
+    artifacts:
+      - release/*.apk
+      - release/*.aab
+      - release/*.log
+      - android_project/**/app/build/outputs/mapping/release/mapping.txt
