@@ -1,236 +1,50 @@
-workflows:
-  android-release:
-    name: Build Tahalil Alakkad V56 3D ICON UI
-    instance_type: mac_mini_m2
-    max_build_duration: 60
+Use the attached photos as strict identity references for Dr. Rasha Zamzam.
 
-    environment:
-      java: 17
-      android_signing:
-        - tahalil_alakkad_release
+Create a photorealistic 4:5 cinematic still image for Scene 2.
 
-    scripts:
-      - name: Extract verified V45 project
-        script: |
-          set -euo pipefail
+Dr. Rasha Zamzam is an Egyptian woman approximately 49 years old. Preserve a realistic mature appearance appropriate for a woman around 49, with natural facial texture, subtle age lines, realistic skin, and the same facial identity from the reference photos. Do not make her look younger, overly smooth, artificially beautified, or heavily filtered.
 
-          ZIP_FILE="$CM_BUILD_DIR/Project3_AK_SECURE_3D_ICON_UI_V56.zip"
-          WORK_DIR="$CM_BUILD_DIR/android_project"
+Dr. Rasha is standing naturally beside an adult female patient lying face down on a professional medical treatment bed.
 
-          if [ ! -f "$ZIP_FILE" ]; then
-            echo "ERROR: $ZIP_FILE not found"
-            echo "ZIP files present in repository:"
-            find "$CM_BUILD_DIR" -maxdepth 2 -type f -iname '*.zip' -print || true
-            exit 1
-          fi
+She wears a white hijab and white medical coat.
 
-          rm -rf "$WORK_DIR"
-          mkdir -p "$WORK_DIR"
-          unzip -q -o "$ZIP_FILE" -d "$WORK_DIR"
+The patient's face is not visible. Her body is properly covered with a clean medical sheet, exposing only the upper and mid-back treatment area.
 
-          SETTINGS_FILE=$(find "$WORK_DIR" -type f -name 'settings.gradle.kts' -print -quit)
-          if [ -z "$SETTINGS_FILE" ]; then
-            echo "ERROR: settings.gradle.kts not found after extraction"
-            exit 1
-          fi
+Show several realistic circular cupping marks on the patient's back and one real transparent cupping cup attached to the skin.
 
-          PROJECT_DIR=$(dirname "$SETTINGS_FILE")
-          echo "PROJECT_DIR=$PROJECT_DIR" >> "$CM_ENV"
-          echo "PROJECT_DIR=$PROJECT_DIR"
+Dr. Rasha is slightly leaning toward the patient and naturally pointing toward the treated area with one hand, as if professionally explaining what is happening during cupping.
 
-      - name: Verify fixed Android toolchain
-        script: |
-          set -euo pipefail
+Include one small, clean, medically realistic CGI cutaway visualization beside the treatment area showing:
 
-          test -f "$PROJECT_DIR/app/build.gradle.kts"
-          test -f "$PROJECT_DIR/gradle/libs.versions.toml"
-          test -f "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
-          test -f "$PROJECT_DIR/app/google-services.json"
-          test -f "$PROJECT_DIR/BUILD_ONLY_FIX_V45_NOTES.txt"
-          test -f "$PROJECT_DIR/ALL_ICON_SERVICES_V55_NOTES.txt"
-          test -f "$PROJECT_DIR/THREED_ICON_UI_V56_NOTES.txt"
+- the cupping cup attached to the skin,
+- the skin gently lifting upward due to suction,
+- superficial tissue beneath the skin,
+- subtle underlying muscle tissue.
 
-          # V56 approved 3D icon UI
-          test -f "$PROJECT_DIR/app/src/main/res/drawable-nodpi/mgr_reports_3d.png"
-          test -f "$PROJECT_DIR/app/src/main/res/drawable-nodpi/mgr_staff_3d.png"
-          test -f "$PROJECT_DIR/app/src/main/res/drawable-nodpi/mgr_devices_3d.png"
-          test -f "$PROJECT_DIR/app/src/main/res/drawable-nodpi/mgr_alerts_3d.png"
-          test -f "$PROJECT_DIR/app/src/main/res/drawable-nodpi/mgr_integrity_3d.png"
-          test -f "$PROJECT_DIR/app/src/main/res/drawable-nodpi/mgr_health_3d.png"
-          test -f "$PROJECT_DIR/app/src/main/res/drawable-nodpi/mgr_audit_3d.png"
-          test -f "$PROJECT_DIR/app/src/main/res/drawable-nodpi/mgr_switch_3d.png"
-          test -f "$PROJECT_DIR/app/src/main/res/drawable-nodpi/settings_3d.png"
-          test -f "$PROJECT_DIR/app/src/main/res/drawable-nodpi/staff_search_3d.png"
-          test -f "$PROJECT_DIR/app/src/main/res/drawable-nodpi/staff_new_order_3d.png"
-          test -f "$PROJECT_DIR/app/src/main/res/drawable-nodpi/staff_pdf_3d.png"
-          test -f "$PROJECT_DIR/app/src/main/res/drawable-nodpi/staff_qr_3d.png"
-          test -f "$PROJECT_DIR/app/src/main/res/drawable-nodpi/staff_customers_3d.png"
-          test -f "$PROJECT_DIR/app/src/main/res/drawable-nodpi/staff_tests_3d.png"
-          grep -q 'private fun GlossyServiceCard' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-          grep -q 'R.drawable.mgr_reports_3d' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-          grep -q 'R.drawable.staff_search_3d' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-          grep -q 'R.drawable.settings_3d' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+The CGI must look like a premium medical visualization integrated naturally into the scene. It must not look like a floating cartoon, hologram, fantasy effect, or separate artificial object.
 
-          grep -q 'agp = "8.10.0"' "$PROJECT_DIR/gradle/libs.versions.toml"
-          grep -q 'kotlin = "2.2.10"' "$PROJECT_DIR/gradle/libs.versions.toml"
-          grep -q 'googleDevtoolsKsp = "2.3.6"' "$PROJECT_DIR/gradle/libs.versions.toml"
-          grep -q 'kotlin-android = { id = "org.jetbrains.kotlin.android"' "$PROJECT_DIR/gradle/libs.versions.toml"
-          grep -q 'alias(libs.plugins.kotlin.android)' "$PROJECT_DIR/app/build.gradle.kts"
-          grep -q 'compileSdk = 36' "$PROJECT_DIR/app/build.gradle.kts"
-          grep -q 'buildToolsVersion = "35.0.0"' "$PROJECT_DIR/app/build.gradle.kts"
-          grep -q 'jvmTarget.set(JvmTarget.JVM_11)' "$PROJECT_DIR/app/build.gradle.kts"
-          grep -q 'targetCompatibility = JavaVersion.VERSION_11' "$PROJECT_DIR/app/build.gradle.kts"
-          grep -q 'versionCode = 56' "$PROJECT_DIR/app/build.gradle.kts"
-          grep -q 'versionName = "4.23-3d-icon-ui-v56"' "$PROJECT_DIR/app/build.gradle.kts"
-          grep -q 'org.gradle.parallel=false' "$PROJECT_DIR/gradle.properties"
-          grep -q 'org.gradle.configuration-cache=false' "$PROJECT_DIR/gradle.properties"
-          grep -q 'org.gradle.workers.max=2' "$PROJECT_DIR/gradle.properties"
-          grep -q 'android.useAndroidX=true' "$PROJECT_DIR/gradle.properties"
+Use a natural human eye-level camera, realistic 50mm photographic look, soft depth of field, realistic clinical lighting, and subtle cinematic color grading.
 
-          echo "V56 3D icon UI configuration verification passed"
+The treatment room should look like a real, clean, professional Egyptian medical clinic, with only essential furniture and realistic equipment visible.
 
-      - name: Configure Android SDK 36
-        script: |
-          set -euo pipefail
+No anthropomorphic cupping character in this scene.
 
-          ANDROID_HOME="/usr/local/share/android-sdk"
-          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+No text, captions, subtitles, labels, logos, or written words anywhere in the image.
 
-          if [ ! -x "$SDKMANAGER" ]; then
-            echo "ERROR: sdkmanager not found at $SDKMANAGER"
-            exit 1
-          fi
+Do not add extra people, extra cups, extra equipment, needles, blood, wounds, organs, floating objects, glowing effects, fantasy elements, or unnecessary decorations.
 
-          echo "ANDROID_HOME=$ANDROID_HOME" >> "$CM_ENV"
-          echo "ANDROID_SDK_ROOT=$ANDROID_HOME" >> "$CM_ENV"
-          echo "sdk.dir=$ANDROID_HOME" > "$PROJECT_DIR/local.properties"
+No AI-looking skin.
 
-          yes | "$SDKMANAGER" --licenses >/dev/null 2>&1 || true
-          "$SDKMANAGER" "platform-tools" "platforms;android-36" "build-tools;35.0.0"
+No facial identity drift.
 
-      - name: Use compatible preinstalled Gradle
-        script: |
-          set -euo pipefail
+No age reduction.
 
-          GRADLE_BIN=$(command -v gradle || true)
+No distorted anatomy.
 
-          if [ -z "$GRADLE_BIN" ] || [ ! -x "$GRADLE_BIN" ]; then
-            for candidate in \
-              "$HOME/programs/gradle-8.14.1/bin/gradle" \
-              "/Users/builder/programs/gradle-8.14.1/bin/gradle"
-            do
-              if [ -x "$candidate" ]; then
-                GRADLE_BIN="$candidate"
-                break
-              fi
-            done
-          fi
+No extra fingers.
 
-          if [ -z "$GRADLE_BIN" ] || [ ! -x "$GRADLE_BIN" ]; then
-            echo "ERROR: No preinstalled Gradle executable found"
-            exit 1
-          fi
+No unrealistic body proportions.
 
-          GRADLE_VERSION=$($GRADLE_BIN --version | awk '/^Gradle / {print $2; exit}')
-          echo "Detected Gradle $GRADLE_VERSION at $GRADLE_BIN"
+No plastic-looking face.
 
-          python3 - "$GRADLE_VERSION" <<'PY'
-          import sys
-          parts = sys.argv[1].split('.')
-          major = int(parts[0])
-          minor = int(parts[1]) if len(parts) > 1 else 0
-          if major != 8 or minor < 11:
-              raise SystemExit(f"Gradle {sys.argv[1]} is not compatible; need Gradle 8.11+ and <9")
-          PY
-
-          echo "GRADLE_BIN=$GRADLE_BIN" >> "$CM_ENV"
-          "$GRADLE_BIN" --version
-
-      - name: Validate release signing
-        script: |
-          set -euo pipefail
-
-          if [ -z "${CM_KEYSTORE_PATH:-}" ] || [ ! -f "$CM_KEYSTORE_PATH" ]; then
-            echo "ERROR: Release keystore missing"
-            exit 1
-          fi
-
-          if [ -z "${CM_KEYSTORE_PASSWORD:-}" ] || \
-             [ -z "${CM_KEY_ALIAS:-}" ] || \
-             [ -z "${CM_KEY_PASSWORD:-}" ]; then
-            echo "ERROR: Signing credentials incomplete"
-            exit 1
-          fi
-
-          keytool -list \
-            -keystore "$CM_KEYSTORE_PATH" \
-            -storepass "$CM_KEYSTORE_PASSWORD" \
-            -alias "$CM_KEY_ALIAS" \
-            >/dev/null
-
-      - name: Build V56 release APK and AAB
-        script: |
-          set -euo pipefail
-
-          export KEYSTORE_PATH="$CM_KEYSTORE_PATH"
-          export STORE_PASSWORD="$CM_KEYSTORE_PASSWORD"
-          export KEY_PASSWORD="$CM_KEY_PASSWORD"
-          export KEY_ALIAS="$CM_KEY_ALIAS"
-          export GRADLE_USER_HOME="$CM_BUILD_DIR/.gradle-v56"
-
-          cd "$PROJECT_DIR"
-
-          BUILD_LOG="$CM_BUILD_DIR/v56-build.log"
-          rm -f "$BUILD_LOG"
-
-          set +e
-          "$GRADLE_BIN" \
-            --no-daemon \
-            --no-configuration-cache \
-            --no-parallel \
-            --max-workers=2 \
-            --console=plain \
-            clean \
-            :app:assembleRelease \
-            :app:bundleRelease \
-            2>&1 | tee "$BUILD_LOG"
-          BUILD_STATUS=${PIPESTATUS[0]}
-          set -e
-
-          if [ "$BUILD_STATUS" -ne 0 ]; then
-            echo ""
-            echo "================ BUILD ERROR SUMMARY ================"
-            grep -nE '(^e: |error:|FAILURE:|What went wrong:|Execution failed for task|Caused by:|Could not resolve|Could not find|Inconsistent JVM|Compilation error)' "$BUILD_LOG" | head -120 || true
-            echo "====================================================="
-            exit "$BUILD_STATUS"
-          fi
-
-          APK_FILE=$(find app/build/outputs/apk/release -type f -name '*.apk' -print -quit)
-          AAB_FILE=$(find app/build/outputs/bundle/release -type f -name '*.aab' -print -quit)
-
-          if [ -z "$APK_FILE" ] || [ ! -f "$APK_FILE" ]; then
-            echo "ERROR: APK was not generated"
-            exit 1
-          fi
-
-          if [ -z "$AAB_FILE" ] || [ ! -f "$AAB_FILE" ]; then
-            echo "ERROR: AAB was not generated"
-            exit 1
-          fi
-
-          RELEASE_DIR="$CM_BUILD_DIR/release"
-          rm -rf "$RELEASE_DIR"
-          mkdir -p "$RELEASE_DIR"
-
-          cp "$APK_FILE" "$RELEASE_DIR/Tahalil-Alakkad-V56-3D-ICON-UI.apk"
-          cp "$AAB_FILE" "$RELEASE_DIR/Tahalil-Alakkad-V56-3D-ICON-UI.aab"
-          cp "$BUILD_LOG" "$RELEASE_DIR/v56-build.log"
-
-          echo "BUILD SUCCESSFUL - V56 APK and AAB created"
-          ls -lah "$RELEASE_DIR"
-
-    artifacts:
-      - release/*.apk
-      - release/*.aab
-      - release/*.log
-      - android_project/**/app/build/outputs/mapping/release/mapping.txt
+The final image must look like a real clinical photograph of Dr. Rasha explaining cupping treatment beside a real patient, enhanced only by one small medically accurate CGI explanatory element.
