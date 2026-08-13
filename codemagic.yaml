@@ -1,6 +1,6 @@
 workflows:
   android-release:
-    name: Build Tahalil Alakkad V62 SMART MEDICAL VISION
+    name: Build Tahalil Alakkad V63 IMPORT SELECTION FIX
     instance_type: mac_mini_m2
     max_build_duration: 60
 
@@ -10,15 +10,15 @@ workflows:
         - tahalil_alakkad_release
 
     scripts:
-      - name: Extract V62 project
+      - name: Extract V63 project
         script: |
           set -euo pipefail
 
-          ZIP_FILE="$CM_BUILD_DIR/Project3_AK_SECURE_SMART_MEDICAL_VISION_V62.zip"
+          ZIP_FILE="$CM_BUILD_DIR/Project3_AK_SECURE_IMPORT_SELECTION_FIX_V63.zip"
           WORK_DIR="$CM_BUILD_DIR/android_project"
 
           if [ ! -f "$ZIP_FILE" ]; then
-            echo "ERROR: V62 project ZIP not found: $ZIP_FILE"
+            echo "ERROR: V63 project ZIP not found: $ZIP_FILE"
             find "$CM_BUILD_DIR" -maxdepth 2 -type f -iname '*.zip' -print || true
             exit 1
           fi
@@ -37,7 +37,7 @@ workflows:
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$CM_ENV"
           echo "PROJECT_DIR=$PROJECT_DIR"
 
-      - name: Verify V62 smart medical vision
+      - name: Verify V63 import selection fix
         script: |
           set -euo pipefail
 
@@ -66,6 +66,7 @@ workflows:
               "firestore.rules",
               "FINAL_AUDIT_V61_NOTES.txt",
               "SMART_MEDICAL_VISION_V62_NOTES.txt",
+              "IMPORT_SELECTION_FIX_V63_NOTES.txt",
               "app/src/main/java/com/example/util/SmartMedicalVision.kt",
           ]
           missing = [p for p in required if not (root / p).is_file()]
@@ -79,8 +80,8 @@ workflows:
           for needle in [
               "compileSdk = 36",
               'buildToolsVersion = "35.0.0"',
-              "versionCode = 62",
-              'versionName = "4.29-smart-medical-vision-v62"',
+              "versionCode = 63",
+              'versionName = "4.30-import-selection-fix-v63"',
               "isMinifyEnabled = true",
               "isShrinkResources = true",
               "isDebuggable = false",
@@ -218,10 +219,38 @@ workflows:
               if needle not in screen:
                   raise SystemExit(f"Vision UI verification missing: {needle}")
 
+          # V63: selecting one imported result must keep the remaining results, and
+          # the full detected batch can be added in one action.
+          for needle in [
+              'private val _recognizedTests = MutableStateFlow<List<LabTest>>(emptyList())',
+              'val recognizedTests: StateFlow<List<LabTest>> = _recognizedTests.asStateFlow()',
+              'fun onManualQueryChanged(newQuery: String)',
+              'fun addAllRecognizedTests(): Int',
+              'selectedExactMatch -> Unit',
+              'onQueryChanged(current)',
+          ]:
+              if needle not in vm:
+                  raise SystemExit(f"V63 selection-flow verification missing: {needle}")
+
+          add_fn = vm.split('fun addSelectedTest(test: LabTest)', 1)[1].split('fun addAllRecognizedTests()', 1)[0]
+          if 'clearSearch()' in add_fn:
+              raise SystemExit('V63 regression: addSelectedTest still clears the entire search')
+
+          for needle in [
+              'val recognizedTests by viewModel.recognizedTests.collectAsState()',
+              'onQueryChange = { viewModel.onManualQueryChanged(it) }',
+              'RecognizedTestsActionsCard(',
+              'إضافة كل التحاليل المقروءة',
+              'add_all_recognized_tests',
+              'viewModel.addAllRecognizedTests()',
+          ]:
+              if needle not in screen:
+                  raise SystemExit(f"V63 selection UI verification missing: {needle}")
+
           if 'implementation(libs.firebase.ai)' not in build:
               raise SystemExit("Firebase AI Logic dependency missing")
 
-          print(f"V62 SMART MEDICAL VISION verification passed; legacy range prices checked: {len(ranges)}")
+          print(f"V63 IMPORT SELECTION FIX verification passed; legacy range prices checked: {len(ranges)}")
           PY
 
       - name: Configure Android SDK 36
@@ -301,7 +330,7 @@ workflows:
             -alias "$CM_KEY_ALIAS" \
             >/dev/null
 
-      - name: Build V62 smart medical vision APK and AAB
+      - name: Build V63 import selection fix APK and AAB
         script: |
           set -euo pipefail
 
@@ -309,11 +338,11 @@ workflows:
           export STORE_PASSWORD="$CM_KEYSTORE_PASSWORD"
           export KEY_PASSWORD="$CM_KEY_PASSWORD"
           export KEY_ALIAS="$CM_KEY_ALIAS"
-          export GRADLE_USER_HOME="$CM_BUILD_DIR/.gradle-v62-smart-vision"
+          export GRADLE_USER_HOME="$CM_BUILD_DIR/.gradle-v63-import-selection"
 
           cd "$PROJECT_DIR"
 
-          BUILD_LOG="$CM_BUILD_DIR/v62-smart-medical-vision-build.log"
+          BUILD_LOG="$CM_BUILD_DIR/v63-import-selection-fix-build.log"
           rm -f "$BUILD_LOG"
 
           set +e
@@ -355,11 +384,11 @@ workflows:
           rm -rf "$RELEASE_DIR"
           mkdir -p "$RELEASE_DIR"
 
-          cp "$APK_FILE" "$RELEASE_DIR/Tahalil-Alakkad-V62-SMART-MEDICAL-VISION.apk"
-          cp "$AAB_FILE" "$RELEASE_DIR/Tahalil-Alakkad-V62-SMART-MEDICAL-VISION.aab"
-          cp "$BUILD_LOG" "$RELEASE_DIR/v62-smart-medical-vision-build.log"
+          cp "$APK_FILE" "$RELEASE_DIR/Tahalil-Alakkad-V63-IMPORT-SELECTION-FIX.apk"
+          cp "$AAB_FILE" "$RELEASE_DIR/Tahalil-Alakkad-V63-IMPORT-SELECTION-FIX.aab"
+          cp "$BUILD_LOG" "$RELEASE_DIR/v63-import-selection-fix-build.log"
 
-          echo "BUILD SUCCESSFUL - V62 SMART MEDICAL VISION APK and AAB created"
+          echo "BUILD SUCCESSFUL - V63 IMPORT SELECTION FIX APK and AAB created"
           ls -lah "$RELEASE_DIR"
 
     artifacts:
