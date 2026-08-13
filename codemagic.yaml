@@ -1,6 +1,6 @@
 workflows:
   android-release:
-    name: Build Tahalil Alakkad V57 AVAILABLE TESTS PRICING
+    name: Build Tahalil Alakkad V58 UNIFIED ADMIN PASSWORD
     instance_type: mac_mini_m2
     max_build_duration: 60
 
@@ -14,7 +14,7 @@ workflows:
         script: |
           set -euo pipefail
 
-          ZIP_FILE="$CM_BUILD_DIR/Project3_AK_SECURE_AVAILABLE_TESTS_PRICING_V57.zip"
+          ZIP_FILE="$CM_BUILD_DIR/Project3_AK_SECURE_UNIFIED_ADMIN_PASSWORD_V58.zip"
           WORK_DIR="$CM_BUILD_DIR/android_project"
 
           if [ ! -f "$ZIP_FILE" ]; then
@@ -79,166 +79,4 @@ workflows:
           grep -q 'compileSdk = 36' "$PROJECT_DIR/app/build.gradle.kts"
           grep -q 'buildToolsVersion = "35.0.0"' "$PROJECT_DIR/app/build.gradle.kts"
           grep -q 'jvmTarget.set(JvmTarget.JVM_11)' "$PROJECT_DIR/app/build.gradle.kts"
-          grep -q 'targetCompatibility = JavaVersion.VERSION_11' "$PROJECT_DIR/app/build.gradle.kts"
-          grep -q 'versionCode = 57' "$PROJECT_DIR/app/build.gradle.kts"
-          grep -q 'versionName = "4.24-available-tests-pricing-v57"' "$PROJECT_DIR/app/build.gradle.kts"
-          grep -q 'org.gradle.parallel=false' "$PROJECT_DIR/gradle.properties"
-          grep -q 'org.gradle.configuration-cache=false' "$PROJECT_DIR/gradle.properties"
-          grep -q 'org.gradle.workers.max=2' "$PROJECT_DIR/gradle.properties"
-          grep -q 'android.useAndroidX=true' "$PROJECT_DIR/gradle.properties"
-
-          # V57 available tests pricing
-          test -f "$PROJECT_DIR/AVAILABLE_TESTS_PRICING_V57_NOTES.txt"
-          grep -q 'private fun AvailableTestPriceCard' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-          grep -q 'customerPriceOverrides = customerPriceOverrides' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-          grep -q 'lab2LabPrices = lab2LabPrices' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-          grep -q 'catalog_edit_prices_' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-          grep -q 'text = appText("تعديل الأسعار", "Edit prices")' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-
-          echo "V57 available tests pricing configuration verification passed"
-
-      - name: Configure Android SDK 36
-        script: |
-          set -euo pipefail
-
-          ANDROID_HOME="/usr/local/share/android-sdk"
-          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
-
-          if [ ! -x "$SDKMANAGER" ]; then
-            echo "ERROR: sdkmanager not found at $SDKMANAGER"
-            exit 1
-          fi
-
-          echo "ANDROID_HOME=$ANDROID_HOME" >> "$CM_ENV"
-          echo "ANDROID_SDK_ROOT=$ANDROID_HOME" >> "$CM_ENV"
-          echo "sdk.dir=$ANDROID_HOME" > "$PROJECT_DIR/local.properties"
-
-          yes | "$SDKMANAGER" --licenses >/dev/null 2>&1 || true
-          "$SDKMANAGER" "platform-tools" "platforms;android-36" "build-tools;35.0.0"
-
-      - name: Use compatible preinstalled Gradle
-        script: |
-          set -euo pipefail
-
-          GRADLE_BIN=$(command -v gradle || true)
-
-          if [ -z "$GRADLE_BIN" ] || [ ! -x "$GRADLE_BIN" ]; then
-            for candidate in \
-              "$HOME/programs/gradle-8.14.1/bin/gradle" \
-              "/Users/builder/programs/gradle-8.14.1/bin/gradle"
-            do
-              if [ -x "$candidate" ]; then
-                GRADLE_BIN="$candidate"
-                break
-              fi
-            done
-          fi
-
-          if [ -z "$GRADLE_BIN" ] || [ ! -x "$GRADLE_BIN" ]; then
-            echo "ERROR: No preinstalled Gradle executable found"
-            exit 1
-          fi
-
-          GRADLE_VERSION=$($GRADLE_BIN --version | awk '/^Gradle / {print $2; exit}')
-          echo "Detected Gradle $GRADLE_VERSION at $GRADLE_BIN"
-
-          python3 - "$GRADLE_VERSION" <<'PY'
-          import sys
-          parts = sys.argv[1].split('.')
-          major = int(parts[0])
-          minor = int(parts[1]) if len(parts) > 1 else 0
-          if major != 8 or minor < 11:
-              raise SystemExit(f"Gradle {sys.argv[1]} is not compatible; need Gradle 8.11+ and <9")
-          PY
-
-          echo "GRADLE_BIN=$GRADLE_BIN" >> "$CM_ENV"
-          "$GRADLE_BIN" --version
-
-      - name: Validate release signing
-        script: |
-          set -euo pipefail
-
-          if [ -z "${CM_KEYSTORE_PATH:-}" ] || [ ! -f "$CM_KEYSTORE_PATH" ]; then
-            echo "ERROR: Release keystore missing"
-            exit 1
-          fi
-
-          if [ -z "${CM_KEYSTORE_PASSWORD:-}" ] || \
-             [ -z "${CM_KEY_ALIAS:-}" ] || \
-             [ -z "${CM_KEY_PASSWORD:-}" ]; then
-            echo "ERROR: Signing credentials incomplete"
-            exit 1
-          fi
-
-          keytool -list \
-            -keystore "$CM_KEYSTORE_PATH" \
-            -storepass "$CM_KEYSTORE_PASSWORD" \
-            -alias "$CM_KEY_ALIAS" \
-            >/dev/null
-
-      - name: Build V57 release APK and AAB
-        script: |
-          set -euo pipefail
-
-          export KEYSTORE_PATH="$CM_KEYSTORE_PATH"
-          export STORE_PASSWORD="$CM_KEYSTORE_PASSWORD"
-          export KEY_PASSWORD="$CM_KEY_PASSWORD"
-          export KEY_ALIAS="$CM_KEY_ALIAS"
-          export GRADLE_USER_HOME="$CM_BUILD_DIR/.gradle-v57"
-
-          cd "$PROJECT_DIR"
-
-          BUILD_LOG="$CM_BUILD_DIR/v57-build.log"
-          rm -f "$BUILD_LOG"
-
-          set +e
-          "$GRADLE_BIN" \
-            --no-daemon \
-            --no-configuration-cache \
-            --no-parallel \
-            --max-workers=2 \
-            --console=plain \
-            clean \
-            :app:assembleRelease \
-            :app:bundleRelease \
-            2>&1 | tee "$BUILD_LOG"
-          BUILD_STATUS=${PIPESTATUS[0]}
-          set -e
-
-          if [ "$BUILD_STATUS" -ne 0 ]; then
-            echo ""
-            echo "================ BUILD ERROR SUMMARY ================"
-            grep -nE '(^e: |error:|FAILURE:|What went wrong:|Execution failed for task|Caused by:|Could not resolve|Could not find|Inconsistent JVM|Compilation error)' "$BUILD_LOG" | head -120 || true
-            echo "====================================================="
-            exit "$BUILD_STATUS"
-          fi
-
-          APK_FILE=$(find app/build/outputs/apk/release -type f -name '*.apk' -print -quit)
-          AAB_FILE=$(find app/build/outputs/bundle/release -type f -name '*.aab' -print -quit)
-
-          if [ -z "$APK_FILE" ] || [ ! -f "$APK_FILE" ]; then
-            echo "ERROR: APK was not generated"
-            exit 1
-          fi
-
-          if [ -z "$AAB_FILE" ] || [ ! -f "$AAB_FILE" ]; then
-            echo "ERROR: AAB was not generated"
-            exit 1
-          fi
-
-          RELEASE_DIR="$CM_BUILD_DIR/release"
-          rm -rf "$RELEASE_DIR"
-          mkdir -p "$RELEASE_DIR"
-
-          cp "$APK_FILE" "$RELEASE_DIR/Tahalil-Alakkad-V57-AVAILABLE-TESTS-PRICING.apk"
-          cp "$AAB_FILE" "$RELEASE_DIR/Tahalil-Alakkad-V57-AVAILABLE-TESTS-PRICING.aab"
-          cp "$BUILD_LOG" "$RELEASE_DIR/v57-build.log"
-
-          echo "BUILD SUCCESSFUL - V57 APK and AAB created"
-          ls -lah "$RELEASE_DIR"
-
-    artifacts:
-      - release/*.apk
-      - release/*.aab
-      - release/*.log
-      - android_project/**/app/build/outputs/mapping/release/mapping.txt
+          grep -q 'targetCompatibility = JavaVersion.VERSION_11' "$PROJECT_DIR/app
