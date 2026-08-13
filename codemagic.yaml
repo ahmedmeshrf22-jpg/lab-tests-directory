@@ -1,6 +1,6 @@
 workflows:
   android-release:
-    name: Build Tahalil Alakkad V45 ANDROIDX FIX
+    name: Build Tahalil Alakkad V45 RECOVERY 54
     instance_type: mac_mini_m2
     max_build_duration: 60
 
@@ -14,7 +14,7 @@ workflows:
         script: |
           set -euo pipefail
 
-          ZIP_FILE="$CM_BUILD_DIR/Project3_AK_SECURE_V45_ANDROIDX_FIXED.zip"
+          ZIP_FILE="$CM_BUILD_DIR/Project3_AK_SECURE_V45_RECOVERY_54.zip"
           WORK_DIR="$CM_BUILD_DIR/android_project"
 
           if [ ! -f "$ZIP_FILE" ]; then
@@ -57,8 +57,8 @@ workflows:
           grep -q 'buildToolsVersion = "35.0.0"' "$PROJECT_DIR/app/build.gradle.kts"
           grep -q 'jvmTarget.set(JvmTarget.JVM_11)' "$PROJECT_DIR/app/build.gradle.kts"
           grep -q 'targetCompatibility = JavaVersion.VERSION_11' "$PROJECT_DIR/app/build.gradle.kts"
-          grep -q 'versionCode = 50' "$PROJECT_DIR/app/build.gradle.kts"
-          grep -q 'versionName = "4.21-security-hardening-v45"' "$PROJECT_DIR/app/build.gradle.kts"
+          grep -q 'versionCode = 54' "$PROJECT_DIR/app/build.gradle.kts"
+          grep -q 'versionName = "4.21-security-hardening-v45-recovery54"' "$PROJECT_DIR/app/build.gradle.kts"
           grep -q 'org.gradle.parallel=false' "$PROJECT_DIR/gradle.properties"
           grep -q 'org.gradle.configuration-cache=false' "$PROJECT_DIR/gradle.properties"
           grep -q 'org.gradle.workers.max=2' "$PROJECT_DIR/gradle.properties"
@@ -199,8 +199,8 @@ workflows:
           rm -rf "$RELEASE_DIR"
           mkdir -p "$RELEASE_DIR"
 
-          cp "$APK_FILE" "$RELEASE_DIR/Tahalil-Alakkad-V45-BUILD-FIX.apk"
-          cp "$AAB_FILE" "$RELEASE_DIR/Tahalil-Alakkad-V45-BUILD-FIX.aab"
+          cp "$APK_FILE" "$RELEASE_DIR/Tahalil-Alakkad-V45-RECOVERY-54.apk"
+          cp "$AAB_FILE" "$RELEASE_DIR/Tahalil-Alakkad-V45-RECOVERY-54.aab"
           cp "$BUILD_LOG" "$RELEASE_DIR/v45-build.log"
 
           echo "BUILD SUCCESSFUL - APK and AAB created"
