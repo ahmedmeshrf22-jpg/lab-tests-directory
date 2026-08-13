@@ -1,6 +1,6 @@
 workflows:
   android-release:
-    name: Build Tahalil Alakkad V45 BUILD FIX
+    name: Build Tahalil Alakkad V45 ANDROIDX FIX
     instance_type: mac_mini_m2
     max_build_duration: 60
 
@@ -14,7 +14,7 @@ workflows:
         script: |
           set -euo pipefail
 
-          ZIP_FILE="$CM_BUILD_DIR/Project3_AK_SECURE_V45_BUILD_ONLY_FIXED.zip"
+          ZIP_FILE="$CM_BUILD_DIR/Project3_AK_SECURE_V45_ANDROIDX_FIXED.zip"
           WORK_DIR="$CM_BUILD_DIR/android_project"
 
           if [ ! -f "$ZIP_FILE" ]; then
@@ -62,6 +62,7 @@ workflows:
           grep -q 'org.gradle.parallel=false' "$PROJECT_DIR/gradle.properties"
           grep -q 'org.gradle.configuration-cache=false' "$PROJECT_DIR/gradle.properties"
           grep -q 'org.gradle.workers.max=2' "$PROJECT_DIR/gradle.properties"
+          grep -q 'android.useAndroidX=true' "$PROJECT_DIR/gradle.properties"
 
           echo "V45 build configuration verification passed"
 
