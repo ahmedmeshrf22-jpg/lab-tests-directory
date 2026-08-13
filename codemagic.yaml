@@ -1,6 +1,6 @@
 workflows:
   android-release:
-    name: Build Tahalil Alakkad V59 UNIFIED ADMIN GATE
+    name: Build Tahalil Alakkad V60 ADMIN PIN
     instance_type: mac_mini_m2
     max_build_duration: 60
 
@@ -10,15 +10,16 @@ workflows:
         - tahalil_alakkad_release
 
     scripts:
-      - name: Extract V59 project
+      - name: Extract V60 project
         script: |
           set -euo pipefail
 
-          ZIP_FILE="$CM_BUILD_DIR/Project3_AK_SECURE_UNIFIED_ADMIN_GATE_V59.zip"
+          ZIP_FILE="$CM_BUILD_DIR/Project3_AK_SECURE_ADMIN_PIN_V60.zip"
           WORK_DIR="$CM_BUILD_DIR/android_project"
 
           if [ ! -f "$ZIP_FILE" ]; then
-            echo "ERROR: V59 ZIP not found: $ZIP_FILE"
+            echo "ERROR: V60 ZIP not found: $ZIP_FILE"
+            echo "ZIP files present in repository:"
             find "$CM_BUILD_DIR" -maxdepth 2 -type f -iname '*.zip' -print || true
             exit 1
           fi
@@ -37,12 +38,13 @@ workflows:
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$CM_ENV"
           echo "PROJECT_DIR=$PROJECT_DIR"
 
-      - name: Verify V59 project
+      - name: Verify V60 project
         script: |
           set -euo pipefail
 
           python3 - "$PROJECT_DIR" <<'PY'
           from pathlib import Path
+          import json
           import sys
 
           root = Path(sys.argv[1])
@@ -53,12 +55,15 @@ workflows:
               "gradle.properties",
               "app/src/main/AndroidManifest.xml",
               "app/google-services.json",
-              "UNIFIED_ADMIN_GATE_V59_NOTES.txt",
+              "firestore.rules",
+              "ADMIN_PIN_V60_NOTES.txt",
               "app/src/main/java/com/example/MainActivity.kt",
               "app/src/main/java/com/example/ui/LabTestsViewModel.kt",
               "app/src/main/java/com/example/ui/LabTestsScreen.kt",
+              "app/src/main/java/com/example/ui/DeviceAuthorizationScreen.kt",
               "app/src/main/java/com/example/ui/CustomerSystemDialog.kt",
               "app/src/main/java/com/example/ui/OperationsV14Dialog.kt",
+              "app/src/main/assets/lab_tests_android.json",
               "app/src/main/res/drawable-nodpi/mgr_reports_3d.png",
               "app/src/main/res/drawable-nodpi/mgr_staff_3d.png",
               "app/src/main/res/drawable-nodpi/mgr_devices_3d.png",
@@ -79,15 +84,15 @@ workflows:
           if missing:
               raise SystemExit("Missing required files:\n" + "\n".join(missing))
 
-          def text(rel):
+          def body(rel):
               return (root / rel).read_text(encoding="utf-8")
 
           def require(rel, needles):
-              body = text(rel)
-              missing_needles = [n for n in needles if n not in body]
-              if missing_needles:
+              text = body(rel)
+              absent = [n for n in needles if n not in text]
+              if absent:
                   raise SystemExit(
-                      f"Verification failed in {rel}:\n" + "\n".join(missing_needles)
+                      f"Verification failed in {rel}:\n" + "\n".join(absent)
                   )
 
           require("gradle/libs.versions.toml", [
@@ -103,8 +108,8 @@ workflows:
               'buildToolsVersion = "35.0.0"',
               "minSdk = 24",
               "targetSdk = 36",
-              "versionCode = 59",
-              'versionName = "4.26-unified-admin-gate-v59"',
+              "versionCode = 60",
+              'versionName = "4.27-admin-pin-v60"',
               "jvmTarget.set(JvmTarget.JVM_11)",
               "targetCompatibility = JavaVersion.VERSION_11",
               "isMinifyEnabled = true",
@@ -119,66 +124,129 @@ workflows:
               "org.gradle.workers.max=2",
           ])
 
-          vm = text("app/src/main/java/com/example/ui/LabTestsViewModel.kt")
-
           require("app/src/main/java/com/example/ui/LabTestsViewModel.kt", [
+              'private const val ADMIN_GATE_EMAIL = "tahalil.admin.gate.v60@tahali.com"',
+              'private const val ADMIN_PIN_SALT = "TahalilAlakkad.AdminGate.v60.2026"',
+              "private const val ADMIN_PIN_ROUNDS = 40_000",
+              'private const val ADMIN_PIN_VERIFIER = "26178327d4bc89aa7fab9b53a968cb22a18771620398bd14c2a4b2f1f51afd1b"',
               "private fun hasAdminAccess(): Boolean = _adminUnlocked.value",
-              'private const val ADMIN_UNLOCK_APP = "TahalilAdminUnlock"',
-              "fun unlockAdmin(password: String",
+              "private fun derivedAdminFirebasePassword(pin: String): String",
+              "fun unlockAdmin(pin: String, onResult: (Boolean, String) -> Unit)",
+              "fun lockAdmin()",
+              "fun approveCurrentDeviceWithAdminPin(",
               "FirebaseAuth.getInstance(app)",
               "FirebaseAppCheck.getInstance(app)",
               "FirebaseFirestore.getInstance(app)",
-              "private fun privilegedFirestore(): FirebaseFirestore",
-              "fun lockAdmin()",
+              "privilegedFirestore()",
               "_lab2LabPrices.value = emptyMap()",
-              "fun approveCurrentDeviceWithAdminPassword",
           ])
+
+          vm = body("app/src/main/java/com/example/ui/LabTestsViewModel.kt")
 
           forbidden_vm = [
               "private fun hasAdminAccess(): Boolean = _actualManager.value || _adminUnlocked.value",
               "private fun hasAdminAccess(): Boolean = _isManager.value || _adminUnlocked.value",
+              "if (_actualManager.value || _isManager.value) return firestore",
               "حسابك غير مصرح له بإضافة خصومات",
               "حسابك غير مصرح له بتحصيل دفعات",
           ]
 
-          found = [x for x in forbidden_vm if x in vm]
-
-          if found:
+          bad = [x for x in forbidden_vm if x in vm]
+          if bad:
               raise SystemExit(
                   "Legacy manager/permission bypass found:\n" +
-                  "\n".join(found)
+                  "\n".join(bad)
               )
 
           require("app/src/main/java/com/example/MainActivity.kt", [
               "Lifecycle.Event.ON_STOP",
               "viewModel.lockAdmin()",
+              "approveCurrentDeviceWithAdminPin",
           ])
 
-          screen = text("app/src/main/java/com/example/ui/LabTestsScreen.kt")
+          require("app/src/main/java/com/example/ui/DeviceAuthorizationScreen.kt", [
+              'tr("PIN الإدارة لاعتماد الجهاز", "Admin PIN to approve device")',
+              'tr("اعتماد الجهاز بـ PIN الإدارة", "Approve with admin PIN")',
+          ])
 
           require("app/src/main/java/com/example/ui/LabTestsScreen.kt", [
               "val adminUnlocked by viewModel.adminUnlocked.collectAsState()",
               "val isManager = adminUnlocked",
-              "ManagerHomeDashboard(",
               "locked = !adminUnlocked",
               "showAdminPasswordDialog",
-              'appText("دخول الإدارة", "Administration access")',
+              'appText("PIN الإدارة", "Admin PIN")',
               "private fun AvailableTestPriceCard",
               'appText("تعديل الأسعار", "Edit prices")',
               "R.drawable.staff_search_3d",
               "R.drawable.mgr_reports_3d",
           ])
 
-          if "StaffHomeDashboard(" in screen[:screen.find("private fun StaffHomeDashboard")]:
-              raise SystemExit(
-                  "Legacy separate staff home route is still active"
-              )
-
-          require("app/src/main/java/com/example/ui/CustomerSystemDialog.kt", [
-              "viewModel.adminUnlocked.collectAsState()",
+          require("app/src/main/java/com/example/ui/OperationsV14Dialog.kt", [
+              "كل الحسابات لها نفس خدمات التشغيل اليومية. خدمات الإدارة فقط تحتاج PIN الإدارة عند فتحها.",
           ])
 
-          print("V59 verification passed")
+          require("firestore.rules", [
+              "request.auth.token.email == 'tahalil.admin.gate.v60@tahali.com'",
+              "match /lab2lab_prices/{document=**}",
+              "allow read, write: if isManager();",
+          ])
+
+          tests = json.loads(
+              body("app/src/main/assets/lab_tests_android.json")
+          )
+
+          if len(tests) != 331:
+              raise SystemExit(
+                  f"Expected 331 tests, found {len(tests)}"
+              )
+
+          ids = [int(x["id"]) for x in tests]
+
+          if len(ids) != len(set(ids)):
+              raise SystemExit("Duplicate test IDs found")
+
+          # Prevent storing the selected admin PIN as plaintext.
+          forbidden_plaintext = "160" + "160"
+
+          source_roots = [
+              root / "app" / "src",
+              root / "firestore.rules"
+          ]
+
+          for source_root in source_roots:
+              paths = (
+                  [source_root]
+                  if source_root.is_file()
+                  else list(source_root.rglob("*"))
+              )
+
+              for path in paths:
+                  if not path.is_file():
+                      continue
+
+                  if path.suffix.lower() in {
+                      ".png",
+                      ".jpg",
+                      ".jpeg",
+                      ".webp",
+                      ".svg",
+                      ".ttf",
+                      ".otf"
+                  }:
+                      continue
+
+                  try:
+                      text = path.read_text(encoding="utf-8")
+                  except Exception:
+                      continue
+
+                  if forbidden_plaintext in text:
+                      raise SystemExit(
+                          f"Admin PIN plaintext found in "
+                          f"{path.relative_to(root)}"
+                      )
+
+          print("V60 verification passed")
           PY
 
       - name: Configure Android SDK 36
@@ -208,21 +276,20 @@ workflows:
         script: |
           set -euo pipefail
 
-          GRADLE_BIN=$(command -v gradle || true)
+          GRADLE_BIN=""
 
-          if [ -z "$GRADLE_BIN" ] || [ ! -x "$GRADLE_BIN" ]; then
-            for candidate in \
-              "$HOME/programs/gradle-8.14.1/bin/gradle" \
-              "/Users/builder/programs/gradle-8.14.1/bin/gradle"
-            do
-              if [ -x "$candidate" ]; then
-                GRADLE_BIN="$candidate"
-                break
-              fi
-            done
-          fi
+          for candidate in \
+            "/Users/builder/programs/gradle-8.14.1/bin/gradle" \
+            "$HOME/programs/gradle-8.14.1/bin/gradle" \
+            "$(command -v gradle || true)"
+          do
+            if [ -n "$candidate" ] && [ -x "$candidate" ]; then
+              GRADLE_BIN="$candidate"
+              break
+            fi
+          done
 
-          if [ -z "$GRADLE_BIN" ] || [ ! -x "$GRADLE_BIN" ]; then
+          if [ -z "$GRADLE_BIN" ]; then
             echo "ERROR: No compatible preinstalled Gradle found"
             exit 1
           fi
@@ -243,7 +310,8 @@ workflows:
 
           if major != 8 or minor < 11:
               raise SystemExit(
-                  f"Gradle {sys.argv[1]} is incompatible; need Gradle 8.11+ and <9"
+                  f"Gradle {sys.argv[1]} is incompatible; "
+                  "need Gradle 8.11+ and <9"
               )
           PY
 
@@ -255,7 +323,8 @@ workflows:
         script: |
           set -euo pipefail
 
-          if [ -z "${CM_KEYSTORE_PATH:-}" ] || [ ! -f "$CM_KEYSTORE_PATH" ]; then
+          if [ -z "${CM_KEYSTORE_PATH:-}" ] || \
+             [ ! -f "$CM_KEYSTORE_PATH" ]; then
             echo "ERROR: Release keystore missing"
             exit 1
           fi
@@ -273,7 +342,7 @@ workflows:
             -alias "$CM_KEY_ALIAS" \
             >/dev/null
 
-      - name: Build V59 release APK and AAB
+      - name: Build V60 release APK and AAB
         script: |
           set -euo pipefail
 
@@ -281,11 +350,13 @@ workflows:
           export STORE_PASSWORD="$CM_KEYSTORE_PASSWORD"
           export KEY_PASSWORD="$CM_KEY_PASSWORD"
           export KEY_ALIAS="$CM_KEY_ALIAS"
-          export GRADLE_USER_HOME="$CM_BUILD_DIR/.gradle-v59"
+
+          export GRADLE_USER_HOME="$CM_BUILD_DIR/.gradle-v60"
 
           cd "$PROJECT_DIR"
 
-          BUILD_LOG="$CM_BUILD_DIR/v59-build.log"
+          BUILD_LOG="$CM_BUILD_DIR/v60-build.log"
+
           rm -f "$BUILD_LOG"
 
           set +e
@@ -310,9 +381,9 @@ workflows:
             echo "================ BUILD ERROR SUMMARY ================"
 
             grep -nE \
-              '(^e: |error:|FAILURE:|What went wrong:|Execution failed for task|Caused by:|Could not resolve|Could not find|Inconsistent JVM|Compilation error)' \
+              '(^e: |error:|FAILURE:|What went wrong:|Execution failed for task|Caused by:|Could not resolve|Could not find|Inconsistent JVM|Compilation error|Android resource linking failed)' \
               "$BUILD_LOG" |
-              head -140 || true
+              head -160 || true
 
             echo "====================================================="
 
@@ -352,26 +423,26 @@ workflows:
 
           cp \
             "$APK_FILE" \
-            "$RELEASE_DIR/Tahalil-Alakkad-V59-UNIFIED-ADMIN-GATE.apk"
+            "$RELEASE_DIR/Tahalil-Alakkad-V60-ADMIN-PIN.apk"
 
           cp \
             "$AAB_FILE" \
-            "$RELEASE_DIR/Tahalil-Alakkad-V59-UNIFIED-ADMIN-GATE.aab"
+            "$RELEASE_DIR/Tahalil-Alakkad-V60-ADMIN-PIN.aab"
 
           cp \
             "$BUILD_LOG" \
-            "$RELEASE_DIR/v59-build.log"
+            "$RELEASE_DIR/v60-build.log"
 
-          echo "BUILD SUCCESSFUL - V59 APK and AAB created"
+          echo "BUILD SUCCESSFUL - V60 APK and AAB created"
 
           ls -lah "$RELEASE_DIR"
 
-      - name: Verify V59 release artifacts
+      - name: Verify V60 release artifacts
         script: |
           set -euo pipefail
 
-          APK_FILE="$CM_BUILD_DIR/release/Tahalil-Alakkad-V59-UNIFIED-ADMIN-GATE.apk"
-          AAB_FILE="$CM_BUILD_DIR/release/Tahalil-Alakkad-V59-UNIFIED-ADMIN-GATE.aab"
+          APK_FILE="$CM_BUILD_DIR/release/Tahalil-Alakkad-V60-ADMIN-PIN.apk"
+          AAB_FILE="$CM_BUILD_DIR/release/Tahalil-Alakkad-V60-ADMIN-PIN.aab"
 
           APKSIGNER="$ANDROID_HOME/build-tools/35.0.0/apksigner"
           AAPT="$ANDROID_HOME/build-tools/35.0.0/aapt"
@@ -397,14 +468,14 @@ workflows:
             grep -q "name='com.aistudio.labtestsdirectory.egypt'"
 
           echo "$BADGING" |
-            grep -q "versionCode='59'"
+            grep -q "versionCode='60'"
 
           echo "$BADGING" |
-            grep -q "versionName='4.26-unified-admin-gate-v59'"
+            grep -q "versionName='4.27-admin-pin-v60'"
 
           jarsigner -verify "$AAB_FILE" >/dev/null
 
-          echo "V59 release artifacts verified successfully"
+          echo "V60 release artifacts verified successfully"
 
     artifacts:
       - release/*.apk
