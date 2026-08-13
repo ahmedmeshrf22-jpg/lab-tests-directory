@@ -293,4 +293,3 @@ workflows:
       - release/*.aab
       - release/*.log
       - android_project/**/app/build/outputs/mapping/release/mapping.txt
-      
