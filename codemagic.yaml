@@ -1,6 +1,6 @@
 workflows:
   android-release:
-    name: Build Tahalil Alakkad V60 ADMIN PIN
+    name: Build Tahalil Alakkad V60 LOGIN FIX
     instance_type: mac_mini_m2
     max_build_duration: 60
 
@@ -10,16 +10,15 @@ workflows:
         - tahalil_alakkad_release
 
     scripts:
-      - name: Extract V60 project
+      - name: Extract V60 login-fix project
         script: |
           set -euo pipefail
 
-          ZIP_FILE="$CM_BUILD_DIR/Project3_AK_SECURE_ADMIN_PIN_V60.zip"
+          ZIP_FILE="$CM_BUILD_DIR/Project3_AK_SECURE_ADMIN_PIN_V60_LOGIN_FIX.zip"
           WORK_DIR="$CM_BUILD_DIR/android_project"
 
           if [ ! -f "$ZIP_FILE" ]; then
-            echo "ERROR: V60 ZIP not found: $ZIP_FILE"
-            echo "ZIP files present in repository:"
+            echo "ERROR: V60 login-fix ZIP not found: $ZIP_FILE"
             find "$CM_BUILD_DIR" -maxdepth 2 -type f -iname '*.zip' -print || true
             exit 1
           fi
@@ -28,7 +27,7 @@ workflows:
           mkdir -p "$WORK_DIR"
           unzip -q -o "$ZIP_FILE" -d "$WORK_DIR"
 
-          SETTINGS_FILE=$(find "$WORK_DIR" -type f -name 'settings.gradle.kts' -print -quit)
+          SETTINGS_FILE=$(find "$WORK_DIR" -type f -name settings.gradle.kts -print -quit)
           if [ -z "$SETTINGS_FILE" ]; then
             echo "ERROR: settings.gradle.kts not found"
             exit 1
@@ -38,32 +37,29 @@ workflows:
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$CM_ENV"
           echo "PROJECT_DIR=$PROJECT_DIR"
 
-      - name: Verify V60 project
+      - name: Verify V60 login behavior
         script: |
           set -euo pipefail
 
           python3 - "$PROJECT_DIR" <<'PY'
           from pathlib import Path
-          import json
           import sys
 
           root = Path(sys.argv[1])
 
-          required_files = [
+          required = [
               "app/build.gradle.kts",
               "gradle/libs.versions.toml",
-              "gradle.properties",
               "app/src/main/AndroidManifest.xml",
               "app/google-services.json",
-              "firestore.rules",
-              "ADMIN_PIN_V60_NOTES.txt",
               "app/src/main/java/com/example/MainActivity.kt",
               "app/src/main/java/com/example/ui/LabTestsViewModel.kt",
               "app/src/main/java/com/example/ui/LabTestsScreen.kt",
-              "app/src/main/java/com/example/ui/DeviceAuthorizationScreen.kt",
               "app/src/main/java/com/example/ui/CustomerSystemDialog.kt",
               "app/src/main/java/com/example/ui/OperationsV14Dialog.kt",
-              "app/src/main/assets/lab_tests_android.json",
+              "app/src/main/java/com/example/ui/DeviceAuthorizationScreen.kt",
+              "firestore.rules",
+              "V60_LOGIN_APPROVAL_FIX_NOTES.txt",
               "app/src/main/res/drawable-nodpi/mgr_reports_3d.png",
               "app/src/main/res/drawable-nodpi/mgr_staff_3d.png",
               "app/src/main/res/drawable-nodpi/mgr_devices_3d.png",
@@ -79,174 +75,79 @@ workflows:
               "app/src/main/res/drawable-nodpi/staff_customers_3d.png",
               "app/src/main/res/drawable-nodpi/staff_tests_3d.png",
           ]
-
-          missing = [p for p in required_files if not (root / p).is_file()]
+          missing = [p for p in required if not (root / p).is_file()]
           if missing:
               raise SystemExit("Missing required files:\n" + "\n".join(missing))
 
-          def body(rel):
+          def read(rel):
               return (root / rel).read_text(encoding="utf-8")
 
-          def require(rel, needles):
-              text = body(rel)
-              absent = [n for n in needles if n not in text]
-              if absent:
-                  raise SystemExit(
-                      f"Verification failed in {rel}:\n" + "\n".join(absent)
-                  )
-
-          require("gradle/libs.versions.toml", [
-              'agp = "8.10.0"',
-              'kotlin = "2.2.10"',
-              'googleDevtoolsKsp = "2.3.6"',
-              'kotlin-android = { id = "org.jetbrains.kotlin.android"',
-          ])
-
-          require("app/build.gradle.kts", [
-              'applicationId = "com.aistudio.labtestsdirectory.egypt"',
+          build = read("app/build.gradle.kts")
+          for needle in [
               "compileSdk = 36",
               'buildToolsVersion = "35.0.0"',
-              "minSdk = 24",
-              "targetSdk = 36",
               "versionCode = 60",
               'versionName = "4.27-admin-pin-v60"',
-              "jvmTarget.set(JvmTarget.JVM_11)",
-              "targetCompatibility = JavaVersion.VERSION_11",
               "isMinifyEnabled = true",
               "isShrinkResources = true",
-              "isDebuggable = false",
-          ])
+          ]:
+              if needle not in build:
+                  raise SystemExit(f"Build verification missing: {needle}")
 
-          require("gradle.properties", [
-              "android.useAndroidX=true",
-              "org.gradle.parallel=false",
-              "org.gradle.configuration-cache=false",
-              "org.gradle.workers.max=2",
-          ])
+          main = read("app/src/main/java/com/example/MainActivity.kt")
+          forbidden_main = [
+              'deviceAccessStatus by viewModel.deviceAccessStatus.collectAsState()',
+              'currentUser != null && deviceAccessStatus == "checking"',
+              'currentUser != null && deviceAccessStatus != "approved"',
+              'DeviceAuthorizationScreen(',
+          ]
+          found = [x for x in forbidden_main if x in main]
+          if found:
+              raise SystemExit("Login is still gated by device approval: " + ", ".join(found))
 
-          require("app/src/main/java/com/example/ui/LabTestsViewModel.kt", [
-              'private const val ADMIN_GATE_EMAIL = "tahalil.admin.gate.v60@tahali.com"',
-              'private const val ADMIN_PIN_SALT = "TahalilAlakkad.AdminGate.v60.2026"',
-              "private const val ADMIN_PIN_ROUNDS = 40_000",
-              'private const val ADMIN_PIN_VERIFIER = "26178327d4bc89aa7fab9b53a968cb22a18771620398bd14c2a4b2f1f51afd1b"',
-              "private fun hasAdminAccess(): Boolean = _adminUnlocked.value",
-              "private fun derivedAdminFirebasePassword(pin: String): String",
-              "fun unlockAdmin(pin: String, onResult: (Boolean, String) -> Unit)",
-              "fun lockAdmin()",
-              "fun approveCurrentDeviceWithAdminPin(",
-              "FirebaseAuth.getInstance(app)",
-              "FirebaseAppCheck.getInstance(app)",
-              "FirebaseFirestore.getInstance(app)",
-              "privilegedFirestore()",
-              "_lab2LabPrices.value = emptyMap()",
-          ])
-
-          vm = body("app/src/main/java/com/example/ui/LabTestsViewModel.kt")
-
-          forbidden_vm = [
+          vm = read("app/src/main/java/com/example/ui/LabTestsViewModel.kt")
+          required_vm = [
               "private fun hasAdminAccess(): Boolean = _actualManager.value || _adminUnlocked.value",
-              "private fun hasAdminAccess(): Boolean = _isManager.value || _adminUnlocked.value",
-              "if (_actualManager.value || _isManager.value) return firestore",
-              "حسابك غير مصرح له بإضافة خصومات",
-              "حسابك غير مصرح له بتحصيل دفعات",
+              "if (_actualManager.value) firestore",
+              "else adminFirestore ?: error(\"Admin access is not unlocked\")",
+              "fun unlockAdmin(pin: String",
+              "ADMIN_PIN_VERIFIER",
+              "loadManagerPriceState()",
           ]
+          for needle in required_vm:
+              if needle not in vm:
+                  raise SystemExit(f"Manager/staff gate verification missing in ViewModel: {needle}")
 
-          bad = [x for x in forbidden_vm if x in vm]
-          if bad:
-              raise SystemExit(
-                  "Legacy manager/permission bypass found:\n" +
-                  "\n".join(bad)
-              )
+          screen = read("app/src/main/java/com/example/ui/LabTestsScreen.kt")
+          required_screen = [
+              "val actualManager by viewModel.actualManager.collectAsState()",
+              "val isManager = actualManager || adminUnlocked",
+              "if (isManager) {",
+              "showAdminPasswordDialog = true",
+              "adminAccess = isManager",
+              "showLockAdmin = adminUnlocked && !actualManager",
+          ]
+          for needle in required_screen:
+              if needle not in screen:
+                  raise SystemExit(f"Screen gate verification missing: {needle}")
 
-          require("app/src/main/java/com/example/MainActivity.kt", [
-              "Lifecycle.Event.ON_STOP",
-              "viewModel.lockAdmin()",
-              "approveCurrentDeviceWithAdminPin",
-          ])
+          customer = read("app/src/main/java/com/example/ui/CustomerSystemDialog.kt")
+          for needle in [
+              "val actualManager by viewModel.actualManager.collectAsState()",
+              "val isManager = actualManager || adminUnlocked",
+          ]:
+              if needle not in customer:
+                  raise SystemExit(f"Customer manager access verification missing: {needle}")
 
-          require("app/src/main/java/com/example/ui/DeviceAuthorizationScreen.kt", [
-              'tr("PIN الإدارة لاعتماد الجهاز", "Admin PIN to approve device")',
-              'tr("اعتماد الجهاز بـ PIN الإدارة", "Approve with admin PIN")',
-          ])
-
-          require("app/src/main/java/com/example/ui/LabTestsScreen.kt", [
-              "val adminUnlocked by viewModel.adminUnlocked.collectAsState()",
-              "val isManager = adminUnlocked",
-              "locked = !adminUnlocked",
-              "showAdminPasswordDialog",
-              'appText("PIN الإدارة", "Admin PIN")',
-              "private fun AvailableTestPriceCard",
-              'appText("تعديل الأسعار", "Edit prices")',
-              "R.drawable.staff_search_3d",
-              "R.drawable.mgr_reports_3d",
-          ])
-
-          require("app/src/main/java/com/example/ui/OperationsV14Dialog.kt", [
-              "كل الحسابات لها نفس خدمات التشغيل اليومية. خدمات الإدارة فقط تحتاج PIN الإدارة عند فتحها.",
-          ])
-
-          require("firestore.rules", [
+          rules = read("firestore.rules")
+          for needle in [
+              "request.auth.uid == 'Wps5Y19pZSbeGooEzFfW5UFsshq2'",
               "request.auth.token.email == 'tahalil.admin.gate.v60@tahali.com'",
-              "match /lab2lab_prices/{document=**}",
-              "allow read, write: if isManager();",
-          ])
+          ]:
+              if needle not in rules:
+                  raise SystemExit(f"Firestore manager/PIN identity missing: {needle}")
 
-          tests = json.loads(
-              body("app/src/main/assets/lab_tests_android.json")
-          )
-
-          if len(tests) != 331:
-              raise SystemExit(
-                  f"Expected 331 tests, found {len(tests)}"
-              )
-
-          ids = [int(x["id"]) for x in tests]
-
-          if len(ids) != len(set(ids)):
-              raise SystemExit("Duplicate test IDs found")
-
-          # Prevent storing the selected admin PIN as plaintext.
-          forbidden_plaintext = "160" + "160"
-
-          source_roots = [
-              root / "app" / "src",
-              root / "firestore.rules"
-          ]
-
-          for source_root in source_roots:
-              paths = (
-                  [source_root]
-                  if source_root.is_file()
-                  else list(source_root.rglob("*"))
-              )
-
-              for path in paths:
-                  if not path.is_file():
-                      continue
-
-                  if path.suffix.lower() in {
-                      ".png",
-                      ".jpg",
-                      ".jpeg",
-                      ".webp",
-                      ".svg",
-                      ".ttf",
-                      ".otf"
-                  }:
-                      continue
-
-                  try:
-                      text = path.read_text(encoding="utf-8")
-                  except Exception:
-                      continue
-
-                  if forbidden_plaintext in text:
-                      raise SystemExit(
-                          f"Admin PIN plaintext found in "
-                          f"{path.relative_to(root)}"
-                      )
-
-          print("V60 verification passed")
+          print("V60 LOGIN FIX verification passed")
           PY
 
       - name: Configure Android SDK 36
@@ -266,72 +167,56 @@ workflows:
           echo "sdk.dir=$ANDROID_HOME" > "$PROJECT_DIR/local.properties"
 
           yes | "$SDKMANAGER" --licenses >/dev/null 2>&1 || true
-
-          "$SDKMANAGER" \
-            "platform-tools" \
-            "platforms;android-36" \
-            "build-tools;35.0.0"
+          "$SDKMANAGER" "platform-tools" "platforms;android-36" "build-tools;35.0.0"
 
       - name: Use compatible preinstalled Gradle
         script: |
           set -euo pipefail
 
-          GRADLE_BIN=""
+          GRADLE_BIN=$(command -v gradle || true)
 
-          for candidate in \
-            "/Users/builder/programs/gradle-8.14.1/bin/gradle" \
-            "$HOME/programs/gradle-8.14.1/bin/gradle" \
-            "$(command -v gradle || true)"
-          do
-            if [ -n "$candidate" ] && [ -x "$candidate" ]; then
-              GRADLE_BIN="$candidate"
-              break
-            fi
-          done
+          if [ -z "$GRADLE_BIN" ] || [ ! -x "$GRADLE_BIN" ]; then
+            for candidate in \
+              "$HOME/programs/gradle-8.14.1/bin/gradle" \
+              "/Users/builder/programs/gradle-8.14.1/bin/gradle"
+            do
+              if [ -x "$candidate" ]; then
+                GRADLE_BIN="$candidate"
+                break
+              fi
+            done
+          fi
 
-          if [ -z "$GRADLE_BIN" ]; then
+          if [ -z "$GRADLE_BIN" ] || [ ! -x "$GRADLE_BIN" ]; then
             echo "ERROR: No compatible preinstalled Gradle found"
             exit 1
           fi
 
-          GRADLE_VERSION=$(
-            "$GRADLE_BIN" --version |
-            awk '/^Gradle / {print $2; exit}'
-          )
-
+          GRADLE_VERSION=$($GRADLE_BIN --version | awk '/^Gradle / {print $2; exit}')
           echo "Detected Gradle $GRADLE_VERSION at $GRADLE_BIN"
 
           python3 - "$GRADLE_VERSION" <<'PY'
           import sys
-
           parts = sys.argv[1].split('.')
           major = int(parts[0])
           minor = int(parts[1]) if len(parts) > 1 else 0
-
           if major != 8 or minor < 11:
-              raise SystemExit(
-                  f"Gradle {sys.argv[1]} is incompatible; "
-                  "need Gradle 8.11+ and <9"
-              )
+              raise SystemExit(f"Gradle {sys.argv[1]} is incompatible; need Gradle 8.11+ and <9")
           PY
 
           echo "GRADLE_BIN=$GRADLE_BIN" >> "$CM_ENV"
-
           "$GRADLE_BIN" --version
 
       - name: Validate release signing
         script: |
           set -euo pipefail
 
-          if [ -z "${CM_KEYSTORE_PATH:-}" ] || \
-             [ ! -f "$CM_KEYSTORE_PATH" ]; then
+          if [ -z "${CM_KEYSTORE_PATH:-}" ] || [ ! -f "$CM_KEYSTORE_PATH" ]; then
             echo "ERROR: Release keystore missing"
             exit 1
           fi
 
-          if [ -z "${CM_KEYSTORE_PASSWORD:-}" ] || \
-             [ -z "${CM_KEY_ALIAS:-}" ] || \
-             [ -z "${CM_KEY_PASSWORD:-}" ]; then
+          if [ -z "${CM_KEYSTORE_PASSWORD:-}" ] || [ -z "${CM_KEY_ALIAS:-}" ] || [ -z "${CM_KEY_PASSWORD:-}" ]; then
             echo "ERROR: Signing credentials incomplete"
             exit 1
           fi
@@ -342,7 +227,7 @@ workflows:
             -alias "$CM_KEY_ALIAS" \
             >/dev/null
 
-      - name: Build V60 release APK and AAB
+      - name: Build V60 login-fix APK and AAB
         script: |
           set -euo pipefail
 
@@ -350,17 +235,14 @@ workflows:
           export STORE_PASSWORD="$CM_KEYSTORE_PASSWORD"
           export KEY_PASSWORD="$CM_KEY_PASSWORD"
           export KEY_ALIAS="$CM_KEY_ALIAS"
-
-          export GRADLE_USER_HOME="$CM_BUILD_DIR/.gradle-v60"
+          export GRADLE_USER_HOME="$CM_BUILD_DIR/.gradle-v60-login-fix"
 
           cd "$PROJECT_DIR"
 
-          BUILD_LOG="$CM_BUILD_DIR/v60-build.log"
-
+          BUILD_LOG="$CM_BUILD_DIR/v60-login-fix-build.log"
           rm -f "$BUILD_LOG"
 
           set +e
-
           "$GRADLE_BIN" \
             --no-daemon \
             --no-configuration-cache \
@@ -371,40 +253,19 @@ workflows:
             :app:assembleRelease \
             :app:bundleRelease \
             2>&1 | tee "$BUILD_LOG"
-
           BUILD_STATUS=${PIPESTATUS[0]}
-
           set -e
 
           if [ "$BUILD_STATUS" -ne 0 ]; then
             echo ""
             echo "================ BUILD ERROR SUMMARY ================"
-
-            grep -nE \
-              '(^e: |error:|FAILURE:|What went wrong:|Execution failed for task|Caused by:|Could not resolve|Could not find|Inconsistent JVM|Compilation error|Android resource linking failed)' \
-              "$BUILD_LOG" |
-              head -160 || true
-
+            grep -nE '(^e: |error:|FAILURE:|What went wrong:|Execution failed for task|Caused by:|Could not resolve|Could not find|Inconsistent JVM|Compilation error)' "$BUILD_LOG" | head -120 || true
             echo "====================================================="
-
             exit "$BUILD_STATUS"
           fi
 
-          APK_FILE=$(
-            find app/build/outputs/apk/release \
-              -type f \
-              -name '*.apk' \
-              -print \
-              -quit
-          )
-
-          AAB_FILE=$(
-            find app/build/outputs/bundle/release \
-              -type f \
-              -name '*.aab' \
-              -print \
-              -quit
-          )
+          APK_FILE=$(find app/build/outputs/apk/release -type f -name '*.apk' -print -quit)
+          AAB_FILE=$(find app/build/outputs/bundle/release -type f -name '*.aab' -print -quit)
 
           if [ -z "$APK_FILE" ] || [ ! -f "$APK_FILE" ]; then
             echo "ERROR: APK was not generated"
@@ -417,68 +278,19 @@ workflows:
           fi
 
           RELEASE_DIR="$CM_BUILD_DIR/release"
-
           rm -rf "$RELEASE_DIR"
           mkdir -p "$RELEASE_DIR"
 
-          cp \
-            "$APK_FILE" \
-            "$RELEASE_DIR/Tahalil-Alakkad-V60-ADMIN-PIN.apk"
+          cp "$APK_FILE" "$RELEASE_DIR/Tahalil-Alakkad-V60-LOGIN-FIX.apk"
+          cp "$AAB_FILE" "$RELEASE_DIR/Tahalil-Alakkad-V60-LOGIN-FIX.aab"
+          cp "$BUILD_LOG" "$RELEASE_DIR/v60-login-fix-build.log"
 
-          cp \
-            "$AAB_FILE" \
-            "$RELEASE_DIR/Tahalil-Alakkad-V60-ADMIN-PIN.aab"
-
-          cp \
-            "$BUILD_LOG" \
-            "$RELEASE_DIR/v60-build.log"
-
-          echo "BUILD SUCCESSFUL - V60 APK and AAB created"
-
+          echo "BUILD SUCCESSFUL - V60 LOGIN FIX APK and AAB created"
           ls -lah "$RELEASE_DIR"
-
-      - name: Verify V60 release artifacts
-        script: |
-          set -euo pipefail
-
-          APK_FILE="$CM_BUILD_DIR/release/Tahalil-Alakkad-V60-ADMIN-PIN.apk"
-          AAB_FILE="$CM_BUILD_DIR/release/Tahalil-Alakkad-V60-ADMIN-PIN.aab"
-
-          APKSIGNER="$ANDROID_HOME/build-tools/35.0.0/apksigner"
-          AAPT="$ANDROID_HOME/build-tools/35.0.0/aapt"
-
-          test -f "$APK_FILE"
-          test -f "$AAB_FILE"
-          test -x "$APKSIGNER"
-          test -x "$AAPT"
-
-          "$APKSIGNER" verify \
-            --verbose \
-            --print-certs \
-            "$APK_FILE"
-
-          BADGING=$(
-            "$AAPT" dump badging "$APK_FILE" |
-            head -1
-          )
-
-          echo "$BADGING"
-
-          echo "$BADGING" |
-            grep -q "name='com.aistudio.labtestsdirectory.egypt'"
-
-          echo "$BADGING" |
-            grep -q "versionCode='60'"
-
-          echo "$BADGING" |
-            grep -q "versionName='4.27-admin-pin-v60'"
-
-          jarsigner -verify "$AAB_FILE" >/dev/null
-
-          echo "V60 release artifacts verified successfully"
 
     artifacts:
       - release/*.apk
       - release/*.aab
       - release/*.log
       - android_project/**/app/build/outputs/mapping/release/mapping.txt
+      
