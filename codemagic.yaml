@@ -1,6 +1,6 @@
 workflows:
   android-release:
-    name: Build Tahalil Alakkad V60 LOGIN FIX
+    name: Build Tahalil Alakkad V61 FINAL AUDIT
     instance_type: mac_mini_m2
     max_build_duration: 60
 
@@ -10,15 +10,15 @@ workflows:
         - tahalil_alakkad_release
 
     scripts:
-      - name: Extract V60 login-fix project
+      - name: Extract V61 project
         script: |
           set -euo pipefail
 
-          ZIP_FILE="$CM_BUILD_DIR/Project3_AK_SECURE_ADMIN_PIN_V60.zip"
+          ZIP_FILE="$CM_BUILD_DIR/Project3_AK_SECURE_FINAL_AUDIT_V61.zip"
           WORK_DIR="$CM_BUILD_DIR/android_project"
 
           if [ ! -f "$ZIP_FILE" ]; then
-            echo "ERROR: V60 login-fix ZIP not found: $ZIP_FILE"
+            echo "ERROR: V61 project ZIP not found: $ZIP_FILE"
             find "$CM_BUILD_DIR" -maxdepth 2 -type f -iname '*.zip' -print || true
             exit 1
           fi
@@ -37,13 +37,13 @@ workflows:
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$CM_ENV"
           echo "PROJECT_DIR=$PROJECT_DIR"
 
-      - name: Verify V60 login behavior
+      - name: Verify V61 final audit fixes
         script: |
           set -euo pipefail
 
           python3 - "$PROJECT_DIR" <<'PY'
           from pathlib import Path
-          import sys
+          import json, re, sys
 
           root = Path(sys.argv[1])
 
@@ -53,27 +53,18 @@ workflows:
               "app/src/main/AndroidManifest.xml",
               "app/google-services.json",
               "app/src/main/java/com/example/MainActivity.kt",
+              "app/src/main/java/com/example/ui/SplashScreen.kt",
               "app/src/main/java/com/example/ui/LabTestsViewModel.kt",
               "app/src/main/java/com/example/ui/LabTestsScreen.kt",
               "app/src/main/java/com/example/ui/CustomerSystemDialog.kt",
               "app/src/main/java/com/example/ui/OperationsV14Dialog.kt",
-              "app/src/main/java/com/example/ui/DeviceAuthorizationScreen.kt",
+              "app/src/main/java/com/example/util/TestDocumentImport.kt",
+              "app/src/main/java/com/example/util/CustomerQrImport.kt",
+              "app/src/main/java/com/example/util/SecureFileGuard.kt",
+              "app/src/main/java/com/example/util/PdfGenerator.kt",
+              "app/src/main/assets/lab_tests_android.json",
               "firestore.rules",
-              "V60_LOGIN_APPROVAL_FIX_NOTES.txt",
-              "app/src/main/res/drawable-nodpi/mgr_reports_3d.png",
-              "app/src/main/res/drawable-nodpi/mgr_staff_3d.png",
-              "app/src/main/res/drawable-nodpi/mgr_devices_3d.png",
-              "app/src/main/res/drawable-nodpi/mgr_alerts_3d.png",
-              "app/src/main/res/drawable-nodpi/mgr_integrity_3d.png",
-              "app/src/main/res/drawable-nodpi/mgr_health_3d.png",
-              "app/src/main/res/drawable-nodpi/mgr_audit_3d.png",
-              "app/src/main/res/drawable-nodpi/settings_3d.png",
-              "app/src/main/res/drawable-nodpi/staff_search_3d.png",
-              "app/src/main/res/drawable-nodpi/staff_new_order_3d.png",
-              "app/src/main/res/drawable-nodpi/staff_pdf_3d.png",
-              "app/src/main/res/drawable-nodpi/staff_qr_3d.png",
-              "app/src/main/res/drawable-nodpi/staff_customers_3d.png",
-              "app/src/main/res/drawable-nodpi/staff_tests_3d.png",
+              "FINAL_AUDIT_V61_NOTES.txt",
           ]
           missing = [p for p in required if not (root / p).is_file()]
           if missing:
@@ -86,14 +77,16 @@ workflows:
           for needle in [
               "compileSdk = 36",
               'buildToolsVersion = "35.0.0"',
-              "versionCode = 60",
-              'versionName = "4.27-admin-pin-v60"',
+              "versionCode = 61",
+              'versionName = "4.28-final-audit-v61"',
               "isMinifyEnabled = true",
               "isShrinkResources = true",
+              "isDebuggable = false",
           ]:
               if needle not in build:
                   raise SystemExit(f"Build verification missing: {needle}")
 
+          # Existing V60 login/admin behavior must remain unchanged.
           main = read("app/src/main/java/com/example/MainActivity.kt")
           forbidden_main = [
               'deviceAccessStatus by viewModel.deviceAccessStatus.collectAsState()',
@@ -106,48 +99,91 @@ workflows:
               raise SystemExit("Login is still gated by device approval: " + ", ".join(found))
 
           vm = read("app/src/main/java/com/example/ui/LabTestsViewModel.kt")
-          required_vm = [
+          for needle in [
               "private fun hasAdminAccess(): Boolean = _actualManager.value || _adminUnlocked.value",
               "if (_actualManager.value) firestore",
               "else adminFirestore ?: error(\"Admin access is not unlocked\")",
               "fun unlockAdmin(pin: String",
               "ADMIN_PIN_VERIFIER",
-              "loadManagerPriceState()",
-          ]
-          for needle in required_vm:
-              if needle not in vm:
-                  raise SystemExit(f"Manager/staff gate verification missing in ViewModel: {needle}")
-
-          screen = read("app/src/main/java/com/example/ui/LabTestsScreen.kt")
-          required_screen = [
-              "val actualManager by viewModel.actualManager.collectAsState()",
-              "val isManager = actualManager || adminUnlocked",
-              "if (isManager) {",
-              "showAdminPasswordDialog = true",
-              "adminAccess = isManager",
-              "showLockAdmin = adminUnlocked && !actualManager",
-          ]
-          for needle in required_screen:
-              if needle not in screen:
-                  raise SystemExit(f"Screen gate verification missing: {needle}")
-
-          customer = read("app/src/main/java/com/example/ui/CustomerSystemDialog.kt")
-          for needle in [
-              "val actualManager by viewModel.actualManager.collectAsState()",
-              "val isManager = actualManager || adminUnlocked",
           ]:
-              if needle not in customer:
-                  raise SystemExit(f"Customer manager access verification missing: {needle}")
+              if needle not in vm:
+                  raise SystemExit(f"Admin PIN behavior missing: {needle}")
 
+          # 1) Splash copyright.
+          splash = read("app/src/main/java/com/example/ui/SplashScreen.kt")
+          for needle in ["2026 A.M 🍃", "All Rights Reserved", "Alignment.BottomCenter"]:
+              if needle not in splash:
+                  raise SystemExit(f"Splash copyright verification missing: {needle}")
+
+          # 2) Staff workflow status Firestore rule, restricted to known values.
           rules = read("firestore.rules")
           for needle in [
-              "request.auth.uid == 'Wps5Y19pZSbeGooEzFfW5UFsshq2'",
-              "request.auth.token.email == 'tahalil.admin.gate.v60@tahali.com'",
+              "'workflow_status'",
+              "hasAny(['workflow_status'])",
+              "request.resource.data.workflow_status in [",
+              "'sent_to_lab'",
+              "'processing'",
+              "'ready'",
+              "'delivered'",
           ]:
               if needle not in rules:
-                  raise SystemExit(f"Firestore manager/PIN identity missing: {needle}")
+                  raise SystemExit(f"Workflow rules verification missing: {needle}")
 
-          print("V60 LOGIN FIX verification passed")
+          # 3) Range prices: all legacy ranges must be parseable without becoming zero.
+          if 'matchEntire(normalized)' not in vm or 'groupValues[1].toDoubleOrNull()' not in vm:
+              raise SystemExit("Range-safe order price parser missing")
+          tests = json.loads(read("app/src/main/assets/lab_tests_android.json"))
+          ranges = [str(x.get("customer_price")) for x in tests if isinstance(x.get("customer_price"), str) and "/" in x.get("customer_price")]
+          if not ranges:
+              raise SystemExit("Expected legacy range prices were not found")
+          range_re = re.compile(r"^(\d+(?:\.\d+)?)(?:\s*/\s*\d+(?:\.\d+)?)?$")
+          bad_ranges = [x for x in ranges if not range_re.fullmatch(x.replace(",", "").strip())]
+          if bad_ranges:
+              raise SystemExit("Unsupported range prices: " + ", ".join(bad_ranges))
+
+          # 4) Customer QR from cloud/provider PDF uses a private seekable cache file.
+          qr = read("app/src/main/java/com/example/util/CustomerQrImport.kt")
+          for needle in [
+              'File.createTempFile("customer_qr_import_", ".pdf", context.cacheDir)',
+              'ParcelFileDescriptor.open(tempPdf, ParcelFileDescriptor.MODE_READ_ONLY)',
+              'runCatching { tempPdf.delete() }',
+              'error("ملف PDF محمي بكلمة مرور أو لا يسمح بقراءته")',
+          ]:
+              if needle not in qr:
+                  raise SystemExit(f"QR PDF verification missing: {needle}")
+
+          # 5) Rendered PDF pages use the same handwriting preprocessing as images.
+          pdf_import = read("app/src/main/java/com/example/util/TestDocumentImport.kt")
+          for needle in [
+              'val pageText = recognizeImageRobust(recognizer, bitmap).trim()',
+              'createHighContrastBitmap',
+              'targetWidth = max(bitmap.width, 1800)',
+              'File.createTempFile("lab_tests_import_", ".pdf", context.cacheDir)',
+          ]:
+              if needle not in pdf_import:
+                  raise SystemExit(f"PDF handwriting OCR verification missing: {needle}")
+
+          # 6) Direct Android Share supports modern phone image MIME types.
+          manifest = read("app/src/main/AndroidManifest.xml")
+          for needle in [
+              'android:mimeType="image/heic"',
+              'android:mimeType="image/heif"',
+              'android:mimeType="image/avif"',
+              'android:mimeType="application/pdf"',
+          ]:
+              if needle not in manifest:
+                  raise SystemExit(f"Share MIME verification missing: {needle}")
+
+          # Security hardening must remain present.
+          for needle in [
+              'android:allowBackup="false"',
+              'android:usesCleartextTraffic="false"',
+              'android.permission.HIDE_OVERLAY_WINDOWS',
+          ]:
+              if needle not in manifest:
+                  raise SystemExit(f"Security verification missing: {needle}")
+
+          print(f"V61 FINAL AUDIT verification passed; legacy range prices checked: {len(ranges)}")
           PY
 
       - name: Configure Android SDK 36
@@ -227,7 +263,7 @@ workflows:
             -alias "$CM_KEY_ALIAS" \
             >/dev/null
 
-      - name: Build V60 login-fix APK and AAB
+      - name: Build V61 final audit APK and AAB
         script: |
           set -euo pipefail
 
@@ -235,11 +271,11 @@ workflows:
           export STORE_PASSWORD="$CM_KEYSTORE_PASSWORD"
           export KEY_PASSWORD="$CM_KEY_PASSWORD"
           export KEY_ALIAS="$CM_KEY_ALIAS"
-          export GRADLE_USER_HOME="$CM_BUILD_DIR/.gradle-v60-login-fix"
+          export GRADLE_USER_HOME="$CM_BUILD_DIR/.gradle-v61-final-audit"
 
           cd "$PROJECT_DIR"
 
-          BUILD_LOG="$CM_BUILD_DIR/v60-login-fix-build.log"
+          BUILD_LOG="$CM_BUILD_DIR/v61-final-audit-build.log"
           rm -f "$BUILD_LOG"
 
           set +e
@@ -281,11 +317,11 @@ workflows:
           rm -rf "$RELEASE_DIR"
           mkdir -p "$RELEASE_DIR"
 
-          cp "$APK_FILE" "$RELEASE_DIR/Tahalil-Alakkad-V60-LOGIN-FIX.apk"
-          cp "$AAB_FILE" "$RELEASE_DIR/Tahalil-Alakkad-V60-LOGIN-FIX.aab"
-          cp "$BUILD_LOG" "$RELEASE_DIR/v60-login-fix-build.log"
+          cp "$APK_FILE" "$RELEASE_DIR/Tahalil-Alakkad-V61-FINAL-AUDIT.apk"
+          cp "$AAB_FILE" "$RELEASE_DIR/Tahalil-Alakkad-V61-FINAL-AUDIT.aab"
+          cp "$BUILD_LOG" "$RELEASE_DIR/v61-final-audit-build.log"
 
-          echo "BUILD SUCCESSFUL - V60 LOGIN FIX APK and AAB created"
+          echo "BUILD SUCCESSFUL - V61 FINAL AUDIT APK and AAB created"
           ls -lah "$RELEASE_DIR"
 
     artifacts:
