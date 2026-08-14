@@ -1,6 +1,6 @@
 workflows:
   android-release:
-    name: Build Tahalil Alakkad V63 IMPORT SELECTION FIX
+    name: Build Tahalil Alakkad V64 CUSTOMER ORDER WORKFLOW
     instance_type: mac_mini_m2
     max_build_duration: 60
 
@@ -10,15 +10,15 @@ workflows:
         - tahalil_alakkad_release
 
     scripts:
-      - name: Extract V63 project
+      - name: Extract V64 project
         script: |
           set -euo pipefail
 
-          ZIP_FILE="$CM_BUILD_DIR/Project3_AK_SECURE_IMPORT_SELECTION_FIX_V63.zip"
+          ZIP_FILE="$CM_BUILD_DIR/Project3_AK_SECURE_CUSTOMER_ORDER_WORKFLOW_V64.zip"
           WORK_DIR="$CM_BUILD_DIR/android_project"
 
           if [ ! -f "$ZIP_FILE" ]; then
-            echo "ERROR: V63 project ZIP not found: $ZIP_FILE"
+            echo "ERROR: V64 project ZIP not found: $ZIP_FILE"
             find "$CM_BUILD_DIR" -maxdepth 2 -type f -iname '*.zip' -print || true
             exit 1
           fi
@@ -37,7 +37,7 @@ workflows:
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$CM_ENV"
           echo "PROJECT_DIR=$PROJECT_DIR"
 
-      - name: Verify V63 import selection fix
+      - name: Verify V64 customer order workflow
         script: |
           set -euo pipefail
 
@@ -67,6 +67,7 @@ workflows:
               "FINAL_AUDIT_V61_NOTES.txt",
               "SMART_MEDICAL_VISION_V62_NOTES.txt",
               "IMPORT_SELECTION_FIX_V63_NOTES.txt",
+              "CUSTOMER_ORDER_WORKFLOW_V64_NOTES.txt",
               "app/src/main/java/com/example/util/SmartMedicalVision.kt",
           ]
           missing = [p for p in required if not (root / p).is_file()]
@@ -80,8 +81,8 @@ workflows:
           for needle in [
               "compileSdk = 36",
               'buildToolsVersion = "35.0.0"',
-              "versionCode = 63",
-              'versionName = "4.30-import-selection-fix-v63"',
+              "versionCode = 64",
+              'versionName = "4.31-customer-order-workflow-v64"',
               "isMinifyEnabled = true",
               "isShrinkResources = true",
               "isDebuggable = false",
@@ -247,10 +248,63 @@ workflows:
               if needle not in screen:
                   raise SystemExit(f"V63 selection UI verification missing: {needle}")
 
+          # V64: customer/order workflow, totals, scrolling, and direct printing.
+          for needle in [
+              'modifier = Modifier.weight(1f).fillMaxWidth()',
+              'text = tr("إجمالي الطلب الحالي", "Current Order Total")',
+              '.fillMaxHeight(0.94f)',
+              'customerSystemInitialCustomer = activeOrderCustomer',
+              'initialCustomer = customerSystemInitialCustomer',
+          ]:
+              if needle not in screen:
+                  raise SystemExit(f"V64 order workspace verification missing: {needle}")
+
+          customer_ui = read("app/src/main/java/com/example/ui/CustomerSystemDialog.kt")
+          for needle in [
+              'initialCustomer: Customer? = null',
+              'var selectedCustomer by remember(initialCustomer?.id)',
+              'كل طلب محفوظ يظهر هنا',
+              'فتح / طباعة / PDF / صورة',
+              'ordersLoading: Boolean',
+              'جاري تحميل الطلبات المحفوظة',
+              'طباعة / PDF / صورة للطلب',
+          ]:
+              if needle not in customer_ui:
+                  raise SystemExit(f"V64 customer file verification missing: {needle}")
+
+          for needle in [
+              'val customerOrdersLoading: StateFlow<Boolean> = _customerOrdersLoading.asStateFlow()',
+              'fun loadCustomerOrders(customerId: String, preserveCurrent: Boolean = false)',
+              '_customerOrdersLoading.value = true',
+              'loadCustomerOrders(customer.id, preserveCurrent = true)',
+              '_customerOrders.value = listOf(order) + _customerOrders.value.filterNot { it.id == order.id }',
+          ]:
+              if needle not in vm:
+                  raise SystemExit(f"V64 saved-order persistence verification missing: {needle}")
+
+          pdf = read("app/src/main/java/com/example/util/PdfGenerator.kt")
+          for needle in [
+              'fun printGeneratedPdf(',
+              'PrintManager',
+              'PrintAttributes.MediaSize.ISO_A5',
+              'PageRange.ALL_PAGES',
+          ]:
+              if needle not in pdf:
+                  raise SystemExit(f"V64 direct print verification missing: {needle}")
+
+          output = read("app/src/main/java/com/example/ui/OrderPdfShareDialog.kt")
+          for needle in [
+              'طباعة إيصال العميل',
+              'طباعة طلب المعمل',
+              'verticalScroll(rememberScrollState())',
+          ]:
+              if needle not in output:
+                  raise SystemExit(f"V64 output dialog verification missing: {needle}")
+
           if 'implementation(libs.firebase.ai)' not in build:
               raise SystemExit("Firebase AI Logic dependency missing")
 
-          print(f"V63 IMPORT SELECTION FIX verification passed; legacy range prices checked: {len(ranges)}")
+          print(f"V64 CUSTOMER ORDER WORKFLOW verification passed; legacy range prices checked: {len(ranges)}")
           PY
 
       - name: Configure Android SDK 36
@@ -330,7 +384,7 @@ workflows:
             -alias "$CM_KEY_ALIAS" \
             >/dev/null
 
-      - name: Build V63 import selection fix APK and AAB
+      - name: Build V64 customer order workflow APK and AAB
         script: |
           set -euo pipefail
 
@@ -338,11 +392,11 @@ workflows:
           export STORE_PASSWORD="$CM_KEYSTORE_PASSWORD"
           export KEY_PASSWORD="$CM_KEY_PASSWORD"
           export KEY_ALIAS="$CM_KEY_ALIAS"
-          export GRADLE_USER_HOME="$CM_BUILD_DIR/.gradle-v63-import-selection"
+          export GRADLE_USER_HOME="$CM_BUILD_DIR/.gradle-v64-customer-order-workflow"
 
           cd "$PROJECT_DIR"
 
-          BUILD_LOG="$CM_BUILD_DIR/v63-import-selection-fix-build.log"
+          BUILD_LOG="$CM_BUILD_DIR/v64-customer-order-workflow-build.log"
           rm -f "$BUILD_LOG"
 
           set +e
@@ -384,11 +438,11 @@ workflows:
           rm -rf "$RELEASE_DIR"
           mkdir -p "$RELEASE_DIR"
 
-          cp "$APK_FILE" "$RELEASE_DIR/Tahalil-Alakkad-V63-IMPORT-SELECTION-FIX.apk"
-          cp "$AAB_FILE" "$RELEASE_DIR/Tahalil-Alakkad-V63-IMPORT-SELECTION-FIX.aab"
-          cp "$BUILD_LOG" "$RELEASE_DIR/v63-import-selection-fix-build.log"
+          cp "$APK_FILE" "$RELEASE_DIR/Tahalil-Alakkad-V64-CUSTOMER-ORDER-WORKFLOW.apk"
+          cp "$AAB_FILE" "$RELEASE_DIR/Tahalil-Alakkad-V64-CUSTOMER-ORDER-WORKFLOW.aab"
+          cp "$BUILD_LOG" "$RELEASE_DIR/v64-customer-order-workflow-build.log"
 
-          echo "BUILD SUCCESSFUL - V63 IMPORT SELECTION FIX APK and AAB created"
+          echo "BUILD SUCCESSFUL - V64 CUSTOMER ORDER WORKFLOW APK and AAB created"
           ls -lah "$RELEASE_DIR"
 
     artifacts:
