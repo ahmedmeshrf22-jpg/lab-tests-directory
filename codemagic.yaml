@@ -1,6 +1,6 @@
 workflows:
   android-release:
-    name: Build Tahalil Alakkad V66 BUILD FIXED
+    name: Build Tahalil Alakkad V67 DAILY WORKFLOW
     instance_type: mac_mini_m2
     max_build_duration: 20
 
@@ -10,11 +10,11 @@ workflows:
         - tahalil_alakkad_release
 
     scripts:
-      - name: Extract V66 project
+      - name: Extract V67 project
         script: |
           set -euo pipefail
 
-          ZIP_FILE="$CM_BUILD_DIR/Project3_AK_SECURE_AUDIT_FIX_V66_BUILD_FIXED.zip"
+          ZIP_FILE="$CM_BUILD_DIR/Project3_AK_V67_DAILY_WORKFLOW.zip"
           WORK_DIR="$CM_BUILD_DIR/android_project"
 
           test -f "$ZIP_FILE"
@@ -27,6 +27,45 @@ workflows:
           PROJECT_DIR="$(dirname "$SETTINGS_FILE")"
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$CM_ENV"
           echo "Project: $PROJECT_DIR"
+
+      - name: Verify V67 daily workflow
+        script: |
+          set -euo pipefail
+
+          python3 - "$PROJECT_DIR" <<'PY'
+          from pathlib import Path
+          import sys
+
+          root = Path(sys.argv[1])
+          build = (root / "app/build.gradle.kts").read_text(encoding="utf-8")
+          screen = (root / "app/src/main/java/com/example/ui/LabTestsScreen.kt").read_text(encoding="utf-8")
+          ops = (root / "app/src/main/java/com/example/ui/OperationsV14Dialog.kt").read_text(encoding="utf-8")
+          customer = (root / "app/src/main/java/com/example/ui/CustomerSystemDialog.kt").read_text(encoding="utf-8")
+          repo = (root / "app/src/main/java/com/example/data/repository/LabTestRepository.kt").read_text(encoding="utf-8")
+          main = (root / "app/src/main/java/com/example/MainActivity.kt").read_text(encoding="utf-8")
+
+          checks = {
+              "versionCode": 'versionCode = 67' in build,
+              "versionName": 'versionName = "4.34-daily-workflow-v67"' in build,
+              "daily price": 'استعلام عن سعر تحليل' in screen,
+              "daily order": 'طلب تحاليل جديد' in screen,
+              "daily customers": 'سجلات العملاء' in screen,
+              "scan hub": 'HomeScanHubDialog(' in screen and 'QR / صورة / PDF' in screen,
+              "catalog": 'التحاليل المتاحة' in screen,
+              "single admin entry": 'لوحة الإدارة 🔒' in screen,
+              "admin PIN for all UI": 'if (adminUnlocked)' in screen and 'val requireAdmin' in screen,
+              "admin settings in panel": 'onOpenAdminSettings' in ops and 'إعدادات الإدارة' in ops,
+              "forced price display": 'val forcePriceInquiry = !allowSelection' in screen,
+              "V66 quick QR": 'initialAutoScan: Boolean = false' in customer and 'openScannedCustomer()' in customer,
+              "V66 aliases": 'private fun aliasTargets(normQuery: String)' in repo and '"وظائف كبد"' in repo and '"وظائف كلي"' in repo,
+              "modern image share": all(x in main for x in ['"image/heic"','"image/heif"','"image/avif"']),
+              "Firebase AI Logic": 'implementation(libs.firebase.ai)' in build,
+          }
+          failed = [name for name, ok in checks.items() if not ok]
+          if failed:
+              raise SystemExit("V67 verification failed: " + ", ".join(failed))
+          print("V67 daily workflow verification passed")
+          PY
 
       - name: Configure Android build tools
         script: |
@@ -66,7 +105,7 @@ workflows:
             -alias "$CM_KEY_ALIAS" \
             >/dev/null
 
-      - name: Build V66 APK and AAB
+      - name: Build V67 APK and AAB
         script: |
           set -euo pipefail
 
@@ -74,7 +113,7 @@ workflows:
           export STORE_PASSWORD="$CM_KEYSTORE_PASSWORD"
           export KEY_ALIAS="$CM_KEY_ALIAS"
           export KEY_PASSWORD="$CM_KEY_PASSWORD"
-          export GRADLE_USER_HOME="$CM_BUILD_DIR/.gradle-v66-recovery"
+          export GRADLE_USER_HOME="$CM_BUILD_DIR/.gradle-v67-daily-workflow"
 
           cd "$PROJECT_DIR"
           "$GRADLE_BIN" \
@@ -95,8 +134,8 @@ workflows:
           RELEASE_DIR="$CM_BUILD_DIR/release"
           rm -rf "$RELEASE_DIR"
           mkdir -p "$RELEASE_DIR"
-          cp "$APK_FILE" "$RELEASE_DIR/Tahalil-Alakkad-V66-AUDIT-FIX.apk"
-          cp "$AAB_FILE" "$RELEASE_DIR/Tahalil-Alakkad-V66-AUDIT-FIX.aab"
+          cp "$APK_FILE" "$RELEASE_DIR/Tahalil-Alakkad-V67-DAILY-WORKFLOW.apk"
+          cp "$AAB_FILE" "$RELEASE_DIR/Tahalil-Alakkad-V67-DAILY-WORKFLOW.aab"
           ls -lah "$RELEASE_DIR"
 
     artifacts:
