@@ -1,6 +1,6 @@
 workflows:
   android-release:
-    name: Build Tahalil Alakkad V64 CUSTOMER ORDER WORKFLOW
+    name: Build Tahalil Alakkad V65 FULLSCREEN TASK WORKSPACE
     instance_type: mac_mini_m2
     max_build_duration: 60
 
@@ -10,15 +10,15 @@ workflows:
         - tahalil_alakkad_release
 
     scripts:
-      - name: Extract V64 project
+      - name: Extract V65 project
         script: |
           set -euo pipefail
 
-          ZIP_FILE="$CM_BUILD_DIR/Project3_AK_SECURE_CUSTOMER_ORDER_WORKFLOW_V64.zip"
+          ZIP_FILE="$CM_BUILD_DIR/Project3_AK_SECURE_FULLSCREEN_TASK_WORKSPACE_V65.zip"
           WORK_DIR="$CM_BUILD_DIR/android_project"
 
           if [ ! -f "$ZIP_FILE" ]; then
-            echo "ERROR: V64 project ZIP not found: $ZIP_FILE"
+            echo "ERROR: V65 project ZIP not found: $ZIP_FILE"
             find "$CM_BUILD_DIR" -maxdepth 2 -type f -iname '*.zip' -print || true
             exit 1
           fi
@@ -37,7 +37,7 @@ workflows:
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$CM_ENV"
           echo "PROJECT_DIR=$PROJECT_DIR"
 
-      - name: Verify V64 customer order workflow
+      - name: Verify V65 fullscreen task workspace
         script: |
           set -euo pipefail
 
@@ -68,6 +68,7 @@ workflows:
               "SMART_MEDICAL_VISION_V62_NOTES.txt",
               "IMPORT_SELECTION_FIX_V63_NOTES.txt",
               "CUSTOMER_ORDER_WORKFLOW_V64_NOTES.txt",
+              "FULLSCREEN_TASK_WORKSPACE_V65_NOTES.txt",
               "app/src/main/java/com/example/util/SmartMedicalVision.kt",
           ]
           missing = [p for p in required if not (root / p).is_file()]
@@ -81,8 +82,8 @@ workflows:
           for needle in [
               "compileSdk = 36",
               'buildToolsVersion = "35.0.0"',
-              "versionCode = 64",
-              'versionName = "4.31-customer-order-workflow-v64"',
+              "versionCode = 65",
+              'versionName = "4.32-fullscreen-task-workspace-v65"',
               "isMinifyEnabled = true",
               "isShrinkResources = true",
               "isDebuggable = false",
@@ -248,16 +249,35 @@ workflows:
               if needle not in screen:
                   raise SystemExit(f"V63 selection UI verification missing: {needle}")
 
-          # V64: customer/order workflow, totals, scrolling, and direct printing.
+          # V64 behavior must remain: totals, full customer dialogs and reopening the saved customer file.
           for needle in [
-              'modifier = Modifier.weight(1f).fillMaxWidth()',
               'text = tr("إجمالي الطلب الحالي", "Current Order Total")',
               '.fillMaxHeight(0.94f)',
               'customerSystemInitialCustomer = activeOrderCustomer',
               'initialCustomer = customerSystemInitialCustomer',
           ]:
               if needle not in screen:
-                  raise SystemExit(f"V64 order workspace verification missing: {needle}")
+                  raise SystemExit(f"V64 order workflow regression: {needle}")
+
+          # V65: active tasks own the whole screen and all task content shares one scroll surface.
+          for needle in [
+              'if (managerMainMode == "home")',
+              'TemporaryWorkspaceTopBar(',
+              'testTag("temporary_workspace_back")',
+              'testTag("temporary_workspace_settings")',
+              'topContent: (@Composable () -> Unit)? = null',
+              'item(key = "workspace_top_content")',
+              'results use the full screen',
+              'bottomContent = null',
+          ]:
+              if needle not in screen:
+                  raise SystemExit(f"V65 fullscreen workspace verification missing: {needle}")
+
+          if screen.count('WorkspaceMoreSection(') != 1:
+              raise SystemExit('V65 regression: unrelated More navigation is still rendered inside an active task')
+
+          if 'Modifier.weight(1f).fillMaxWidth()' in screen:
+              raise SystemExit('V65 regression: task results are still constrained to the old small weighted lower viewport')
 
           customer_ui = read("app/src/main/java/com/example/ui/CustomerSystemDialog.kt")
           for needle in [
@@ -304,7 +324,7 @@ workflows:
           if 'implementation(libs.firebase.ai)' not in build:
               raise SystemExit("Firebase AI Logic dependency missing")
 
-          print(f"V64 CUSTOMER ORDER WORKFLOW verification passed; legacy range prices checked: {len(ranges)}")
+          print(f"V65 FULLSCREEN TASK WORKSPACE verification passed; legacy range prices checked: {len(ranges)}")
           PY
 
       - name: Configure Android SDK 36
@@ -384,7 +404,7 @@ workflows:
             -alias "$CM_KEY_ALIAS" \
             >/dev/null
 
-      - name: Build V64 customer order workflow APK and AAB
+      - name: Build V65 fullscreen task workspace APK and AAB
         script: |
           set -euo pipefail
 
@@ -392,11 +412,11 @@ workflows:
           export STORE_PASSWORD="$CM_KEYSTORE_PASSWORD"
           export KEY_PASSWORD="$CM_KEY_PASSWORD"
           export KEY_ALIAS="$CM_KEY_ALIAS"
-          export GRADLE_USER_HOME="$CM_BUILD_DIR/.gradle-v64-customer-order-workflow"
+          export GRADLE_USER_HOME="$CM_BUILD_DIR/.gradle-v65-fullscreen-task-workspace"
 
           cd "$PROJECT_DIR"
 
-          BUILD_LOG="$CM_BUILD_DIR/v64-customer-order-workflow-build.log"
+          BUILD_LOG="$CM_BUILD_DIR/v65-fullscreen-task-workspace-build.log"
           rm -f "$BUILD_LOG"
 
           set +e
@@ -438,16 +458,5 @@ workflows:
           rm -rf "$RELEASE_DIR"
           mkdir -p "$RELEASE_DIR"
 
-          cp "$APK_FILE" "$RELEASE_DIR/Tahalil-Alakkad-V64-CUSTOMER-ORDER-WORKFLOW.apk"
-          cp "$AAB_FILE" "$RELEASE_DIR/Tahalil-Alakkad-V64-CUSTOMER-ORDER-WORKFLOW.aab"
-          cp "$BUILD_LOG" "$RELEASE_DIR/v64-customer-order-workflow-build.log"
-
-          echo "BUILD SUCCESSFUL - V64 CUSTOMER ORDER WORKFLOW APK and AAB created"
-          ls -lah "$RELEASE_DIR"
-
-    artifacts:
-      - release/*.apk
-      - release/*.aab
-      - release/*.log
-      - android_project/**/app/build/outputs/mapping/release/mapping.txt
-      
+          cp "$APK_FILE" "$RELEASE_DIR/Tahalil-Alakkad-V65-FULLSCREEN-TASK-WORKSPACE.apk"
+          cp "$AAB_FILE" "$RELEA
