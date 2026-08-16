@@ -1,15 +1,18 @@
-name: Build Tahalil Alakkad V69 APK
+name: Build Tahalil Alakkad V69 RELEASE
 
 on:
   workflow_dispatch:
   push:
     branches: [ main ]
+    paths:
+      - 'Project3_AK_V69_BATCH_PRICE_SEARCH.zip'
+      - '.github/workflows/build-apk.yml'
 
 permissions:
   contents: read
 
 jobs:
-  build-apk:
+  build-release:
     runs-on: ubuntu-latest
     timeout-minutes: 45
 
@@ -42,84 +45,69 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-
-          echo "Repository files:"
-          find "$GITHUB_WORKSPACE" -maxdepth 3 -type f -printf '%P\n' | sort | head -200
-
-          rm -rf "$GITHUB_WORKSPACE/android_project" "$GITHUB_WORKSPACE/_v69_bundle"
-          mkdir -p "$GITHUB_WORKSPACE/android_project" "$GITHUB_WORKSPACE/_v69_bundle"
-
           PROJECT_ZIP="$(find "$GITHUB_WORKSPACE" -maxdepth 4 -type f -name 'Project3_AK_V69_BATCH_PRICE_SEARCH.zip' -print -quit || true)"
-
           if [ -z "$PROJECT_ZIP" ]; then
-            echo "Exact V69 project ZIP not found. Looking inside another V69 ZIP..."
-            BUNDLE_ZIP="$(find "$GITHUB_WORKSPACE" -maxdepth 3 -type f -iname '*V69*.zip' -print -quit || true)"
-            if [ -z "$BUNDLE_ZIP" ]; then
-              echo "ERROR: No V69 ZIP file found in repository."
-              exit 1
-            fi
-
-            unzip -q -o "$BUNDLE_ZIP" -d "$GITHUB_WORKSPACE/_v69_bundle"
-            PROJECT_ZIP="$(find "$GITHUB_WORKSPACE/_v69_bundle" -type f -name 'Project3_AK_V69_BATCH_PRICE_SEARCH.zip' -print -quit || true)"
-
-            if [ -z "$PROJECT_ZIP" ]; then
-              SETTINGS_FILE="$(find "$GITHUB_WORKSPACE/_v69_bundle" -type f -name 'settings.gradle.kts' -print -quit || true)"
-              if [ -n "$SETTINGS_FILE" ]; then
-                PROJECT_DIR="$(dirname "$SETTINGS_FILE")"
-                echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
-                echo "Project found directly inside bundle: $PROJECT_DIR"
-                exit 0
-              fi
-
-              echo "ERROR: V69 project ZIP/settings.gradle.kts not found inside bundle."
-              exit 1
-            fi
-          fi
-
-          echo "Using project ZIP: $PROJECT_ZIP"
-          unzip -q -o "$PROJECT_ZIP" -d "$GITHUB_WORKSPACE/android_project"
-
-          SETTINGS_FILE="$(find "$GITHUB_WORKSPACE/android_project" -type f -name 'settings.gradle.kts' -print -quit || true)"
-          if [ -z "$SETTINGS_FILE" ]; then
-            echo "ERROR: settings.gradle.kts not found after extraction."
+            echo "ERROR: Project3_AK_V69_BATCH_PRICE_SEARCH.zip not found"
+            find "$GITHUB_WORKSPACE" -maxdepth 3 -type f -printf '%P\n' | sort
             exit 1
           fi
 
+          rm -rf "$GITHUB_WORKSPACE/android_project"
+          mkdir -p "$GITHUB_WORKSPACE/android_project"
+          unzip -q -o "$PROJECT_ZIP" -d "$GITHUB_WORKSPACE/android_project"
+
+          SETTINGS_FILE="$(find "$GITHUB_WORKSPACE/android_project" -type f -name 'settings.gradle.kts' -print -quit || true)"
+          test -n "$SETTINGS_FILE"
           PROJECT_DIR="$(dirname "$SETTINGS_FILE")"
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
-          echo "Android project root: $PROJECT_DIR"
 
       - name: Verify V69
         shell: bash
         run: |
           set -euo pipefail
-          test -n "${PROJECT_DIR:-}"
-          test -f "$PROJECT_DIR/app/build.gradle.kts"
-          test -f "$PROJECT_DIR/app/src/main/java/com/example/data/repository/LabTestRepository.kt"
-
           grep -q 'versionCode = 69' "$PROJECT_DIR/app/build.gradle.kts"
           grep -q 'versionName = "4.36-batch-price-search-v69"' "$PROJECT_DIR/app/build.gradle.kts"
+          grep -q 'HBsAg' "$PROJECT_DIR/app/src/main/java/com/example/data/repository/LabTestRepository.kt"
+          echo "V69 verified"
 
-          echo "V69 project verified."
-
-      - name: Create debug signing key
+      - name: Restore original release signing
         shell: bash
+        env:
+          SIGNING_BUNDLE_B64: ${{ secrets.TAHALIL_SIGNING_BUNDLE_B64 }}
         run: |
           set -euo pipefail
-          cd "$PROJECT_DIR"
+          if [ -z "${SIGNING_BUNDLE_B64:-}" ]; then
+            echo "ERROR: GitHub Actions secret TAHALIL_SIGNING_BUNDLE_B64 is missing"
+            exit 1
+          fi
 
-          rm -f debug.keystore
-          keytool -genkeypair \
-            -keystore debug.keystore \
-            -storepass android \
-            -alias androiddebugkey \
-            -keypass android \
-            -keyalg RSA \
-            -keysize 2048 \
-            -validity 10000 \
-            -dname 'CN=Android Debug,O=Android,C=US'
+          SIGN_DIR="$RUNNER_TEMP/tahalil-signing"
+          rm -rf "$SIGN_DIR"
+          mkdir -p "$SIGN_DIR"
 
-      - name: Build installable APK
+          printf '%s' "$SIGNING_BUNDLE_B64" | base64 -d > "$SIGN_DIR/signing.zip"
+          unzip -q "$SIGN_DIR/signing.zip" -d "$SIGN_DIR"
+
+          test -f "$SIGN_DIR/tahalil-alakkad-release.jks"
+          test -f "$SIGN_DIR/signing.env"
+
+          set -a
+          source "$SIGN_DIR/signing.env"
+          set +a
+
+          export KEYSTORE_PATH="$SIGN_DIR/tahalil-alakkad-release.jks"
+
+          keytool -list \
+            -keystore "$KEYSTORE_PATH" \
+            -storepass "$STORE_PASSWORD" \
+            -alias "$KEY_ALIAS" >/dev/null
+
+          echo "KEYSTORE_PATH=$KEYSTORE_PATH" >> "$GITHUB_ENV"
+          echo "STORE_PASSWORD=$STORE_PASSWORD" >> "$GITHUB_ENV"
+          echo "KEY_ALIAS=$KEY_ALIAS" >> "$GITHUB_ENV"
+          echo "KEY_PASSWORD=$KEY_PASSWORD" >> "$GITHUB_ENV"
+
+      - name: Build signed Release APK
         shell: bash
         run: |
           set -euo pipefail
@@ -131,20 +119,22 @@ jobs:
             --no-parallel \
             --max-workers=2 \
             --console=plain \
-            :app:assembleDebug
+            :app:assembleRelease
 
-          APK_FILE="$(find app/build/outputs/apk/debug -type f -name '*.apk' -print -quit)"
+          APK_FILE="$(find app/build/outputs/apk/release -type f -name '*.apk' -print -quit)"
           test -f "$APK_FILE"
 
           mkdir -p "$GITHUB_WORKSPACE/output"
-          cp "$APK_FILE" "$GITHUB_WORKSPACE/output/Tahalil-Alakkad-V69.apk"
-          ls -lh "$GITHUB_WORKSPACE/output/Tahalil-Alakkad-V69.apk"
+          cp "$APK_FILE" "$GITHUB_WORKSPACE/output/Tahalil-Alakkad-V69-RELEASE.apk"
 
-      - name: Upload APK
+          jarsigner -verify "$GITHUB_WORKSPACE/output/Tahalil-Alakkad-V69-RELEASE.apk" >/dev/null 2>&1 || true
+          ls -lh "$GITHUB_WORKSPACE/output/Tahalil-Alakkad-V69-RELEASE.apk"
+
+      - name: Upload signed APK
         uses: actions/upload-artifact@v4
         with:
-          name: Tahalil-Alakkad-V69-APK
-          path: output/Tahalil-Alakkad-V69.apk
+          name: Tahalil-Alakkad-V69-RELEASE
+          path: output/Tahalil-Alakkad-V69-RELEASE.apk
           if-no-files-found: error
           retention-days: 30
           
