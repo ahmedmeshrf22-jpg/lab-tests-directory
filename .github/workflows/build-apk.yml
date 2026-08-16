@@ -1,0 +1,96 @@
+name: Build Tahalil Alakkad V69 APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+    paths:
+      - 'Project3_AK_V69_BATCH_PRICE_SEARCH.zip'
+      - '.github/workflows/build-apk.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle 8.11.1
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK packages
+        shell: bash
+        run: |
+          set -euo pipefail
+          yes | sdkmanager --licenses >/dev/null 2>&1 || true
+          sdkmanager 'platform-tools' 'platforms;android-36' 'build-tools;35.0.0'
+
+      - name: Extract V69 project
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f Project3_AK_V69_BATCH_PRICE_SEARCH.zip
+          rm -rf android_project
+          mkdir android_project
+          unzip -q -o Project3_AK_V69_BATCH_PRICE_SEARCH.zip -d android_project
+          test -f android_project/settings.gradle.kts
+
+      - name: Verify V69
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q 'versionCode = 69' android_project/app/build.gradle.kts
+          grep -q 'versionName = "4.36-batch-price-search-v69"' android_project/app/build.gradle.kts
+          grep -q 'HBsAg' android_project/app/src/main/java/com/example/data/repository/LabTestRepository.kt
+
+      - name: Create debug signing key
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd android_project
+          keytool -genkeypair -v \
+            -keystore debug.keystore \
+            -storepass android \
+            -alias androiddebugkey \
+            -keypass android \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -dname 'CN=Android Debug,O=Android,C=US'
+
+      - name: Build installable APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd android_project
+          gradle --no-daemon --no-configuration-cache --max-workers=2 :app:assembleDebug
+          APK_FILE="$(find app/build/outputs/apk/debug -type f -name '*.apk' -print -quit)"
+          test -f "$APK_FILE"
+          mkdir -p "$GITHUB_WORKSPACE/output"
+          cp "$APK_FILE" "$GITHUB_WORKSPACE/output/Tahalil-Alakkad-V69.apk"
+          ls -lh "$GITHUB_WORKSPACE/output/Tahalil-Alakkad-V69.apk"
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Tahalil-Alakkad-V69-APK
+          path: output/Tahalil-Alakkad-V69.apk
+          if-no-files-found: error
+          retention-days: 30
+          
