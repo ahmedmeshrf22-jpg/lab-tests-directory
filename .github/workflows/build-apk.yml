@@ -1,11 +1,11 @@
-name: Build Tahalil Alakkad V71 FIXED RELEASE
+name: Build Tahalil Alakkad V72 TEST GUIDE RELEASE
 
 on:
   workflow_dispatch:
   push:
     branches: [ main ]
     paths:
-      - 'Project3_AK_V71_LINKED_DAILY_SERVICES_PAYMENT_FIX.zip'
+      - 'Project3_AK_V72_TEST_GUIDE_HOLOGRAM.zip'
       - '.github/workflows/build-apk.yml'
 
 permissions:
@@ -41,11 +41,11 @@ jobs:
           yes | sdkmanager --licenses >/dev/null 2>&1 || true
           sdkmanager 'platform-tools' 'platforms;android-36' 'build-tools;35.0.0'
 
-      - name: Extract V71 project
+      - name: Extract V72 project
         shell: bash
         run: |
           set -euo pipefail
-          ZIP_FILE="$GITHUB_WORKSPACE/Project3_AK_V71_LINKED_DAILY_SERVICES_PAYMENT_FIX.zip"
+          ZIP_FILE="$GITHUB_WORKSPACE/Project3_AK_V72_TEST_GUIDE_HOLOGRAM.zip"
           test -f "$ZIP_FILE"
 
           rm -rf "$GITHUB_WORKSPACE/android_project"
@@ -58,41 +58,46 @@ jobs:
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
           echo "Project: $PROJECT_DIR"
 
-      - name: Verify V71
+      - name: Verify V72
         shell: bash
         run: |
           set -euo pipefail
           test -f "$PROJECT_DIR/app/build.gradle.kts"
           test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-          test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/CustomerSystemDialog.kt"
+          test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/TestGuideDialog.kt"
           test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/DailyServicesNav.kt"
+          test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/CustomerSystemDialog.kt"
           test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
 
-          grep -q 'versionCode = 71' "$PROJECT_DIR/app/build.gradle.kts"
-          grep -q 'versionName = "4.38-linked-daily-services-payment-v71"' "$PROJECT_DIR/app/build.gradle.kts"
+          grep -q 'versionCode = 72' "$PROJECT_DIR/app/build.gradle.kts"
+          grep -q 'versionName = "4.39-test-guide-hologram-v72"' "$PROJECT_DIR/app/build.gradle.kts"
+
+          # V72 medical guide / hologram.
+          grep -q 'fun TestGuideMoreButton' "$PROJECT_DIR/app/src/main/java/com/example/ui/TestGuideDialog.kt"
+          grep -q 'TestGuideHologramDialog' "$PROJECT_DIR/app/src/main/java/com/example/ui/TestGuideDialog.kt"
+          grep -q 'WHO Phlebotomy' "$PROJECT_DIR/app/src/main/java/com/example/ui/TestGuideDialog.kt"
+          grep -q 'BD Vacutainer' "$PROJECT_DIR/app/src/main/java/com/example/ui/TestGuideDialog.kt"
+          grep -q 'CDC — Hepatitis B testing' "$PROJECT_DIR/app/src/main/java/com/example/ui/TestGuideDialog.kt"
+          grep -q 'MedlinePlus — TSH Test' "$PROJECT_DIR/app/src/main/java/com/example/ui/TestGuideDialog.kt"
+          grep -q 'search_test_guide_' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+          grep -q 'catalog_test_guide_' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+
+          # Preserve V71 linked daily services + required partial/unpaid amount.
+          grep -q 'fun DailyServicesNavBar' "$PROJECT_DIR/app/src/main/java/com/example/ui/DailyServicesNav.kt"
+          grep -q 'paidEntryRequired = paymentStatus == "partial" || paymentStatus == "unpaid"' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+          grep -q 'المبلغ المسدد (إجباري)' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+          grep -q 'paidEntryRequired = paymentStatus == "partial" || paymentStatus == "unpaid"' "$PROJECT_DIR/app/src/main/java/com/example/ui/CustomerSystemDialog.kt"
 
           # Preserve V70 result actions.
           grep -q 'price_results_add_all' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
           grep -q 'price_results_customer' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
           grep -q 'price_results_output' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-          grep -q 'fun addTestsToSelection' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
 
-          # V71 linked daily services, excluding Administration.
-          grep -q 'fun DailyServicesNavBar' "$PROJECT_DIR/app/src/main/java/com/example/ui/DailyServicesNav.kt"
-          grep -q 'active = managerMainMode' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-          grep -q 'active = "customers"' "$PROJECT_DIR/app/src/main/java/com/example/ui/CustomerSystemDialog.kt"
-          grep -q 'active = "scan"' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-
-          # V71 required settled amount for partial/unpaid.
-          grep -q 'paidEntryRequired = paymentStatus == "partial" || paymentStatus == "unpaid"' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-          grep -q 'المبلغ المسدد (إجباري)' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-          grep -q 'paidEntryRequired = paymentStatus == "partial" || paymentStatus == "unpaid"' "$PROJECT_DIR/app/src/main/java/com/example/ui/CustomerSystemDialog.kt"
-
-          # Preserve V68/V69 search behavior.
+          # Preserve fuzzy / HBsAg search behavior.
           grep -q 'private fun editDistance' "$PROJECT_DIR/app/src/main/java/com/example/data/repository/LabTestRepository.kt"
           grep -q 'HBsAg' "$PROJECT_DIR/app/src/main/java/com/example/data/repository/LabTestRepository.kt"
 
-          echo 'V71 verification passed'
+          echo 'V72 verification passed'
 
       - name: Restore original release signing
         shell: bash
@@ -148,14 +153,14 @@ jobs:
           test -f "$APK_FILE"
 
           mkdir -p "$GITHUB_WORKSPACE/output"
-          cp "$APK_FILE" "$GITHUB_WORKSPACE/output/Tahalil-Alakkad-V71-RELEASE.apk"
-          ls -lh "$GITHUB_WORKSPACE/output/Tahalil-Alakkad-V71-RELEASE.apk"
+          cp "$APK_FILE" "$GITHUB_WORKSPACE/output/Tahalil-Alakkad-V72-RELEASE.apk"
+          ls -lh "$GITHUB_WORKSPACE/output/Tahalil-Alakkad-V72-RELEASE.apk"
 
       - name: Upload signed APK
         uses: actions/upload-artifact@v4
         with:
-          name: Tahalil-Alakkad-V71-RELEASE
-          path: output/Tahalil-Alakkad-V71-RELEASE.apk
+          name: Tahalil-Alakkad-V72-RELEASE
+          path: output/Tahalil-Alakkad-V72-RELEASE.apk
           if-no-files-found: error
           retention-days: 30
           
