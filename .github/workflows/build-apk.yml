@@ -1,11 +1,11 @@
-name: Build Tahalil Alakkad V78 ICON LABEL VISIBILITY
+name: Build Tahalil Alakkad V79 LAB COUNTER
 
 on:
   workflow_dispatch:
   push:
     branches: [ main ]
     paths:
-      - 'Project3_AK_V78_ICON_LABEL_VISIBILITY.zip'
+      - 'Project3_AK_V79_LAB_COUNTER.zip'
       - '.github/workflows/build-apk.yml'
 
 permissions:
@@ -41,11 +41,11 @@ jobs:
           yes | sdkmanager --licenses >/dev/null 2>&1 || true
           sdkmanager 'platform-tools' 'platforms;android-36' 'build-tools;35.0.0'
 
-      - name: Extract V78 project
+      - name: Extract V79 project
         shell: bash
         run: |
           set -euo pipefail
-          ZIP_FILE="$GITHUB_WORKSPACE/Project3_AK_V78_ICON_LABEL_VISIBILITY.zip"
+          ZIP_FILE="$GITHUB_WORKSPACE/Project3_AK_V79_LAB_COUNTER.zip"
           test -f "$ZIP_FILE"
 
           rm -rf "$GITHUB_WORKSPACE/android_project"
@@ -58,7 +58,7 @@ jobs:
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
           echo "Project: $PROJECT_DIR"
 
-      - name: V78 icon label audit
+      - name: V79 lab counter audit
         shell: bash
         run: |
           set -euo pipefail
@@ -74,43 +74,34 @@ jobs:
           test -f "$PROJECT_DIR/app/build.gradle.kts"
           test -f "$SCREEN" && test -f "$NAV" && test -f "$GUIDE" && test -f "$GENERATOR"
           test -f "$SETTINGS" && test -f "$VM" && test -f "$REPO" && test -f "$MANIFEST"
+          test -f "$PROJECT_DIR/LAB_COUNTER_V79_NOTES.txt"
 
-          grep -Fq 'versionCode = 78' "$PROJECT_DIR/app/build.gradle.kts"
-          grep -Fq 'versionName = "4.45-icon-label-visibility-v78"' "$PROJECT_DIR/app/build.gradle.kts"
+          grep -Fq 'versionCode = 79' "$PROJECT_DIR/app/build.gradle.kts"
+          grep -Fq 'versionName = "4.46-lab-counter-v79"' "$PROJECT_DIR/app/build.gradle.kts"
 
-          # V77 full premium glow system + swipe navigation.
-          grep -Fq 'Mini3DSwipeServiceCard' "$NAV"
-          grep -Fq 'premium illuminated 3D swipe launcher' "$NAV"
-          grep -Fq 'R.drawable.mgr_reports_3d' "$SCREEN"
-          grep -Fq 'R.drawable.mgr_health_3d' "$SCREEN"
-          grep -Fq 'Icon Label Visibility Fix' "$PROJECT_DIR/V78_ICON_LABEL_VISIBILITY_NOTES.txt"
-          grep -Fq 'LazyRow' "$NAV"
-          grep -Fq 'rememberLazyListState' "$NAV"
-          grep -Fq 'animateScrollToItem' "$NAV"
-          grep -Fq 'staff_tests_3d' "$NAV"
-          grep -Fq 'staff_quick_image_3d' "$NAV"
-          grep -Fq 'staff_new_order_3d' "$NAV"
-          grep -Fq 'staff_customers_3d' "$NAV"
-          grep -Fq 'staff_qr_3d' "$NAV"
-          grep -Fq 'ambientColor = item.glow' "$NAV"
-          grep -Fq 'scaleX = scale' "$NAV"
-
-          # V75/V74 production features retained.
-          grep -Fq '"quick_image"' "$SCREEN"
-          grep -Fq 'fun generateQuickTestsImage' "$GENERATOR"
-          grep -Fq 'حفظ الصورة' "$SCREEN"
+          # Counter-first workflow.
+          grep -Fq 'private fun LabCounterHeader' "$SCREEN"
+          grep -Fq 'private fun LabCounterSelectedSection' "$SCREEN"
+          grep -Fq 'private fun CounterToolsDock' "$SCREEN"
+          grep -Fq 'counterAutoSaveAfterCustomerPick' "$SCREEN"
+          grep -Fq 'إضافة عميل وحفظ الطلب' "$SCREEN"
+          grep -Fq 'حفظ صورة' "$SCREEN"
+          grep -Fq 'بدء طلب جديد / تفريغ الشاشة' "$SCREEN"
+          grep -Fq 'saveCounterOrderForCustomer' "$SCREEN"
+          grep -Fq 'generateQuickTestsImage' "$SCREEN"
           grep -Fq 'saveGeneratedImageToGallery' "$SCREEN"
+
+          # Premium UI + guide + security retained.
+          grep -Fq 'Mini3DSwipeServiceCard' "$NAV"
           grep -Fq 'generateGuideHologramImage' "$GUIDE"
-          grep -Fq 'حفظ صورة' "$GUIDE"
+          grep -Fq 'fun generateQuickTestsImage' "$GENERATOR"
           grep -Fq 'fun changeAdminPin' "$VM"
           grep -Fq 'تغيير PIN الإدارة' "$SETTINGS"
-          grep -Fq 'adminPinFailedAttempts >= 5' "$VM"
-          grep -Fq 'الأسعار\nLab 2 Lab' "$SCREEN"
           grep -Fq 'HBsAg' "$REPO"
           grep -Fq 'android:allowBackup="false"' "$MANIFEST"
           grep -Fq 'android:usesCleartextTraffic="false"' "$MANIFEST"
 
-          echo 'V78 icon label audit passed'
+          echo 'V79 lab counter audit passed'
 
       - name: Restore original release signing
         shell: bash
@@ -148,7 +139,7 @@ jobs:
           echo "KEY_ALIAS=$KEY_ALIAS" >> "$GITHUB_ENV"
           echo "KEY_PASSWORD=$KEY_PASSWORD" >> "$GITHUB_ENV"
 
-      - name: Build signed V78 Release APK
+      - name: Build signed V79 Release APK
         shell: bash
         run: |
           set -euo pipefail
@@ -166,23 +157,23 @@ jobs:
           test -f "$APK_FILE"
 
           mkdir -p "$GITHUB_WORKSPACE/output"
-          cp "$APK_FILE" "$GITHUB_WORKSPACE/output/Tahalil-Alakkad-V78.apk"
-          ls -lh "$GITHUB_WORKSPACE/output/Tahalil-Alakkad-V78.apk"
+          cp "$APK_FILE" "$GITHUB_WORKSPACE/output/Tahalil-Alakkad-V79.apk"
+          ls -lh "$GITHUB_WORKSPACE/output/Tahalil-Alakkad-V79.apk"
 
       - name: Verify APK signature
         shell: bash
         run: |
           set -euo pipefail
-          APK="$GITHUB_WORKSPACE/output/Tahalil-Alakkad-V78.apk"
+          APK="$GITHUB_WORKSPACE/output/Tahalil-Alakkad-V79.apk"
           APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -1)"
           test -x "$APKSIGNER"
           "$APKSIGNER" verify --verbose --print-certs "$APK"
 
-      - name: Upload V78 APK
+      - name: Upload V79 APK
         uses: actions/upload-artifact@v4
         with:
-          name: Tahalil-Alakkad-V78
-          path: output/Tahalil-Alakkad-V78.apk
+          name: Tahalil-Alakkad-V79-LAB-COUNTER
+          path: output/Tahalil-Alakkad-V79.apk
           if-no-files-found: error
           retention-days: 30
           
