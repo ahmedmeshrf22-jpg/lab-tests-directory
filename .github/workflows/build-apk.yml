@@ -1,4 +1,4 @@
-name: Build Tahalil Alakkad V77 FULL PREMIUM GLOW 3D
+name: Build Tahalil Alakkad V77 FULL PREMIUM GLOW 3D FIX
 
 on:
   workflow_dispatch:
@@ -83,7 +83,7 @@ jobs:
           grep -Fq 'premium illuminated 3D swipe launcher' "$NAV"
           grep -Fq 'R.drawable.mgr_reports_3d' "$SCREEN"
           grep -Fq 'R.drawable.mgr_health_3d' "$SCREEN"
-          grep -Fq 'FULL PREMIUM' "$PROJECT_DIR/V77_FULL_PREMIUM_GLOW_3D_NOTES.txt"
+          grep -Fq 'Full Premium Glow 3D UI' "$PROJECT_DIR/V77_FULL_PREMIUM_GLOW_3D_NOTES.txt"
           grep -Fq 'LazyRow' "$NAV"
           grep -Fq 'rememberLazyListState' "$NAV"
           grep -Fq 'animateScrollToItem' "$NAV"
