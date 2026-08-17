@@ -1,11 +1,11 @@
-name: Build Tahalil Alakkad V72 TEST GUIDE RELEASE
+name: Build Tahalil Alakkad V73 SIMPLIFIED RELEASE
 
 on:
   workflow_dispatch:
   push:
     branches: [ main ]
     paths:
-      - 'Project3_AK_V72_TEST_GUIDE_HOLOGRAM.zip'
+      - 'Project3_AK_V73_SIMPLIFIED_WORKFLOW_IMAGES.zip'
       - '.github/workflows/build-apk.yml'
 
 permissions:
@@ -41,11 +41,11 @@ jobs:
           yes | sdkmanager --licenses >/dev/null 2>&1 || true
           sdkmanager 'platform-tools' 'platforms;android-36' 'build-tools;35.0.0'
 
-      - name: Extract V72 project
+      - name: Extract V73 project
         shell: bash
         run: |
           set -euo pipefail
-          ZIP_FILE="$GITHUB_WORKSPACE/Project3_AK_V72_TEST_GUIDE_HOLOGRAM.zip"
+          ZIP_FILE="$GITHUB_WORKSPACE/Project3_AK_V73_SIMPLIFIED_WORKFLOW_IMAGES.zip"
           test -f "$ZIP_FILE"
 
           rm -rf "$GITHUB_WORKSPACE/android_project"
@@ -58,46 +58,75 @@ jobs:
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
           echo "Project: $PROJECT_DIR"
 
-      - name: Verify V72
+      - name: Verify V73
         shell: bash
         run: |
           set -euo pipefail
+          SCREEN="$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+          CUSTOMER="$PROJECT_DIR/app/src/main/java/com/example/ui/CustomerSystemDialog.kt"
+          OUTPUT="$PROJECT_DIR/app/src/main/java/com/example/ui/OrderImageShareDialog.kt"
+          GUIDE="$PROJECT_DIR/app/src/main/java/com/example/ui/TestGuideDialog.kt"
+          REPO="$PROJECT_DIR/app/src/main/java/com/example/data/repository/LabTestRepository.kt"
+          MANIFEST="$PROJECT_DIR/app/src/main/AndroidManifest.xml"
+
           test -f "$PROJECT_DIR/app/build.gradle.kts"
-          test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-          test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/TestGuideDialog.kt"
-          test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/DailyServicesNav.kt"
-          test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/CustomerSystemDialog.kt"
-          test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
+          test -f "$SCREEN"
+          test -f "$CUSTOMER"
+          test -f "$OUTPUT"
+          test -f "$GUIDE"
+          test -f "$REPO"
+          test -f "$MANIFEST"
 
-          grep -q 'versionCode = 72' "$PROJECT_DIR/app/build.gradle.kts"
-          grep -q 'versionName = "4.39-test-guide-hologram-v72"' "$PROJECT_DIR/app/build.gradle.kts"
+          grep -q 'versionCode = 73' "$PROJECT_DIR/app/build.gradle.kts"
+          grep -q 'versionName = "4.40-simplified-workflow-images-v73"' "$PROJECT_DIR/app/build.gradle.kts"
 
-          # V72 medical guide / hologram.
-          grep -q 'fun TestGuideMoreButton' "$PROJECT_DIR/app/src/main/java/com/example/ui/TestGuideDialog.kt"
-          grep -q 'TestGuideHologramDialog' "$PROJECT_DIR/app/src/main/java/com/example/ui/TestGuideDialog.kt"
-          grep -q 'WHO Phlebotomy' "$PROJECT_DIR/app/src/main/java/com/example/ui/TestGuideDialog.kt"
-          grep -q 'BD Vacutainer' "$PROJECT_DIR/app/src/main/java/com/example/ui/TestGuideDialog.kt"
-          grep -q 'CDC — Hepatitis B testing' "$PROJECT_DIR/app/src/main/java/com/example/ui/TestGuideDialog.kt"
-          grep -q 'MedlinePlus — TSH Test' "$PROJECT_DIR/app/src/main/java/com/example/ui/TestGuideDialog.kt"
-          grep -q 'search_test_guide_' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-          grep -q 'catalog_test_guide_' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+          # V73: clean home + bottom controls.
+          grep -q 'fun ManagerHomeDashboard' "$SCREEN"
+          grep -q 'fun BottomUtilityCard' "$SCREEN"
+          grep -q 'الأسعار\\nLab 2 Lab' "$SCREEN"
+          grep -q 'onPrices = { requireAdmin { showManagerDashboard = true } }' "$SCREEN"
 
-          # Preserve V71 linked daily services + required partial/unpaid amount.
-          grep -q 'fun DailyServicesNavBar' "$PROJECT_DIR/app/src/main/java/com/example/ui/DailyServicesNav.kt"
-          grep -q 'paidEntryRequired = paymentStatus == "partial" || paymentStatus == "unpaid"' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-          grep -q 'المبلغ المسدد (إجباري)' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-          grep -q 'paidEntryRequired = paymentStatus == "partial" || paymentStatus == "unpaid"' "$PROJECT_DIR/app/src/main/java/com/example/ui/CustomerSystemDialog.kt"
+          # Daily screens must not receive Lab 2 Lab pricing/edit access.
+          grep -q 'isManager = false' "$SCREEN"
+          grep -q 'lab2LabPrices = emptyMap()' "$SCREEN"
+          grep -q 'onEditPrices = {}' "$SCREEN"
 
-          # Preserve V70 result actions.
-          grep -q 'price_results_add_all' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-          grep -q 'price_results_customer' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-          grep -q 'price_results_output' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+          # V73: image-only output and Android input surface.
+          grep -q 'fun OrderImageShareDialog' "$OUTPUT"
+          grep -q 'صورة العميل' "$OUTPUT"
+          grep -q 'صورة طلب المعمل' "$OUTPUT"
+          grep -q 'generateCustomerOrderImage' "$OUTPUT"
+          grep -q 'generateLabRequestImage' "$OUTPUT"
+          ! grep -q 'application/pdf' "$MANIFEST"
+          grep -q 'arrayOf("image/\*")' "$SCREEN"
 
-          # Preserve fuzzy / HBsAg search behavior.
-          grep -q 'private fun editDistance' "$PROJECT_DIR/app/src/main/java/com/example/data/repository/LabTestRepository.kt"
-          grep -q 'HBsAg' "$PROJECT_DIR/app/src/main/java/com/example/data/repository/LabTestRepository.kt"
+          # Minimal customer data + calendar.
+          grep -q 'DatePickerDialog' "$CUSTOMER"
+          grep -q 'رقم واتساب' "$CUSTOMER"
+          grep -q 'بيانات أساسية فقط' "$CUSTOMER"
 
-          echo 'V72 verification passed'
+          # Required paid amount for partial / unpaid remains enforced in both flows.
+          grep -q 'paidEntryRequired = paymentStatus == "partial" || paymentStatus == "unpaid"' "$SCREEN"
+          grep -q 'المبلغ المسدد (إجباري)' "$SCREEN"
+          grep -q 'paidEntryRequired = paymentStatus == "partial" || paymentStatus == "unpaid"' "$CUSTOMER"
+          grep -q 'المبلغ المسدد (إجباري)' "$CUSTOMER"
+
+          # Preserve V72 medical guide.
+          grep -q 'fun TestGuideMoreButton' "$GUIDE"
+          grep -q 'TestGuideHologramDialog' "$GUIDE"
+          grep -q 'WHO Phlebotomy' "$GUIDE"
+          grep -q 'BD Vacutainer' "$GUIDE"
+          grep -q 'CDC — Hepatitis B testing' "$GUIDE"
+          grep -q 'MedlinePlus — TSH Test' "$GUIDE"
+
+          # Preserve V70/V69 behavior.
+          grep -q 'price_results_add_all' "$SCREEN"
+          grep -q 'price_results_customer' "$SCREEN"
+          grep -q 'price_results_output' "$SCREEN"
+          grep -q 'private fun editDistance' "$REPO"
+          grep -q 'HBsAg' "$REPO"
+
+          echo 'V73 verification passed'
 
       - name: Restore original release signing
         shell: bash
@@ -153,14 +182,14 @@ jobs:
           test -f "$APK_FILE"
 
           mkdir -p "$GITHUB_WORKSPACE/output"
-          cp "$APK_FILE" "$GITHUB_WORKSPACE/output/Tahalil-Alakkad-V72-RELEASE.apk"
-          ls -lh "$GITHUB_WORKSPACE/output/Tahalil-Alakkad-V72-RELEASE.apk"
+          cp "$APK_FILE" "$GITHUB_WORKSPACE/output/Tahalil-Alakkad-V73-RELEASE.apk"
+          ls -lh "$GITHUB_WORKSPACE/output/Tahalil-Alakkad-V73-RELEASE.apk"
 
       - name: Upload signed APK
         uses: actions/upload-artifact@v4
         with:
-          name: Tahalil-Alakkad-V72-RELEASE
-          path: output/Tahalil-Alakkad-V72-RELEASE.apk
+          name: Tahalil-Alakkad-V73-RELEASE
+          path: output/Tahalil-Alakkad-V73-RELEASE.apk
           if-no-files-found: error
           retention-days: 30
           
