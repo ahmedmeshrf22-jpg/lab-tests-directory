@@ -1,11 +1,11 @@
-name: Build Tahalil Alakkad V73 SIMPLIFIED RELEASE
+name: Build Tahalil Alakkad V74 FINAL PRODUCTION
 
 on:
   workflow_dispatch:
   push:
     branches: [ main ]
     paths:
-      - 'Project3_AK_V73_SIMPLIFIED_WORKFLOW_IMAGES.zip'
+      - 'Project3_AK_V74_FINAL_PRODUCTION.zip'
       - '.github/workflows/build-apk.yml'
 
 permissions:
@@ -41,11 +41,11 @@ jobs:
           yes | sdkmanager --licenses >/dev/null 2>&1 || true
           sdkmanager 'platform-tools' 'platforms;android-36' 'build-tools;35.0.0'
 
-      - name: Extract V73 project
+      - name: Extract V74 production project
         shell: bash
         run: |
           set -euo pipefail
-          ZIP_FILE="$GITHUB_WORKSPACE/Project3_AK_V73_SIMPLIFIED_WORKFLOW_IMAGES.zip"
+          ZIP_FILE="$GITHUB_WORKSPACE/Project3_AK_V74_FINAL_PRODUCTION.zip"
           test -f "$ZIP_FILE"
 
           rm -rf "$GITHUB_WORKSPACE/android_project"
@@ -58,7 +58,7 @@ jobs:
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
           echo "Project: $PROJECT_DIR"
 
-      - name: Verify V73
+      - name: Production feature audit
         shell: bash
         run: |
           set -euo pipefail
@@ -66,67 +66,67 @@ jobs:
           CUSTOMER="$PROJECT_DIR/app/src/main/java/com/example/ui/CustomerSystemDialog.kt"
           OUTPUT="$PROJECT_DIR/app/src/main/java/com/example/ui/OrderImageShareDialog.kt"
           GUIDE="$PROJECT_DIR/app/src/main/java/com/example/ui/TestGuideDialog.kt"
+          SETTINGS="$PROJECT_DIR/app/src/main/java/com/example/ui/ManagerSettingsDialog.kt"
+          VM="$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
+          APP_SETTINGS="$PROJECT_DIR/app/src/main/java/com/example/settings/AppSettings.kt"
+          GENERATOR="$PROJECT_DIR/app/src/main/java/com/example/util/PdfGenerator.kt"
           REPO="$PROJECT_DIR/app/src/main/java/com/example/data/repository/LabTestRepository.kt"
           MANIFEST="$PROJECT_DIR/app/src/main/AndroidManifest.xml"
 
           test -f "$PROJECT_DIR/app/build.gradle.kts"
-          test -f "$SCREEN"
-          test -f "$CUSTOMER"
-          test -f "$OUTPUT"
-          test -f "$GUIDE"
-          test -f "$REPO"
-          test -f "$MANIFEST"
+          test -f "$SCREEN" && test -f "$CUSTOMER" && test -f "$OUTPUT"
+          test -f "$GUIDE" && test -f "$SETTINGS" && test -f "$VM"
+          test -f "$APP_SETTINGS" && test -f "$GENERATOR" && test -f "$REPO" && test -f "$MANIFEST"
 
-          grep -q 'versionCode = 73' "$PROJECT_DIR/app/build.gradle.kts"
-          grep -q 'versionName = "4.40-simplified-workflow-images-v73"' "$PROJECT_DIR/app/build.gradle.kts"
+          grep -Fq 'versionCode = 74' "$PROJECT_DIR/app/build.gradle.kts"
+          grep -Fq 'versionName = "4.41-production-final-v74"' "$PROJECT_DIR/app/build.gradle.kts"
 
-          # V73: clean home + bottom controls.
-          grep -q 'fun ManagerHomeDashboard' "$SCREEN"
-          grep -q 'fun BottomUtilityCard' "$SCREEN"
-          grep -q 'الأسعار\\nLab 2 Lab' "$SCREEN"
-          grep -q 'onPrices = { requireAdmin { showManagerDashboard = true } }' "$SCREEN"
+          # Admin PIN: changeable, no fixed verifier shipped, no admin-account bootstrap during unlock.
+          grep -Fq 'fun changeAdminPin' "$VM"
+          grep -Fq 'تغيير PIN الإدارة' "$SETTINGS"
+          ! grep -Fq 'ADMIN_PIN_VERIFIER' "$VM"
+          ! sed -n '/fun unlockAdmin/,/fun changeAdminPin/p' "$VM" | grep -Fq 'createUserWithEmailAndPassword'
+          grep -Fq 'adminPinFailedAttempts >= 5' "$VM"
 
-          # Daily screens must not receive Lab 2 Lab pricing/edit access.
-          grep -q 'isManager = false' "$SCREEN"
-          grep -q 'lab2LabPrices = emptyMap()' "$SCREEN"
-          grep -q 'onEditPrices = {}' "$SCREEN"
+          # Sensitive prices isolated from normal settings/daily surfaces.
+          grep -Fq 'showLab2LabPrice = false' "$APP_SETTINGS"
+          grep -Fq 'pdfIncludeLab2LabPrice = false' "$APP_SETTINGS"
+          grep -Fq 'الأسعار\nLab 2 Lab' "$SCREEN"
+          grep -Fq 'onPrices = { requireAdmin { showManagerDashboard = true } }' "$SCREEN"
 
-          # V73: image-only output and Android input surface.
-          grep -q 'fun OrderImageShareDialog' "$OUTPUT"
-          grep -q 'صورة العميل' "$OUTPUT"
-          grep -q 'صورة طلب المعمل' "$OUTPUT"
-          grep -q 'generateCustomerOrderImage' "$OUTPUT"
-          grep -q 'generateLabRequestImage' "$OUTPUT"
-          ! grep -q 'application/pdf' "$MANIFEST"
-          grep -q 'arrayOf("image/\*")' "$SCREEN"
+          # Image-only user flow + direct save to phone Gallery/Pictures.
+          grep -Fq 'fun OrderImageShareDialog' "$OUTPUT"
+          grep -Fq 'حفظ' "$OUTPUT"
+          grep -Fq 'مشاركة' "$OUTPUT"
+          grep -Fq 'saveGeneratedImageToGallery' "$OUTPUT"
+          grep -Fq 'MediaStore.Images.Media.RELATIVE_PATH' "$GENERATOR"
+          grep -Fq 'Pictures / Tahalil Alakkad' "$GENERATOR"
+          ! grep -Fq 'application/pdf' "$MANIFEST"
+          grep -Fq 'arrayOf("image/*")' "$SCREEN"
 
-          # Minimal customer data + calendar.
-          grep -q 'DatePickerDialog' "$CUSTOMER"
-          grep -q 'رقم واتساب' "$CUSTOMER"
-          grep -q 'بيانات أساسية فقط' "$CUSTOMER"
+          # Minimal customer data, calendar, and payment validation.
+          grep -Fq 'بيانات أساسية فقط' "$CUSTOMER"
+          grep -Fq 'رقم واتساب' "$CUSTOMER"
+          grep -Fq 'DatePickerDialog' "$CUSTOMER"
+          grep -Fq 'paidEntryRequired = paymentStatus == "partial" || paymentStatus == "unpaid"' "$SCREEN"
+          grep -Fq 'المبلغ المسدد (إجباري)' "$SCREEN"
 
-          # Required paid amount for partial / unpaid remains enforced in both flows.
-          grep -q 'paidEntryRequired = paymentStatus == "partial" || paymentStatus == "unpaid"' "$SCREEN"
-          grep -q 'المبلغ المسدد (إجباري)' "$SCREEN"
-          grep -q 'paidEntryRequired = paymentStatus == "partial" || paymentStatus == "unpaid"' "$CUSTOMER"
-          grep -q 'المبلغ المسدد (إجباري)' "$CUSTOMER"
+          # Duplicate-order protection on slow taps/network.
+          grep -Fq 'var savingOrder by remember' "$SCREEN"
+          grep -Fq 'enabled = paidEntryValid && !savingOrder' "$SCREEN"
 
-          # Preserve V72 medical guide.
-          grep -q 'fun TestGuideMoreButton' "$GUIDE"
-          grep -q 'TestGuideHologramDialog' "$GUIDE"
-          grep -q 'WHO Phlebotomy' "$GUIDE"
-          grep -q 'BD Vacutainer' "$GUIDE"
-          grep -q 'CDC — Hepatitis B testing' "$GUIDE"
-          grep -q 'MedlinePlus — TSH Test' "$GUIDE"
+          # Search/batch workflow and medical guide preserved.
+          grep -Fq 'price_results_add_all' "$SCREEN"
+          grep -Fq 'private fun editDistance' "$REPO"
+          grep -Fq 'HBsAg' "$REPO"
+          grep -Fq 'fun TestGuideMoreButton' "$GUIDE"
+          grep -Fq 'TestGuideHologramDialog' "$GUIDE"
 
-          # Preserve V70/V69 behavior.
-          grep -q 'price_results_add_all' "$SCREEN"
-          grep -q 'price_results_customer' "$SCREEN"
-          grep -q 'price_results_output' "$SCREEN"
-          grep -q 'private fun editDistance' "$REPO"
-          grep -q 'HBsAg' "$REPO"
+          # Security baseline.
+          grep -Fq 'android:allowBackup="false"' "$MANIFEST"
+          grep -Fq 'android:usesCleartextTraffic="false"' "$MANIFEST"
 
-          echo 'V73 verification passed'
+          echo 'V74 production audit passed'
 
       - name: Restore original release signing
         shell: bash
@@ -164,7 +164,7 @@ jobs:
           echo "KEY_ALIAS=$KEY_ALIAS" >> "$GITHUB_ENV"
           echo "KEY_PASSWORD=$KEY_PASSWORD" >> "$GITHUB_ENV"
 
-      - name: Build signed Release APK
+      - name: Build signed production Release APK
         shell: bash
         run: |
           set -euo pipefail
@@ -182,14 +182,23 @@ jobs:
           test -f "$APK_FILE"
 
           mkdir -p "$GITHUB_WORKSPACE/output"
-          cp "$APK_FILE" "$GITHUB_WORKSPACE/output/Tahalil-Alakkad-V73-RELEASE.apk"
-          ls -lh "$GITHUB_WORKSPACE/output/Tahalil-Alakkad-V73-RELEASE.apk"
+          cp "$APK_FILE" "$GITHUB_WORKSPACE/output/Tahalil-Alakkad-V74-FINAL.apk"
+          ls -lh "$GITHUB_WORKSPACE/output/Tahalil-Alakkad-V74-FINAL.apk"
 
-      - name: Upload signed APK
+      - name: Verify APK signature
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="$GITHUB_WORKSPACE/output/Tahalil-Alakkad-V74-FINAL.apk"
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -1)"
+          test -x "$APKSIGNER"
+          "$APKSIGNER" verify --verbose --print-certs "$APK"
+
+      - name: Upload final APK
         uses: actions/upload-artifact@v4
         with:
-          name: Tahalil-Alakkad-V73-RELEASE
-          path: output/Tahalil-Alakkad-V73-RELEASE.apk
+          name: Tahalil-Alakkad-V74-FINAL
+          path: output/Tahalil-Alakkad-V74-FINAL.apk
           if-no-files-found: error
           retention-days: 30
           
