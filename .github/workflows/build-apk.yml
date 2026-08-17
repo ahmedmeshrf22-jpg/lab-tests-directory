@@ -1,11 +1,11 @@
-name: Build Tahalil Alakkad V70 RELEASE
+name: Build Tahalil Alakkad V71 RELEASE
 
 on:
   workflow_dispatch:
   push:
     branches: [ main ]
     paths:
-      - 'Project3_AK_V70_PRICE_RESULTS_ACTIONS.zip'
+      - 'Project3_AK_V71_LINKED_DAILY_SERVICES_PAYMENT.zip'
       - '.github/workflows/build-apk.yml'
 
 permissions:
@@ -41,11 +41,11 @@ jobs:
           yes | sdkmanager --licenses >/dev/null 2>&1 || true
           sdkmanager 'platform-tools' 'platforms;android-36' 'build-tools;35.0.0'
 
-      - name: Extract V70 project
+      - name: Extract V71 project
         shell: bash
         run: |
           set -euo pipefail
-          ZIP_FILE="$GITHUB_WORKSPACE/Project3_AK_V70_PRICE_RESULTS_ACTIONS.zip"
+          ZIP_FILE="$GITHUB_WORKSPACE/Project3_AK_V71_LINKED_DAILY_SERVICES_PAYMENT.zip"
           test -f "$ZIP_FILE"
 
           rm -rf "$GITHUB_WORKSPACE/android_project"
@@ -58,24 +58,41 @@ jobs:
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
           echo "Project: $PROJECT_DIR"
 
-      - name: Verify V70
+      - name: Verify V71
         shell: bash
         run: |
           set -euo pipefail
           test -f "$PROJECT_DIR/app/build.gradle.kts"
           test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+          test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/CustomerSystemDialog.kt"
+          test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/DailyServicesNav.kt"
           test -f "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
 
-          grep -q 'versionCode = 70' "$PROJECT_DIR/app/build.gradle.kts"
-          grep -q 'versionName = "4.37-price-results-actions-v70"' "$PROJECT_DIR/app/build.gradle.kts"
+          grep -q 'versionCode = 71' "$PROJECT_DIR/app/build.gradle.kts"
+          grep -q 'versionName = "4.38-linked-daily-services-payment-v71"' "$PROJECT_DIR/app/build.gradle.kts"
+
+          # Preserve V70 result actions.
           grep -q 'price_results_add_all' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
           grep -q 'price_results_customer' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
           grep -q 'price_results_output' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
           grep -q 'fun addTestsToSelection' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
+
+          # V71 linked daily services, excluding Administration.
+          grep -q 'fun DailyServicesNavBar' "$PROJECT_DIR/app/src/main/java/com/example/ui/DailyServicesNav.kt"
+          grep -q 'active = managerMainMode' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+          grep -q 'active = "customers"' "$PROJECT_DIR/app/src/main/java/com/example/ui/CustomerSystemDialog.kt"
+          grep -q 'active = "scan"' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+
+          # V71 required settled amount for partial/unpaid.
+          grep -q 'paidEntryRequired = paymentStatus == "partial" || paymentStatus == "unpaid"' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+          grep -q 'المبلغ المسدد (إجباري)' "$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
+          grep -q 'paidEntryRequired = paymentStatus == "partial" || paymentStatus == "unpaid"' "$PROJECT_DIR/app/src/main/java/com/example/ui/CustomerSystemDialog.kt"
+
+          # Preserve V68/V69 search behavior.
           grep -q 'private fun editDistance' "$PROJECT_DIR/app/src/main/java/com/example/data/repository/LabTestRepository.kt"
           grep -q 'HBsAg' "$PROJECT_DIR/app/src/main/java/com/example/data/repository/LabTestRepository.kt"
 
-          echo 'V70 verification passed'
+          echo 'V71 verification passed'
 
       - name: Restore original release signing
         shell: bash
@@ -131,14 +148,14 @@ jobs:
           test -f "$APK_FILE"
 
           mkdir -p "$GITHUB_WORKSPACE/output"
-          cp "$APK_FILE" "$GITHUB_WORKSPACE/output/Tahalil-Alakkad-V70-RELEASE.apk"
-          ls -lh "$GITHUB_WORKSPACE/output/Tahalil-Alakkad-V70-RELEASE.apk"
+          cp "$APK_FILE" "$GITHUB_WORKSPACE/output/Tahalil-Alakkad-V71-RELEASE.apk"
+          ls -lh "$GITHUB_WORKSPACE/output/Tahalil-Alakkad-V71-RELEASE.apk"
 
       - name: Upload signed APK
         uses: actions/upload-artifact@v4
         with:
-          name: Tahalil-Alakkad-V70-RELEASE
-          path: output/Tahalil-Alakkad-V70-RELEASE.apk
+          name: Tahalil-Alakkad-V71-RELEASE
+          path: output/Tahalil-Alakkad-V71-RELEASE.apk
           if-no-files-found: error
           retention-days: 30
           
