@@ -1,11 +1,11 @@
-name: Build Tahalil Alakkad V71 RELEASE
+name: Build Tahalil Alakkad V71 FIXED RELEASE
 
 on:
   workflow_dispatch:
   push:
     branches: [ main ]
     paths:
-      - 'Project3_AK_V71_LINKED_DAILY_SERVICES_PAYMENT.zip'
+      - 'Project3_AK_V71_LINKED_DAILY_SERVICES_PAYMENT_FIX.zip'
       - '.github/workflows/build-apk.yml'
 
 permissions:
@@ -45,7 +45,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          ZIP_FILE="$GITHUB_WORKSPACE/Project3_AK_V71_LINKED_DAILY_SERVICES_PAYMENT.zip"
+          ZIP_FILE="$GITHUB_WORKSPACE/Project3_AK_V71_LINKED_DAILY_SERVICES_PAYMENT_FIX.zip"
           test -f "$ZIP_FILE"
 
           rm -rf "$GITHUB_WORKSPACE/android_project"
