@@ -1,11 +1,11 @@
-name: Build Tahalil Alakkad V76 3D SWIPE NAV
+name: Build Tahalil Alakkad V77 FULL PREMIUM GLOW 3D
 
 on:
   workflow_dispatch:
   push:
     branches: [ main ]
     paths:
-      - 'Project3_AK_V76_3D_SWIPE_NAV.zip'
+      - 'Project3_AK_V77_FULL_PREMIUM_GLOW_3D.zip'
       - '.github/workflows/build-apk.yml'
 
 permissions:
@@ -41,11 +41,11 @@ jobs:
           yes | sdkmanager --licenses >/dev/null 2>&1 || true
           sdkmanager 'platform-tools' 'platforms;android-36' 'build-tools;35.0.0'
 
-      - name: Extract V76 project
+      - name: Extract V77 project
         shell: bash
         run: |
           set -euo pipefail
-          ZIP_FILE="$GITHUB_WORKSPACE/Project3_AK_V76_3D_SWIPE_NAV.zip"
+          ZIP_FILE="$GITHUB_WORKSPACE/Project3_AK_V77_FULL_PREMIUM_GLOW_3D.zip"
           test -f "$ZIP_FILE"
 
           rm -rf "$GITHUB_WORKSPACE/android_project"
@@ -58,7 +58,7 @@ jobs:
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
           echo "Project: $PROJECT_DIR"
 
-      - name: V76 feature audit
+      - name: V77 premium feature audit
         shell: bash
         run: |
           set -euo pipefail
@@ -75,11 +75,15 @@ jobs:
           test -f "$SCREEN" && test -f "$NAV" && test -f "$GUIDE" && test -f "$GENERATOR"
           test -f "$SETTINGS" && test -f "$VM" && test -f "$REPO" && test -f "$MANIFEST"
 
-          grep -Fq 'versionCode = 76' "$PROJECT_DIR/app/build.gradle.kts"
-          grep -Fq 'versionName = "4.43-3d-swipe-nav-v76"' "$PROJECT_DIR/app/build.gradle.kts"
+          grep -Fq 'versionCode = 77' "$PROJECT_DIR/app/build.gradle.kts"
+          grep -Fq 'versionName = "4.44-full-premium-glow-3d-v77"' "$PROJECT_DIR/app/build.gradle.kts"
 
-          # V76 miniature 3D swipe navigation inside all daily workspaces.
+          # V77 full premium glow system + swipe navigation.
           grep -Fq 'Mini3DSwipeServiceCard' "$NAV"
+          grep -Fq 'premium illuminated 3D swipe launcher' "$NAV"
+          grep -Fq 'R.drawable.mgr_reports_3d' "$SCREEN"
+          grep -Fq 'R.drawable.mgr_health_3d' "$SCREEN"
+          grep -Fq 'FULL PREMIUM' "$PROJECT_DIR/V77_FULL_PREMIUM_GLOW_3D_NOTES.txt"
           grep -Fq 'LazyRow' "$NAV"
           grep -Fq 'rememberLazyListState' "$NAV"
           grep -Fq 'animateScrollToItem' "$NAV"
@@ -106,7 +110,7 @@ jobs:
           grep -Fq 'android:allowBackup="false"' "$MANIFEST"
           grep -Fq 'android:usesCleartextTraffic="false"' "$MANIFEST"
 
-          echo 'V76 feature audit passed'
+          echo 'V77 premium feature audit passed'
 
       - name: Restore original release signing
         shell: bash
@@ -144,7 +148,7 @@ jobs:
           echo "KEY_ALIAS=$KEY_ALIAS" >> "$GITHUB_ENV"
           echo "KEY_PASSWORD=$KEY_PASSWORD" >> "$GITHUB_ENV"
 
-      - name: Build signed V76 Release APK
+      - name: Build signed V77 Release APK
         shell: bash
         run: |
           set -euo pipefail
@@ -162,23 +166,23 @@ jobs:
           test -f "$APK_FILE"
 
           mkdir -p "$GITHUB_WORKSPACE/output"
-          cp "$APK_FILE" "$GITHUB_WORKSPACE/output/Tahalil-Alakkad-V76.apk"
-          ls -lh "$GITHUB_WORKSPACE/output/Tahalil-Alakkad-V76.apk"
+          cp "$APK_FILE" "$GITHUB_WORKSPACE/output/Tahalil-Alakkad-V77.apk"
+          ls -lh "$GITHUB_WORKSPACE/output/Tahalil-Alakkad-V77.apk"
 
       - name: Verify APK signature
         shell: bash
         run: |
           set -euo pipefail
-          APK="$GITHUB_WORKSPACE/output/Tahalil-Alakkad-V76.apk"
+          APK="$GITHUB_WORKSPACE/output/Tahalil-Alakkad-V77.apk"
           APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -1)"
           test -x "$APKSIGNER"
           "$APKSIGNER" verify --verbose --print-certs "$APK"
 
-      - name: Upload V76 APK
+      - name: Upload V77 APK
         uses: actions/upload-artifact@v4
         with:
-          name: Tahalil-Alakkad-V76
-          path: output/Tahalil-Alakkad-V76.apk
+          name: Tahalil-Alakkad-V77
+          path: output/Tahalil-Alakkad-V77.apk
           if-no-files-found: error
           retention-days: 30
           
