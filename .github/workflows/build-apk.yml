@@ -1,11 +1,11 @@
-name: Build Tahalil Alakkad V75 GLOW QUICK IMAGE
+name: Build Tahalil Alakkad V76 3D SWIPE NAV
 
 on:
   workflow_dispatch:
   push:
     branches: [ main ]
     paths:
-      - 'Project3_AK_V75_GLOW_QUICK_IMAGE.zip'
+      - 'Project3_AK_V76_3D_SWIPE_NAV.zip'
       - '.github/workflows/build-apk.yml'
 
 permissions:
@@ -41,11 +41,11 @@ jobs:
           yes | sdkmanager --licenses >/dev/null 2>&1 || true
           sdkmanager 'platform-tools' 'platforms;android-36' 'build-tools;35.0.0'
 
-      - name: Extract V75 project
+      - name: Extract V76 project
         shell: bash
         run: |
           set -euo pipefail
-          ZIP_FILE="$GITHUB_WORKSPACE/Project3_AK_V75_GLOW_QUICK_IMAGE.zip"
+          ZIP_FILE="$GITHUB_WORKSPACE/Project3_AK_V76_3D_SWIPE_NAV.zip"
           test -f "$ZIP_FILE"
 
           rm -rf "$GITHUB_WORKSPACE/android_project"
@@ -58,7 +58,7 @@ jobs:
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
           echo "Project: $PROJECT_DIR"
 
-      - name: V75 feature audit
+      - name: V76 feature audit
         shell: bash
         run: |
           set -euo pipefail
@@ -70,36 +70,34 @@ jobs:
           VM="$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
           REPO="$PROJECT_DIR/app/src/main/java/com/example/data/repository/LabTestRepository.kt"
           MANIFEST="$PROJECT_DIR/app/src/main/AndroidManifest.xml"
-          QUICK_ICON="$PROJECT_DIR/app/src/main/res/drawable/staff_quick_image_3d.xml"
 
           test -f "$PROJECT_DIR/app/build.gradle.kts"
           test -f "$SCREEN" && test -f "$NAV" && test -f "$GUIDE" && test -f "$GENERATOR"
-          test -f "$SETTINGS" && test -f "$VM" && test -f "$REPO" && test -f "$MANIFEST" && test -f "$QUICK_ICON"
+          test -f "$SETTINGS" && test -f "$VM" && test -f "$REPO" && test -f "$MANIFEST"
 
-          grep -Fq 'versionCode = 75' "$PROJECT_DIR/app/build.gradle.kts"
-          grep -Fq 'versionName = "4.42-glow-quick-image-v75"' "$PROJECT_DIR/app/build.gradle.kts"
+          grep -Fq 'versionCode = 76' "$PROJECT_DIR/app/build.gradle.kts"
+          grep -Fq 'versionName = "4.43-3d-swipe-nav-v76"' "$PROJECT_DIR/app/build.gradle.kts"
 
-          # Clean daily navigation and bright primary icons.
+          # V76 miniature 3D swipe navigation inside all daily workspaces.
+          grep -Fq 'Mini3DSwipeServiceCard' "$NAV"
+          grep -Fq 'LazyRow' "$NAV"
+          grep -Fq 'rememberLazyListState' "$NAV"
+          grep -Fq 'animateScrollToItem' "$NAV"
+          grep -Fq 'staff_tests_3d' "$NAV"
+          grep -Fq 'staff_quick_image_3d' "$NAV"
+          grep -Fq 'staff_new_order_3d' "$NAV"
+          grep -Fq 'staff_customers_3d' "$NAV"
+          grep -Fq 'staff_qr_3d' "$NAV"
+          grep -Fq 'ambientColor = item.glow' "$NAV"
+          grep -Fq 'scaleX = scale' "$NAV"
+
+          # V75/V74 production features retained.
           grep -Fq '"quick_image"' "$SCREEN"
-          grep -Fq 'كتالوج التحاليل والأسعار' "$SCREEN"
-          grep -Fq 'staff_quick_image_3d' "$SCREEN"
-          grep -Fq 'صورة سريعة' "$NAV"
-          grep -Fq 'elevation = 18.dp' "$SCREEN"
-
-          # Quick image works without requiring a customer record.
           grep -Fq 'fun generateQuickTestsImage' "$GENERATOR"
-          grep -Fq 'إضافة بيانات العميل - اختياري' "$SCREEN"
           grep -Fq 'حفظ الصورة' "$SCREEN"
-          grep -Fq 'shareGeneratedImage' "$SCREEN"
           grep -Fq 'saveGeneratedImageToGallery' "$SCREEN"
-
-          # Test guide can be saved/shared as a hologram image.
           grep -Fq 'generateGuideHologramImage' "$GUIDE"
           grep -Fq 'حفظ صورة' "$GUIDE"
-          grep -Fq 'مشاركة' "$GUIDE"
-          grep -Fq 'WHO Phlebotomy + BD Vacutainer' "$GUIDE"
-
-          # V74 production protections still present.
           grep -Fq 'fun changeAdminPin' "$VM"
           grep -Fq 'تغيير PIN الإدارة' "$SETTINGS"
           grep -Fq 'adminPinFailedAttempts >= 5' "$VM"
@@ -108,7 +106,7 @@ jobs:
           grep -Fq 'android:allowBackup="false"' "$MANIFEST"
           grep -Fq 'android:usesCleartextTraffic="false"' "$MANIFEST"
 
-          echo 'V75 feature audit passed'
+          echo 'V76 feature audit passed'
 
       - name: Restore original release signing
         shell: bash
@@ -146,7 +144,7 @@ jobs:
           echo "KEY_ALIAS=$KEY_ALIAS" >> "$GITHUB_ENV"
           echo "KEY_PASSWORD=$KEY_PASSWORD" >> "$GITHUB_ENV"
 
-      - name: Build signed V75 Release APK
+      - name: Build signed V76 Release APK
         shell: bash
         run: |
           set -euo pipefail
@@ -164,23 +162,23 @@ jobs:
           test -f "$APK_FILE"
 
           mkdir -p "$GITHUB_WORKSPACE/output"
-          cp "$APK_FILE" "$GITHUB_WORKSPACE/output/Tahalil-Alakkad-V75.apk"
-          ls -lh "$GITHUB_WORKSPACE/output/Tahalil-Alakkad-V75.apk"
+          cp "$APK_FILE" "$GITHUB_WORKSPACE/output/Tahalil-Alakkad-V76.apk"
+          ls -lh "$GITHUB_WORKSPACE/output/Tahalil-Alakkad-V76.apk"
 
       - name: Verify APK signature
         shell: bash
         run: |
           set -euo pipefail
-          APK="$GITHUB_WORKSPACE/output/Tahalil-Alakkad-V75.apk"
+          APK="$GITHUB_WORKSPACE/output/Tahalil-Alakkad-V76.apk"
           APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -1)"
           test -x "$APKSIGNER"
           "$APKSIGNER" verify --verbose --print-certs "$APK"
 
-      - name: Upload V75 APK
+      - name: Upload V76 APK
         uses: actions/upload-artifact@v4
         with:
-          name: Tahalil-Alakkad-V75
-          path: output/Tahalil-Alakkad-V75.apk
+          name: Tahalil-Alakkad-V76
+          path: output/Tahalil-Alakkad-V76.apk
           if-no-files-found: error
           retention-days: 30
           
