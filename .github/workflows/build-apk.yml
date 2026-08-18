@@ -1,11 +1,11 @@
-name: Build Tahalil Alakkad V82 PRODUCTION READY
+name: Build Tahalil Alakkad V82 PRODUCTION READY FIX
 
 on:
   workflow_dispatch:
   push:
     branches: [ main ]
     paths:
-      - 'Project3_AK_V82_PRODUCTION_READY.zip'
+      - '*.zip'
       - '.github/workflows/build-apk.yml'
 
 permissions:
@@ -41,22 +41,98 @@ jobs:
           yes | sdkmanager --licenses >/dev/null 2>&1 || true
           sdkmanager 'platform-tools' 'platforms;android-36' 'build-tools;35.0.0'
 
-      - name: Extract V82 project
+      - name: Find and extract V82 project
         shell: bash
         run: |
           set -euo pipefail
-          ZIP_FILE="$GITHUB_WORKSPACE/Project3_AK_V82_PRODUCTION_READY.zip"
-          test -f "$ZIP_FILE"
 
-          rm -rf "$GITHUB_WORKSPACE/android_project"
-          mkdir -p "$GITHUB_WORKSPACE/android_project"
-          unzip -q -o "$ZIP_FILE" -d "$GITHUB_WORKSPACE/android_project"
+          SCAN_ROOT="$RUNNER_TEMP/v82-scan"
+          rm -rf "$SCAN_ROOT"
+          mkdir -p "$SCAN_ROOT"
 
-          SETTINGS_FILE="$(find "$GITHUB_WORKSPACE/android_project" -type f -name 'settings.gradle.kts' -print -quit)"
-          test -n "$SETTINGS_FILE"
-          PROJECT_DIR="$(dirname "$SETTINGS_FILE")"
-          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
-          echo "Project: $PROJECT_DIR"
+          SELECTED_DIR=""
+          FOUND_ZIP=""
+          INDEX=0
+
+          check_project_dir() {
+            local root="$1"
+            local settings project_dir build_file
+
+            settings="$(find "$root" -type f -name 'settings.gradle.kts' -print -quit 2>/dev/null || true)"
+            [ -n "$settings" ] || return 1
+
+            project_dir="$(dirname "$settings")"
+            build_file="$project_dir/app/build.gradle.kts"
+            [ -f "$build_file" ] || return 1
+
+            grep -Fq 'versionCode = 82' "$build_file" || return 1
+            grep -Fq 'versionName = "5.2-production-ready-v82"' "$build_file" || return 1
+
+            SELECTED_DIR="$project_dir"
+            return 0
+          }
+
+          mapfile -t TOP_ZIPS < <(
+            find "$GITHUB_WORKSPACE" -maxdepth 3 -type f -iname '*.zip' -print | sort
+          )
+
+          if [ "${#TOP_ZIPS[@]}" -eq 0 ]; then
+            echo "ERROR: No ZIP files found in repository."
+            exit 1
+          fi
+
+          echo "ZIP files found:"
+          printf '%s\n' "${TOP_ZIPS[@]}"
+
+          for ZIP_FILE in "${TOP_ZIPS[@]}"; do
+            INDEX=$((INDEX + 1))
+            DEST="$SCAN_ROOT/top_$INDEX"
+            mkdir -p "$DEST"
+
+            echo "Checking: $ZIP_FILE"
+            if ! unzip -q -o "$ZIP_FILE" -d "$DEST"; then
+              echo "Skipping unreadable ZIP: $ZIP_FILE"
+              continue
+            fi
+
+            if check_project_dir "$DEST"; then
+              FOUND_ZIP="$ZIP_FILE"
+              break
+            fi
+
+            mapfile -t NESTED_ZIPS < <(
+              find "$DEST" -type f -iname '*.zip' -print | sort
+            )
+
+            NESTED_INDEX=0
+            for NESTED_ZIP in "${NESTED_ZIPS[@]}"; do
+              NESTED_INDEX=$((NESTED_INDEX + 1))
+              NESTED_DEST="$SCAN_ROOT/nested_${INDEX}_${NESTED_INDEX}"
+              mkdir -p "$NESTED_DEST"
+
+              echo "Checking nested ZIP: $NESTED_ZIP"
+              if ! unzip -q -o "$NESTED_ZIP" -d "$NESTED_DEST"; then
+                continue
+              fi
+
+              if check_project_dir "$NESTED_DEST"; then
+                FOUND_ZIP="$ZIP_FILE -> $NESTED_ZIP"
+                break 2
+              fi
+            done
+          done
+
+          if [ -z "$SELECTED_DIR" ]; then
+            echo "ERROR: Could not find the V82 project."
+            echo "Expected versionCode 82 and versionName 5.2-production-ready-v82."
+            echo "Repository ZIP files:"
+            printf '%s\n' "${TOP_ZIPS[@]}"
+            exit 1
+          fi
+
+          echo "PROJECT_DIR=$SELECTED_DIR" >> "$GITHUB_ENV"
+          echo "V82 source: $FOUND_ZIP"
+          echo "Project: $SELECTED_DIR"
 
       - name: V82 production service and security audit
         shell: bash
