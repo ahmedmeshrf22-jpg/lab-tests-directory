@@ -1,11 +1,11 @@
-name: Build Tahalil Alakkad V80 REAL LAB SYSTEM
+name: Build Tahalil Alakkad V81 SIMPLE REALISTIC 3D
 
 on:
   workflow_dispatch:
   push:
     branches: [ main ]
     paths:
-      - 'Project3_AK_V80_REAL_LAB_SYSTEM.zip'
+      - 'Project3_AK_V81_SIMPLE_REALISTIC_3D.zip'
       - '.github/workflows/build-apk.yml'
 
 permissions:
@@ -41,11 +41,11 @@ jobs:
           yes | sdkmanager --licenses >/dev/null 2>&1 || true
           sdkmanager 'platform-tools' 'platforms;android-36' 'build-tools;35.0.0'
 
-      - name: Extract V80 project
+      - name: Extract V81 project
         shell: bash
         run: |
           set -euo pipefail
-          ZIP_FILE="$GITHUB_WORKSPACE/Project3_AK_V80_REAL_LAB_SYSTEM.zip"
+          ZIP_FILE="$GITHUB_WORKSPACE/Project3_AK_V81_SIMPLE_REALISTIC_3D.zip"
           test -f "$ZIP_FILE"
 
           rm -rf "$GITHUB_WORKSPACE/android_project"
@@ -58,7 +58,7 @@ jobs:
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
           echo "Project: $PROJECT_DIR"
 
-      - name: V80 real lab system audit
+      - name: V81 realistic 3D audit
         shell: bash
         run: |
           set -euo pipefail
@@ -73,10 +73,10 @@ jobs:
 
           test -f "$SCREEN" && test -f "$WORKLIST" && test -f "$NAV" && test -f "$VM"
           test -f "$GUIDE" && test -f "$SETTINGS" && test -f "$GENERATOR" && test -f "$MANIFEST"
-          test -f "$PROJECT_DIR/V80_REAL_LAB_SYSTEM_NOTES.txt"
+          test -f "$PROJECT_DIR/V81_SIMPLE_REALISTIC_3D_NOTES.txt"
 
-          grep -Fq 'versionCode = 80' "$PROJECT_DIR/app/build.gradle.kts"
-          grep -Fq 'versionName = "5.0-real-lab-system-v80"' "$PROJECT_DIR/app/build.gradle.kts"
+          grep -Fq 'versionCode = 81' "$PROJECT_DIR/app/build.gradle.kts"
+          grep -Fq 'versionName = "5.1-simple-realistic-3d-v81"' "$PROJECT_DIR/app/build.gradle.kts"
 
           # Real operational dashboard + daily worklist.
           grep -Fq 'fun DailyWorklistScreen' "$WORKLIST"
@@ -93,10 +93,13 @@ jobs:
           grep -Fq 'العملاء والطلبات' "$SCREEN"
           grep -Fq 'onWorklist' "$NAV"
 
-          # Stable production features retained from V78/V74.
+          # V81 restrained realistic 3D medical presentation.
           grep -Fq 'Mini3DSwipeServiceCard' "$NAV"
+          grep -Fq 'Color(0xFFF6F9FC)' "$NAV"
           grep -Fq 'R.drawable.staff_new_order_3d' "$SCREEN"
+          grep -Fq 'R.drawable.staff_qr_3d' "$SCREEN"
           grep -Fq 'R.drawable.mgr_reports_3d' "$SCREEN"
+          grep -Fq 'containerColor = Color.White' "$SCREEN"
           grep -Fq 'fun generateQuickTestsImage' "$GENERATOR"
           grep -Fq 'generateGuideHologramImage' "$GUIDE"
           grep -Fq 'fun changeAdminPin' "$VM"
@@ -105,7 +108,7 @@ jobs:
           grep -Fq 'android:allowBackup="false"' "$MANIFEST"
           grep -Fq 'android:usesCleartextTraffic="false"' "$MANIFEST"
 
-          echo 'V80 real lab system audit passed'
+          echo 'V81 realistic 3D audit passed'
 
       - name: Restore original release signing
         shell: bash
@@ -143,7 +146,7 @@ jobs:
           echo "KEY_ALIAS=$KEY_ALIAS" >> "$GITHUB_ENV"
           echo "KEY_PASSWORD=$KEY_PASSWORD" >> "$GITHUB_ENV"
 
-      - name: Build signed V80 Release APK
+      - name: Build signed V81 Release APK
         shell: bash
         run: |
           set -euo pipefail
@@ -161,23 +164,23 @@ jobs:
           test -f "$APK_FILE"
 
           mkdir -p "$GITHUB_WORKSPACE/output"
-          cp "$APK_FILE" "$GITHUB_WORKSPACE/output/Tahalil-Alakkad-V80-REAL-LAB.apk"
-          ls -lh "$GITHUB_WORKSPACE/output/Tahalil-Alakkad-V80-REAL-LAB.apk"
+          cp "$APK_FILE" "$GITHUB_WORKSPACE/output/Tahalil-Alakkad-V81-SIMPLE-REALISTIC-3D.apk"
+          ls -lh "$GITHUB_WORKSPACE/output/Tahalil-Alakkad-V81-SIMPLE-REALISTIC-3D.apk"
 
       - name: Verify APK signature
         shell: bash
         run: |
           set -euo pipefail
-          APK="$GITHUB_WORKSPACE/output/Tahalil-Alakkad-V80-REAL-LAB.apk"
+          APK="$GITHUB_WORKSPACE/output/Tahalil-Alakkad-V81-SIMPLE-REALISTIC-3D.apk"
           APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -1)"
           test -x "$APKSIGNER"
           "$APKSIGNER" verify --verbose --print-certs "$APK"
 
-      - name: Upload V80 APK
+      - name: Upload V81 APK
         uses: actions/upload-artifact@v4
         with:
-          name: Tahalil-Alakkad-V80-REAL-LAB
-          path: output/Tahalil-Alakkad-V80-REAL-LAB.apk
+          name: Tahalil-Alakkad-V81-SIMPLE-REALISTIC-3D
+          path: output/Tahalil-Alakkad-V81-SIMPLE-REALISTIC-3D.apk
           if-no-files-found: error
           retention-days: 30
           
