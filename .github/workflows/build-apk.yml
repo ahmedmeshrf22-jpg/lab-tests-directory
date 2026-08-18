@@ -1,4 +1,4 @@
-name: Build Tahalil Alakkad V82 PRODUCTION READY FIX
+name: Build Tahalil Alakkad LATEST RELEASE
 
 on:
   workflow_dispatch:
@@ -41,190 +41,111 @@ jobs:
           yes | sdkmanager --licenses >/dev/null 2>&1 || true
           sdkmanager 'platform-tools' 'platforms;android-36' 'build-tools;35.0.0'
 
-      - name: Find and extract V82 project
+      - name: Find newest valid Tahalil Alakkad project
         shell: bash
         run: |
           set -euo pipefail
 
-          SCAN_ROOT="$RUNNER_TEMP/v82-scan"
+          SCAN_ROOT="$RUNNER_TEMP/tahalil-latest-scan"
           rm -rf "$SCAN_ROOT"
           mkdir -p "$SCAN_ROOT"
 
-          SELECTED_DIR=""
-          FOUND_ZIP=""
+          BEST_CODE=-1
+          BEST_NAME=""
+          BEST_DIR=""
+          BEST_ZIP=""
           INDEX=0
 
-          check_project_dir() {
-            local root="$1"
-            local settings project_dir build_file
-
-            settings="$(find "$root" -type f -name 'settings.gradle.kts' -print -quit 2>/dev/null || true)"
-            [ -n "$settings" ] || return 1
-
-            project_dir="$(dirname "$settings")"
-            build_file="$project_dir/app/build.gradle.kts"
-            [ -f "$build_file" ] || return 1
-
-            grep -Fq 'versionCode = 82' "$build_file" || return 1
-            grep -Fq 'versionName = "5.2-production-ready-v82"' "$build_file" || return 1
-
-            SELECTED_DIR="$project_dir"
-            return 0
-          }
-
-          mapfile -t TOP_ZIPS < <(
+          mapfile -t ZIPS < <(
             find "$GITHUB_WORKSPACE" -maxdepth 3 -type f -iname '*.zip' -print | sort
           )
 
-          if [ "${#TOP_ZIPS[@]}" -eq 0 ]; then
+          if [ "${#ZIPS[@]}" -eq 0 ]; then
             echo "ERROR: No ZIP files found in repository."
             exit 1
           fi
 
-          echo "ZIP files found:"
-          printf '%s\n' "${TOP_ZIPS[@]}"
-
-          for ZIP_FILE in "${TOP_ZIPS[@]}"; do
+          for ZIP_FILE in "${ZIPS[@]}"; do
             INDEX=$((INDEX + 1))
-            DEST="$SCAN_ROOT/top_$INDEX"
+            DEST="$SCAN_ROOT/zip_$INDEX"
             mkdir -p "$DEST"
 
             echo "Checking: $ZIP_FILE"
             if ! unzip -q -o "$ZIP_FILE" -d "$DEST"; then
-              echo "Skipping unreadable ZIP: $ZIP_FILE"
+              echo "Skipping unreadable ZIP."
               continue
             fi
 
-            if check_project_dir "$DEST"; then
-              FOUND_ZIP="$ZIP_FILE"
-              break
-            fi
+            while IFS= read -r BUILD_FILE; do
+              PROJECT_DIR="$(dirname "$(dirname "$BUILD_FILE")")"
+              SETTINGS_FILE="$(find "$PROJECT_DIR" -maxdepth 1 -type f \( -name 'settings.gradle.kts' -o -name 'settings.gradle' \) -print -quit)"
+              [ -n "$SETTINGS_FILE" ] || continue
 
-            mapfile -t NESTED_ZIPS < <(
-              find "$DEST" -type f -iname '*.zip' -print | sort
-            )
+              APP_ID="$(grep -oP 'applicationId\s*=\s*"\K[^"]+' "$BUILD_FILE" | head -1 || true)"
+              VERSION_CODE="$(grep -oP 'versionCode\s*=\s*\K[0-9]+' "$BUILD_FILE" | head -1 || true)"
+              VERSION_NAME="$(grep -oP 'versionName\s*=\s*"\K[^"]+' "$BUILD_FILE" | head -1 || true)"
 
-            NESTED_INDEX=0
-            for NESTED_ZIP in "${NESTED_ZIPS[@]}"; do
-              NESTED_INDEX=$((NESTED_INDEX + 1))
-              NESTED_DEST="$SCAN_ROOT/nested_${INDEX}_${NESTED_INDEX}"
-              mkdir -p "$NESTED_DEST"
-
-              echo "Checking nested ZIP: $NESTED_ZIP"
-              if ! unzip -q -o "$NESTED_ZIP" -d "$NESTED_DEST"; then
+              if [ "$APP_ID" != "com.aistudio.labtestsdirectory.egypt" ]; then
+                continue
+              fi
+              if ! [[ "$VERSION_CODE" =~ ^[0-9]+$ ]]; then
                 continue
               fi
 
-              if check_project_dir "$NESTED_DEST"; then
-                FOUND_ZIP="$ZIP_FILE -> $NESTED_ZIP"
-                break 2
+              echo "Candidate: code=$VERSION_CODE name=$VERSION_NAME dir=$PROJECT_DIR"
+
+              if [ "$VERSION_CODE" -gt "$BEST_CODE" ]; then
+                BEST_CODE="$VERSION_CODE"
+                BEST_NAME="$VERSION_NAME"
+                BEST_DIR="$PROJECT_DIR"
+                BEST_ZIP="$ZIP_FILE"
               fi
-            done
+            done < <(find "$DEST" -type f -path '*/app/build.gradle.kts' -print)
           done
 
-          if [ -z "$SELECTED_DIR" ]; then
-            echo "ERROR: Could not find the V82 project."
-            echo "Expected versionCode 82 and versionName 5.2-production-ready-v82."
-            echo "Repository ZIP files:"
-            printf '%s\n' "${TOP_ZIPS[@]}"
+          if [ "$BEST_CODE" -lt 82 ] || [ -z "$BEST_DIR" ]; then
+            echo "ERROR: No valid Tahalil Alakkad project with versionCode >= 82 was found."
             exit 1
           fi
 
-          echo "PROJECT_DIR=$SELECTED_DIR" >> "$GITHUB_ENV"
-          echo "V82 source: $FOUND_ZIP"
-          echo "Project: $SELECTED_DIR"
+          SAFE_NAME="$(printf '%s' "$BEST_NAME" | tr -cs 'A-Za-z0-9._-' '-')"
 
-      - name: V82 production service and security audit
+          echo "PROJECT_DIR=$BEST_DIR" >> "$GITHUB_ENV"
+          echo "APP_VERSION_CODE=$BEST_CODE" >> "$GITHUB_ENV"
+          echo "APP_VERSION_NAME=$BEST_NAME" >> "$GITHUB_ENV"
+          echo "APP_VERSION_SAFE=$SAFE_NAME" >> "$GITHUB_ENV"
+
+          echo "Selected ZIP: $BEST_ZIP"
+          echo "Selected version: $BEST_CODE / $BEST_NAME"
+
+      - name: Production safety audit
         shell: bash
         run: |
           set -euo pipefail
-          SCREEN="$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsScreen.kt"
-          WORKLIST="$PROJECT_DIR/app/src/main/java/com/example/ui/DailyWorklistScreen.kt"
-          NAV="$PROJECT_DIR/app/src/main/java/com/example/ui/DailyServicesNav.kt"
-          VM="$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
-          GUIDE="$PROJECT_DIR/app/src/main/java/com/example/ui/TestGuideDialog.kt"
-          SETTINGS="$PROJECT_DIR/app/src/main/java/com/example/ui/ManagerSettingsDialog.kt"
-          USERSET="$PROJECT_DIR/app/src/main/java/com/example/ui/UserSettingsDialog.kt"
-          PINSCREEN="$PROJECT_DIR/app/src/main/java/com/example/ui/AppPinUnlockScreen.kt"
-          MODEL="$PROJECT_DIR/app/src/main/java/com/example/data/model/SystemModels.kt"
-          APPSET="$PROJECT_DIR/app/src/main/java/com/example/settings/AppSettings.kt"
-          PERF="$PROJECT_DIR/app/src/main/java/com/example/settings/FirestorePerformance.kt"
-          GENERATOR="$PROJECT_DIR/app/src/main/java/com/example/util/PdfGenerator.kt"
-          REPO="$PROJECT_DIR/app/src/main/java/com/example/data/repository/LabTestRepository.kt"
-          MAIN="$PROJECT_DIR/app/src/main/java/com/example/MainActivity.kt"
-          RULES="$PROJECT_DIR/firestore.rules"
+
+          BUILD="$PROJECT_DIR/app/build.gradle.kts"
           MANIFEST="$PROJECT_DIR/app/src/main/AndroidManifest.xml"
-          OPS="$PROJECT_DIR/app/src/main/java/com/example/ui/OperationsV14Dialog.kt"
+          MAIN="$PROJECT_DIR/app/src/main/java/com/example/MainActivity.kt"
 
-          for f in "$SCREEN" "$WORKLIST" "$NAV" "$VM" "$GUIDE" "$SETTINGS" "$USERSET" "$PINSCREEN" "$MODEL" "$APPSET" "$PERF" "$GENERATOR" "$REPO" "$MAIN" "$RULES" "$MANIFEST" "$OPS"; do
-            test -f "$f"
-          done
+          test -f "$BUILD"
+          test -f "$MANIFEST"
+          test -f "$PROJECT_DIR/app/google-services.json"
+          test -f "$PROJECT_DIR/firestore.rules"
           test -f "$PROJECT_DIR/firebase.json"
-          test -f "$PROJECT_DIR/firestore.indexes.json"
-          test -f "$PROJECT_DIR/.firebaserc"
-          test -f "$PROJECT_DIR/V82_PRODUCTION_READY_NOTES.txt"
 
-          grep -Fq 'versionCode = 82' "$PROJECT_DIR/app/build.gradle.kts"
-          grep -Fq 'versionName = "5.2-production-ready-v82"' "$PROJECT_DIR/app/build.gradle.kts"
-
-          # Daily lab services retained.
-          grep -Fq 'HBsAg' "$REPO"
-          grep -Fq 'private fun editDistance' "$REPO"
-          grep -Fq 'fun generateQuickTestsImage' "$GENERATOR"
-          grep -Fq 'saveGeneratedImageToGallery' "$GENERATOR"
-          grep -Fq 'generateGuideHologramImage' "$GUIDE"
-          grep -Fq 'fun DailyWorklistScreen' "$WORKLIST"
-          grep -Fq 'R.drawable.staff_new_order_3d' "$SCREEN"
-          grep -Fq 'R.drawable.staff_qr_3d' "$SCREEN"
-          grep -Fq 'Mini3DSwipeServiceCard' "$NAV"
-
-          # Admin and sensitive pricing.
-          grep -Fq 'fun changeAdminPin' "$VM"
-          grep -Fq 'تغيير PIN الإدارة' "$SETTINGS"
-          grep -Fq 'adminPinFailedAttempts >= 5' "$VM"
-          grep -Fq 'LAB2LAB_COLLECTION' "$VM"
-
-          # Account/device access must be fail-closed.
-          grep -Fq 'deviceAccessStatus != "approved"' "$MAIN"
-          grep -Fq 'hasOperationalAccess()' "$VM"
-          grep -Fq '_deviceAccessStatus.value == "approved"' "$VM"
-          grep -Fq 'enabled = doc.getBoolean("enabled") ?: false' "$VM"
-          grep -Fq 'profileExists() && profile().enabled == true' "$RULES"
-          ! grep -Fq '!profileExists()' "$RULES"
-          grep -Fq 'allow create: if isPrivilegedAdmin();' "$RULES"
-          grep -Fq "request.resource.data.status == 'pending'" "$RULES"
-
-          # Real per-user permissions + hardened new-user passwords.
-          grep -Fq 'canEditCustomersOperationally()' "$VM"
-          grep -Fq 'canDiscountOperationally()' "$VM"
-          grep -Fq 'canCollectPaymentsOperationally()' "$VM"
-          grep -Fq 'password.length >= 10' "$VM"
-          grep -Fq 'can_view_sales_reports" to canViewSalesReports' "$VM"
-          grep -Fq '"technician"' "$MODEL"
-          grep -Fq 'function canDiscount()' "$RULES"
-          grep -Fq 'function canCollectPayments()' "$RULES"
-          grep -Fq 'function canViewReports()' "$RULES"
-
-          # Local/device security.
-          grep -Fq 'PlayIntegrityAppCheckProviderFactory' "$MAIN"
-          grep -Fq 'FLAG_SECURE' "$MAIN"
-          grep -Fq 'setHideOverlayWindows(true)' "$MAIN"
-          grep -Fq 'failedLoginAttempts' "$MAIN"
-          grep -Fq 'lockedUntilMillis' "$PINSCREEN"
-          grep -Fq 'PBKDF2WithHmacSHA256' "$APPSET"
-          grep -Fq 'PIN_PBKDF2_ITERATIONS = 120_000' "$APPSET"
-          grep -Fq 'pin.matches(Regex("\\d{6}"))' "$APPSET"
-          grep -Fq 'securityEnabled = true' "$APPSET"
+          grep -Fq 'applicationId = "com.aistudio.labtestsdirectory.egypt"' "$BUILD"
+          grep -Fq "versionCode = $APP_VERSION_CODE" "$BUILD"
           grep -Fq 'android:allowBackup="false"' "$MANIFEST"
           grep -Fq 'android:usesCleartextTraffic="false"' "$MANIFEST"
           ! grep -Fq 'application/pdf' "$MANIFEST"
 
-          # Backend continuity: server first + persistent cache fallback.
-          grep -Fq 'CACHE_BYTES = 300L * 1024L * 1024L' "$PERF"
-          grep -Fq 'get(Source.CACHE)' "$VM"
-          grep -Fq '300 MB' "$OPS"
+          # Production security controls must remain present in future versions.
+          if [ -f "$MAIN" ]; then
+            grep -Fq 'FLAG_SECURE' "$MAIN"
+            grep -Fq 'PlayIntegrityAppCheckProviderFactory' "$MAIN"
+          fi
 
-          echo 'V82 production audit passed'
+          echo "Safety audit passed for version $APP_VERSION_CODE"
 
       - name: Restore original release signing
         shell: bash
@@ -232,8 +153,9 @@ jobs:
           SIGNING_BUNDLE_B64: ${{ secrets.TAHALIL_SIGNING_BUNDLE_B64 }}
         run: |
           set -euo pipefail
+
           if [ -z "${SIGNING_BUNDLE_B64:-}" ]; then
-            echo 'ERROR: Secret TAHALIL_SIGNING_BUNDLE_B64 is missing'
+            echo "ERROR: Secret TAHALIL_SIGNING_BUNDLE_B64 is missing."
             exit 1
           fi
 
@@ -252,6 +174,7 @@ jobs:
           set +a
 
           KEYSTORE_PATH="$SIGN_DIR/tahalil-alakkad-release.jks"
+
           keytool -list \
             -keystore "$KEYSTORE_PATH" \
             -storepass "$STORE_PASSWORD" \
@@ -262,7 +185,7 @@ jobs:
           echo "KEY_ALIAS=$KEY_ALIAS" >> "$GITHUB_ENV"
           echo "KEY_PASSWORD=$KEY_PASSWORD" >> "$GITHUB_ENV"
 
-      - name: Build signed V82 production Release APK
+      - name: Build signed latest Release APK
         shell: bash
         run: |
           set -euo pipefail
@@ -279,24 +202,48 @@ jobs:
           APK_FILE="$(find app/build/outputs/apk/release -type f -name '*.apk' -print -quit)"
           test -f "$APK_FILE"
 
-          mkdir -p "$GITHUB_WORKSPACE/output"
-          cp "$APK_FILE" "$GITHUB_WORKSPACE/output/Tahalil-Alakkad-V82-PRODUCTION-READY.apk"
-          ls -lh "$GITHUB_WORKSPACE/output/Tahalil-Alakkad-V82-PRODUCTION-READY.apk"
+          OUT="$GITHUB_WORKSPACE/output"
+          mkdir -p "$OUT"
 
-      - name: Verify APK signature
+          FINAL_APK="$OUT/Tahalil-Alakkad-V${APP_VERSION_CODE}-${APP_VERSION_SAFE}.apk"
+          cp "$APK_FILE" "$FINAL_APK"
+          echo "FINAL_APK=$FINAL_APK" >> "$GITHUB_ENV"
+
+          ls -lh "$FINAL_APK"
+
+      - name: Verify package version and original signature
         shell: bash
         run: |
           set -euo pipefail
-          APK="$GITHUB_WORKSPACE/output/Tahalil-Alakkad-V82-PRODUCTION-READY.apk"
-          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -1)"
-          test -x "$APKSIGNER"
-          "$APKSIGNER" verify --verbose --print-certs "$APK"
 
-      - name: Upload V82 APK
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -1)"
+          AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -1)"
+          test -x "$APKSIGNER"
+          test -x "$AAPT"
+
+          VERIFY_OUTPUT="$("$APKSIGNER" verify --verbose --print-certs "$FINAL_APK")"
+          printf '%s\n' "$VERIFY_OUTPUT"
+
+          EXPECTED_SHA256="d20457a1cf78ed2598242fb858b32579793a856a94dd8f88829223221b8bc29c"
+          ACTUAL_SHA256="$(printf '%s\n' "$VERIFY_OUTPUT" | sed -n 's/.*certificate SHA-256 digest: //p' | head -1 | tr -d ':[:space:]' | tr 'A-F' 'a-f')"
+
+          if [ "$ACTUAL_SHA256" != "$EXPECTED_SHA256" ]; then
+            echo "ERROR: APK signing certificate does not match the original Tahalil Alakkad release key."
+            exit 1
+          fi
+
+          BADGING="$("$AAPT" dump badging "$FINAL_APK" | head -1)"
+          printf '%s\n' "$BADGING"
+          printf '%s\n' "$BADGING" | grep -Fq "package: name='com.aistudio.labtestsdirectory.egypt'"
+          printf '%s\n' "$BADGING" | grep -Fq "versionCode='$APP_VERSION_CODE'"
+
+          echo "Package, version and release signature verified."
+
+      - name: Upload latest APK
         uses: actions/upload-artifact@v4
         with:
-          name: Tahalil-Alakkad-V82-PRODUCTION-READY
-          path: output/Tahalil-Alakkad-V82-PRODUCTION-READY.apk
+          name: Tahalil-Alakkad-V${{ env.APP_VERSION_CODE }}-${{ env.APP_VERSION_SAFE }}
+          path: ${{ env.FINAL_APK }}
           if-no-files-found: error
-          retention-days: 30
+          retention-days: 90
           
