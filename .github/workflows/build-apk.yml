@@ -1,11 +1,11 @@
-name: Build Tahalil Alakkad V81 SIMPLE REALISTIC 3D
+name: Build Tahalil Alakkad V82 PRODUCTION READY
 
 on:
   workflow_dispatch:
   push:
     branches: [ main ]
     paths:
-      - 'Project3_AK_V81_SIMPLE_REALISTIC_3D.zip'
+      - 'Project3_AK_V82_PRODUCTION_READY.zip'
       - '.github/workflows/build-apk.yml'
 
 permissions:
@@ -41,11 +41,11 @@ jobs:
           yes | sdkmanager --licenses >/dev/null 2>&1 || true
           sdkmanager 'platform-tools' 'platforms;android-36' 'build-tools;35.0.0'
 
-      - name: Extract V81 project
+      - name: Extract V82 project
         shell: bash
         run: |
           set -euo pipefail
-          ZIP_FILE="$GITHUB_WORKSPACE/Project3_AK_V81_SIMPLE_REALISTIC_3D.zip"
+          ZIP_FILE="$GITHUB_WORKSPACE/Project3_AK_V82_PRODUCTION_READY.zip"
           test -f "$ZIP_FILE"
 
           rm -rf "$GITHUB_WORKSPACE/android_project"
@@ -58,7 +58,7 @@ jobs:
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
           echo "Project: $PROJECT_DIR"
 
-      - name: V81 realistic 3D audit
+      - name: V82 production service and security audit
         shell: bash
         run: |
           set -euo pipefail
@@ -68,47 +68,87 @@ jobs:
           VM="$PROJECT_DIR/app/src/main/java/com/example/ui/LabTestsViewModel.kt"
           GUIDE="$PROJECT_DIR/app/src/main/java/com/example/ui/TestGuideDialog.kt"
           SETTINGS="$PROJECT_DIR/app/src/main/java/com/example/ui/ManagerSettingsDialog.kt"
+          USERSET="$PROJECT_DIR/app/src/main/java/com/example/ui/UserSettingsDialog.kt"
+          PINSCREEN="$PROJECT_DIR/app/src/main/java/com/example/ui/AppPinUnlockScreen.kt"
+          MODEL="$PROJECT_DIR/app/src/main/java/com/example/data/model/SystemModels.kt"
+          APPSET="$PROJECT_DIR/app/src/main/java/com/example/settings/AppSettings.kt"
+          PERF="$PROJECT_DIR/app/src/main/java/com/example/settings/FirestorePerformance.kt"
           GENERATOR="$PROJECT_DIR/app/src/main/java/com/example/util/PdfGenerator.kt"
+          REPO="$PROJECT_DIR/app/src/main/java/com/example/data/repository/LabTestRepository.kt"
+          MAIN="$PROJECT_DIR/app/src/main/java/com/example/MainActivity.kt"
+          RULES="$PROJECT_DIR/firestore.rules"
           MANIFEST="$PROJECT_DIR/app/src/main/AndroidManifest.xml"
+          OPS="$PROJECT_DIR/app/src/main/java/com/example/ui/OperationsV14Dialog.kt"
 
-          test -f "$SCREEN" && test -f "$WORKLIST" && test -f "$NAV" && test -f "$VM"
-          test -f "$GUIDE" && test -f "$SETTINGS" && test -f "$GENERATOR" && test -f "$MANIFEST"
-          test -f "$PROJECT_DIR/V81_SIMPLE_REALISTIC_3D_NOTES.txt"
+          for f in "$SCREEN" "$WORKLIST" "$NAV" "$VM" "$GUIDE" "$SETTINGS" "$USERSET" "$PINSCREEN" "$MODEL" "$APPSET" "$PERF" "$GENERATOR" "$REPO" "$MAIN" "$RULES" "$MANIFEST" "$OPS"; do
+            test -f "$f"
+          done
+          test -f "$PROJECT_DIR/firebase.json"
+          test -f "$PROJECT_DIR/firestore.indexes.json"
+          test -f "$PROJECT_DIR/.firebaserc"
+          test -f "$PROJECT_DIR/V82_PRODUCTION_READY_NOTES.txt"
 
-          grep -Fq 'versionCode = 81' "$PROJECT_DIR/app/build.gradle.kts"
-          grep -Fq 'versionName = "5.1-simple-realistic-3d-v81"' "$PROJECT_DIR/app/build.gradle.kts"
+          grep -Fq 'versionCode = 82' "$PROJECT_DIR/app/build.gradle.kts"
+          grep -Fq 'versionName = "5.2-production-ready-v82"' "$PROJECT_DIR/app/build.gradle.kts"
 
-          # Real operational dashboard + daily worklist.
+          # Daily lab services retained.
+          grep -Fq 'HBsAg' "$REPO"
+          grep -Fq 'private fun editDistance' "$REPO"
+          grep -Fq 'fun generateQuickTestsImage' "$GENERATOR"
+          grep -Fq 'saveGeneratedImageToGallery' "$GENERATOR"
+          grep -Fq 'generateGuideHologramImage' "$GUIDE"
           grep -Fq 'fun DailyWorklistScreen' "$WORKLIST"
-          grep -Fq 'تشغيل اليوم' "$WORKLIST"
-          grep -Fq 'المرحلة التالية' "$WORKLIST"
-          grep -Fq 'viewModel.dailyOrders.collectAsState()' "$WORKLIST"
-          grep -Fq 'fun loadDailyOrders' "$VM"
-          grep -Fq 'fun findCustomerById' "$VM"
-          grep -Fq 'whereGreaterThanOrEqualTo("created_at_ms", startToday)' "$VM"
-          grep -Fq '"worklist"' "$SCREEN"
-          grep -Fq 'تشغيل المعمل' "$SCREEN"
-          grep -Fq 'طلبات اليوم' "$SCREEN"
-          grep -Fq 'بحث وأسعار' "$SCREEN"
-          grep -Fq 'العملاء والطلبات' "$SCREEN"
-          grep -Fq 'onWorklist' "$NAV"
-
-          # V81 restrained realistic 3D medical presentation.
-          grep -Fq 'Mini3DSwipeServiceCard' "$NAV"
-          grep -Fq 'Color(0xFFF6F9FC)' "$NAV"
           grep -Fq 'R.drawable.staff_new_order_3d' "$SCREEN"
           grep -Fq 'R.drawable.staff_qr_3d' "$SCREEN"
-          grep -Fq 'R.drawable.mgr_reports_3d' "$SCREEN"
-          grep -Fq 'containerColor = Color.White' "$SCREEN"
-          grep -Fq 'fun generateQuickTestsImage' "$GENERATOR"
-          grep -Fq 'generateGuideHologramImage' "$GUIDE"
+          grep -Fq 'Mini3DSwipeServiceCard' "$NAV"
+
+          # Admin and sensitive pricing.
           grep -Fq 'fun changeAdminPin' "$VM"
           grep -Fq 'تغيير PIN الإدارة' "$SETTINGS"
           grep -Fq 'adminPinFailedAttempts >= 5' "$VM"
+          grep -Fq 'LAB2LAB_COLLECTION' "$VM"
+
+          # Account/device access must be fail-closed.
+          grep -Fq 'deviceAccessStatus != "approved"' "$MAIN"
+          grep -Fq 'hasOperationalAccess()' "$VM"
+          grep -Fq '_deviceAccessStatus.value == "approved"' "$VM"
+          grep -Fq 'enabled = doc.getBoolean("enabled") ?: false' "$VM"
+          grep -Fq 'profileExists() && profile().enabled == true' "$RULES"
+          ! grep -Fq '!profileExists()' "$RULES"
+          grep -Fq 'allow create: if isPrivilegedAdmin();' "$RULES"
+          grep -Fq "request.resource.data.status == 'pending'" "$RULES"
+
+          # Real per-user permissions + hardened new-user passwords.
+          grep -Fq 'canEditCustomersOperationally()' "$VM"
+          grep -Fq 'canDiscountOperationally()' "$VM"
+          grep -Fq 'canCollectPaymentsOperationally()' "$VM"
+          grep -Fq 'password.length >= 10' "$VM"
+          grep -Fq 'can_view_sales_reports" to canViewSalesReports' "$VM"
+          grep -Fq '"technician"' "$MODEL"
+          grep -Fq 'function canDiscount()' "$RULES"
+          grep -Fq 'function canCollectPayments()' "$RULES"
+          grep -Fq 'function canViewReports()' "$RULES"
+
+          # Local/device security.
+          grep -Fq 'PlayIntegrityAppCheckProviderFactory' "$MAIN"
+          grep -Fq 'FLAG_SECURE' "$MAIN"
+          grep -Fq 'setHideOverlayWindows(true)' "$MAIN"
+          grep -Fq 'failedLoginAttempts' "$MAIN"
+          grep -Fq 'lockedUntilMillis' "$PINSCREEN"
+          grep -Fq 'PBKDF2WithHmacSHA256' "$APPSET"
+          grep -Fq 'PIN_PBKDF2_ITERATIONS = 120_000' "$APPSET"
+          grep -Fq 'pin.matches(Regex("\\d{6}"))' "$APPSET"
+          grep -Fq 'securityEnabled = true' "$APPSET"
           grep -Fq 'android:allowBackup="false"' "$MANIFEST"
           grep -Fq 'android:usesCleartextTraffic="false"' "$MANIFEST"
+          ! grep -Fq 'application/pdf' "$MANIFEST"
 
-          echo 'V81 realistic 3D audit passed'
+          # Backend continuity: server first + persistent cache fallback.
+          grep -Fq 'CACHE_BYTES = 300L * 1024L * 1024L' "$PERF"
+          grep -Fq 'get(Source.CACHE)' "$VM"
+          grep -Fq '300 MB' "$OPS"
+
+          echo 'V82 production audit passed'
 
       - name: Restore original release signing
         shell: bash
@@ -146,7 +186,7 @@ jobs:
           echo "KEY_ALIAS=$KEY_ALIAS" >> "$GITHUB_ENV"
           echo "KEY_PASSWORD=$KEY_PASSWORD" >> "$GITHUB_ENV"
 
-      - name: Build signed V81 Release APK
+      - name: Build signed V82 production Release APK
         shell: bash
         run: |
           set -euo pipefail
@@ -164,23 +204,23 @@ jobs:
           test -f "$APK_FILE"
 
           mkdir -p "$GITHUB_WORKSPACE/output"
-          cp "$APK_FILE" "$GITHUB_WORKSPACE/output/Tahalil-Alakkad-V81-SIMPLE-REALISTIC-3D.apk"
-          ls -lh "$GITHUB_WORKSPACE/output/Tahalil-Alakkad-V81-SIMPLE-REALISTIC-3D.apk"
+          cp "$APK_FILE" "$GITHUB_WORKSPACE/output/Tahalil-Alakkad-V82-PRODUCTION-READY.apk"
+          ls -lh "$GITHUB_WORKSPACE/output/Tahalil-Alakkad-V82-PRODUCTION-READY.apk"
 
       - name: Verify APK signature
         shell: bash
         run: |
           set -euo pipefail
-          APK="$GITHUB_WORKSPACE/output/Tahalil-Alakkad-V81-SIMPLE-REALISTIC-3D.apk"
+          APK="$GITHUB_WORKSPACE/output/Tahalil-Alakkad-V82-PRODUCTION-READY.apk"
           APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -1)"
           test -x "$APKSIGNER"
           "$APKSIGNER" verify --verbose --print-certs "$APK"
 
-      - name: Upload V81 APK
+      - name: Upload V82 APK
         uses: actions/upload-artifact@v4
         with:
-          name: Tahalil-Alakkad-V81-SIMPLE-REALISTIC-3D
-          path: output/Tahalil-Alakkad-V81-SIMPLE-REALISTIC-3D.apk
+          name: Tahalil-Alakkad-V82-PRODUCTION-READY
+          path: output/Tahalil-Alakkad-V82-PRODUCTION-READY.apk
           if-no-files-found: error
           retention-days: 30
           
