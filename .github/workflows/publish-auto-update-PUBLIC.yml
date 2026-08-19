@@ -1,0 +1,109 @@
+name: Publish Tahalil Alakkad PUBLIC Auto Update
+
+on:
+  workflow_run:
+    workflows: ["Build Tahalil Alakkad LATEST RELEASE"]
+    types: [completed]
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  publish-public-update:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Download APK from successful private build
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          gh run download "$RUN_ID" --repo "$GITHUB_REPOSITORY" --dir artifacts
+          find artifacts -type f -maxdepth 5 -print
+
+      - name: Prepare public mandatory update files
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          SOURCE_APK="$(find artifacts -type f -iname '*.apk' -print -quit)"
+          test -f "$SOURCE_APK"
+
+          BASENAME="$(basename "$SOURCE_APK")"
+          VERSION_CODE="$(printf '%s' "$BASENAME" | sed -n 's/^Tahalil-Alakkad-V\([0-9][0-9]*\)-.*/\1/p')"
+          if ! [[ "$VERSION_CODE" =~ ^[0-9]+$ ]]; then
+            echo "ERROR: Could not parse versionCode from $BASENAME"
+            exit 1
+          fi
+
+          VERSION_NAME="V${VERSION_CODE}"
+          RELEASE_DIR="$GITHUB_WORKSPACE/public-update-release"
+          mkdir -p "$RELEASE_DIR"
+          cp "$SOURCE_APK" "$RELEASE_DIR/Tahalil-Alakkad-LATEST.apk"
+
+          SHA256="$(sha256sum "$RELEASE_DIR/Tahalil-Alakkad-LATEST.apk" | awk '{print $1}')"
+          UPDATE_REPO="ahmedmeshrf22-jpg/tahalil-alakkad-updates"
+          APK_URL="https://github.com/${UPDATE_REPO}/releases/latest/download/Tahalil-Alakkad-LATEST.apk"
+
+          cat > "$RELEASE_DIR/latest.json" <<JSON
+          {
+            "versionCode": $VERSION_CODE,
+            "versionName": "$VERSION_NAME",
+            "apkUrl": "$APK_URL",
+            "sha256": "$SHA256",
+            "mandatory": true
+          }
+          JSON
+
+          echo "VERSION_CODE=$VERSION_CODE" >> "$GITHUB_ENV"
+          echo "TAG=v$VERSION_CODE" >> "$GITHUB_ENV"
+          echo "UPDATE_REPO=$UPDATE_REPO" >> "$GITHUB_ENV"
+          cat "$RELEASE_DIR/latest.json"
+          ls -lh "$RELEASE_DIR"
+
+      - name: Publish to public update repository
+        env:
+          GH_TOKEN: ${{ secrets.TAHALIL_UPDATE_REPO_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ -z "${GH_TOKEN:-}" ]; then
+            echo "ERROR: Secret TAHALIL_UPDATE_REPO_TOKEN is missing."
+            exit 1
+          fi
+
+          VISIBILITY="$(gh repo view "$UPDATE_REPO" --json visibility -q '.visibility')"
+          if [ "$VISIBILITY" != "PUBLIC" ]; then
+            echo "ERROR: $UPDATE_REPO must be PUBLIC."
+            exit 1
+          fi
+
+          if gh release view "$TAG" --repo "$UPDATE_REPO" >/dev/null 2>&1; then
+            gh release upload "$TAG" \
+              public-update-release/Tahalil-Alakkad-LATEST.apk \
+              public-update-release/latest.json \
+              --repo "$UPDATE_REPO" \
+              --clobber
+            gh release edit "$TAG" \
+              --repo "$UPDATE_REPO" \
+              --title "تحاليل العقاد V${VERSION_CODE}" \
+              --notes "Automatic mandatory update package for Tahalil Alakkad." \
+              --latest
+          else
+            gh release create "$TAG" \
+              public-update-release/Tahalil-Alakkad-LATEST.apk \
+              public-update-release/latest.json \
+              --repo "$UPDATE_REPO" \
+              --title "تحاليل العقاد V${VERSION_CODE}" \
+              --notes "Automatic mandatory update package for Tahalil Alakkad." \
+              --latest
+          fi
+
+          gh release view "$TAG" --repo "$UPDATE_REPO" --json tagName,isDraft,isPrerelease,assets,url
