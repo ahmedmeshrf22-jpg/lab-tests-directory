@@ -9,7 +9,7 @@ on:
       - '.github/workflows/build-apk.yml'
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build-release:
@@ -246,4 +246,57 @@ jobs:
           path: ${{ env.FINAL_APK }}
           if-no-files-found: error
           retention-days: 90
-          
+
+      - name: Publish latest in-app update release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          RELEASE_DIR="$GITHUB_WORKSPACE/update-release"
+          rm -rf "$RELEASE_DIR"
+          mkdir -p "$RELEASE_DIR"
+
+          cp "$FINAL_APK" "$RELEASE_DIR/Tahalil-Alakkad-LATEST.apk"
+
+          SHA256="$(sha256sum "$RELEASE_DIR/Tahalil-Alakkad-LATEST.apk" | awk '{print $1}')"
+          APK_URL="https://github.com/${GITHUB_REPOSITORY}/releases/latest/download/Tahalil-Alakkad-LATEST.apk"
+
+          cat > "$RELEASE_DIR/latest.json" <<EOF
+          {
+            "versionCode": $APP_VERSION_CODE,
+            "versionName": "$APP_VERSION_NAME",
+            "apkUrl": "$APK_URL",
+            "sha256": "$SHA256",
+            "mandatory": true
+          }
+          EOF
+
+          TAG="v${APP_VERSION_CODE}"
+
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$TAG" \
+              "$RELEASE_DIR/Tahalil-Alakkad-LATEST.apk" \
+              "$RELEASE_DIR/latest.json" \
+              --repo "$GITHUB_REPOSITORY" \
+              --clobber
+            gh release edit "$TAG" \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "تحاليل العقاد V${APP_VERSION_CODE}" \
+              --notes "Automatic mandatory update package for Tahalil Alakkad." \
+              --latest
+          else
+            gh release create "$TAG" \
+              "$RELEASE_DIR/Tahalil-Alakkad-LATEST.apk" \
+              "$RELEASE_DIR/latest.json" \
+              --repo "$GITHUB_REPOSITORY" \
+              --target "$GITHUB_SHA" \
+              --title "تحاليل العقاد V${APP_VERSION_CODE}" \
+              --notes "Automatic mandatory update package for Tahalil Alakkad." \
+              --latest
+          fi
+
+          echo "Published update release $TAG"
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json tagName,isDraft,isPrerelease,assets
+
