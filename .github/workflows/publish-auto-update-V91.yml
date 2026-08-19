@@ -1,0 +1,92 @@
+name: Publish Tahalil Alakkad Auto Update
+
+on:
+  workflow_run:
+    workflows: ["Build Tahalil Alakkad LATEST RELEASE"]
+    types: [completed]
+
+permissions:
+  actions: read
+  contents: write
+
+jobs:
+  publish-update:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Download APK from successful build
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          gh run download "$RUN_ID" --repo "$GITHUB_REPOSITORY" --dir artifacts
+          find artifacts -type f -maxdepth 4 -print
+
+      - name: Prepare forced-update release files
+        shell: bash
+        run: |
+          set -euo pipefail
+          SOURCE_APK="$(find artifacts -type f -iname '*.apk' -print -quit)"
+          test -f "$SOURCE_APK"
+
+          BASENAME="$(basename "$SOURCE_APK")"
+          VERSION_CODE="$(printf '%s' "$BASENAME" | sed -n 's/^Tahalil-Alakkad-V\([0-9][0-9]*\)-.*/\1/p')"
+          if ! [[ "$VERSION_CODE" =~ ^[0-9]+$ ]]; then
+            echo "ERROR: Could not parse versionCode from $BASENAME"
+            exit 1
+          fi
+
+          VERSION_NAME="V${VERSION_CODE}"
+          RELEASE_DIR="$GITHUB_WORKSPACE/release"
+          mkdir -p "$RELEASE_DIR"
+          cp "$SOURCE_APK" "$RELEASE_DIR/Tahalil-Alakkad-LATEST.apk"
+
+          SHA256="$(sha256sum "$RELEASE_DIR/Tahalil-Alakkad-LATEST.apk" | awk '{print $1}')"
+          APK_URL="https://github.com/${GITHUB_REPOSITORY}/releases/latest/download/Tahalil-Alakkad-LATEST.apk"
+
+          cat > "$RELEASE_DIR/latest.json" <<EOF
+          {
+            "versionCode": $VERSION_CODE,
+            "versionName": "$VERSION_NAME",
+            "apkUrl": "$APK_URL",
+            "sha256": "$SHA256",
+            "mandatory": true
+          }
+          EOF
+
+          echo "VERSION_CODE=$VERSION_CODE" >> "$GITHUB_ENV"
+          echo "TAG=v$VERSION_CODE" >> "$GITHUB_ENV"
+          cat "$RELEASE_DIR/latest.json"
+          ls -lh "$RELEASE_DIR"
+
+      - name: Publish as latest GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$TAG" \
+              release/Tahalil-Alakkad-LATEST.apk \
+              release/latest.json \
+              --repo "$GITHUB_REPOSITORY" \
+              --clobber
+            gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --latest
+          else
+            gh release create "$TAG" \
+              release/Tahalil-Alakkad-LATEST.apk \
+              release/latest.json \
+              --repo "$GITHUB_REPOSITORY" \
+              --target "${{ github.event.workflow_run.head_sha }}" \
+              --title "تحاليل العقاد V${VERSION_CODE}" \
+              --notes "Automatic mandatory update package for Tahalil Alakkad." \
+              --latest
+          fi
+
+          echo "Published forced update V${VERSION_CODE}."
