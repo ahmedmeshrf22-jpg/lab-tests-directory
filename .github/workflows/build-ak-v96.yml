@@ -23,15 +23,15 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Extract project
+      - name: Extract prepared project
         shell: bash
         run: |
           set -eu
 
-          ZIP_FILE="$(find . -maxdepth 4 -type f -iname '*v96*.zip' -print -quit)"
+          ZIP_FILE="$(find . -maxdepth 3 -type f -iname '*v96*.zip' -print -quit)"
 
           if [ -z "$ZIP_FILE" ]; then
-            ZIP_FILE="$(find . -maxdepth 4 -type f -iname '*.zip' -print -quit)"
+            ZIP_FILE="$(find . -maxdepth 3 -type f -iname '*.zip' -print -quit)"
           fi
 
           if [ -z "$ZIP_FILE" ]; then
@@ -39,94 +39,13 @@ jobs:
             exit 1
           fi
 
-          rm -rf build_app
-          mkdir -p build_app
-          unzip -q "$ZIP_FILE" -d build_app
+          rm -rf build_v96
+          mkdir -p build_v96
+          unzip -q "$ZIP_FILE" -d build_v96
 
-          echo "Project extracted from: $ZIP_FILE"
+          echo "Extracted: $ZIP_FILE"
 
-      - name: Locate Android project
-        shell: bash
-        run: |
-          set -eu
-
-          SETTINGS="$(find build_app -type f \( \
-            -name 'settings.gradle' -o \
-            -name 'settings.gradle.kts' \
-          \) -print -quit)"
-
-          if [ -n "$SETTINGS" ]; then
-            PROJECT_DIR="$(dirname "$SETTINGS")"
-          else
-            BUILD_FILE="$(find build_app -type f \( \
-              -name 'build.gradle' -o \
-              -name 'build.gradle.kts' \
-            \) -print -quit)"
-
-            if [ -z "$BUILD_FILE" ]; then
-              echo "ERROR: Android project not found"
-              find build_app -maxdepth 4 -type f || true
-              exit 1
-            fi
-
-            PROJECT_DIR="$(dirname "$BUILD_FILE")"
-          fi
-
-          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
-          echo "Android project: $PROJECT_DIR"
-
-      - name: Upgrade V96 to V97
-        shell: bash
-        run: |
-          set -eu
-
-          python3 <<'PY'
-          import pathlib
-          import re
-          import os
-
-          root = pathlib.Path(os.environ["PROJECT_DIR"])
-
-          files = list(root.rglob("build.gradle")) + list(root.rglob("build.gradle.kts"))
-
-          changed = False
-
-          for p in files:
-              try:
-                  s = p.read_text(encoding="utf-8")
-              except:
-                  continue
-
-              old = s
-
-              # versionName 96 -> 97
-              s = re.sub(
-                  r'(versionName\s*[= ]\s*["\'])([^"\']*?)(96)(["\'])',
-                  lambda m: m.group(1) + m.group(2) + "97" + m.group(4),
-                  s
-              )
-
-              # versionCode number -> +1
-              def bump(m):
-                  n = int(m.group(2))
-                  return m.group(1) + str(n + 1)
-
-              s = re.sub(
-                  r'(versionCode\s*[= ]\s*)(\d+)',
-                  bump,
-                  s
-              )
-
-              if s != old:
-                  p.write_text(s, encoding="utf-8")
-                  print("Updated:", p)
-                  changed = True
-
-          if not changed:
-              print("No V96 marker found; existing version kept.")
-          PY
-
-      - name: Restore original signing key
+      - name: Restore OLD signing keystore
         shell: bash
         env:
           SIGNING_BUNDLE_B64: ${{ secrets.TAHALIL_SIGNING_BUNDLE_B64 }}
@@ -134,72 +53,85 @@ jobs:
           set -eu
 
           if [ -z "$SIGNING_BUNDLE_B64" ]; then
-            echo "ERROR: TAHALIL_SIGNING_BUNDLE_B64 is empty"
+            echo "ERROR: signing secret missing"
             exit 1
           fi
 
           rm -rf /tmp/signing
-          mkdir -p /tmp/signing/files
+          mkdir -p /tmp/signing
 
           printf '%s' "$SIGNING_BUNDLE_B64" | base64 --decode > /tmp/signing/bundle.bin
 
           if unzip -t /tmp/signing/bundle.bin >/dev/null 2>&1; then
+            mkdir -p /tmp/signing/unpacked
+            unzip -q /tmp/signing/bundle.bin -d /tmp/signing/unpacked
 
-            unzip -q /tmp/signing/bundle.bin -d /tmp/signing/files
-
-            KEYSTORE="$(find /tmp/signing/files -type f \( \
-              -iname '*.keystore' -o \
-              -iname '*.jks' \
-            \) -print -quit)"
+            KEYSTORE="$(find /tmp/signing/unpacked -type f \( -iname '*.keystore' -o -iname '*.jks' \) -print -quit)"
 
             if [ -z "$KEYSTORE" ]; then
-              echo "ERROR: Keystore not found inside signing bundle"
-              find /tmp/signing/files -type f || true
+              echo "ERROR: no keystore inside signing bundle"
               exit 1
             fi
 
-            cp "$KEYSTORE" "$PROJECT_DIR/debug.keystore"
-
-            PROPS="$(find /tmp/signing/files -type f -name 'gradle.properties' -print -quit || true)"
-
-            if [ -n "$PROPS" ]; then
-              cp "$PROPS" "$PROJECT_DIR/gradle.properties"
-            fi
-
+            cp "$KEYSTORE" build_v96/debug.keystore
           else
-
-            cp /tmp/signing/bundle.bin "$PROJECT_DIR/debug.keystore"
-
+            cp /tmp/signing/bundle.bin build_v96/debug.keystore
           fi
 
-          test -s "$PROJECT_DIR/debug.keystore"
+          test -s build_v96/debug.keystore
 
-          echo "Original signing key restored"
+          echo "Old signing keystore restored"
+
+      - name: Set version V97
+        shell: bash
+        run: |
+          set -eu
+
+          python3 <<'PY'
+          import pathlib, re
+
+          root = pathlib.Path("build_v96")
+
+          for p in list(root.rglob("build.gradle")) + list(root.rglob("build.gradle.kts")):
+              try:
+                  text = p.read_text(encoding="utf-8")
+              except:
+                  continue
+
+              old = text
+
+              text = re.sub(
+                  r'versionName\s*[= ]\s*["\'][^"\']*["\']',
+                  'versionName "97"',
+                  text
+              )
+
+              def bump(m):
+                  n = int(m.group(2))
+                  return m.group(1) + str(max(n + 1, 97))
+
+              text = re.sub(
+                  r'(versionCode\s*[= ]\s*)(\d+)',
+                  bump,
+                  text
+              )
+
+              if text != old:
+                  p.write_text(text, encoding="utf-8")
+                  print("Updated:", p)
+          PY
 
       - name: Build signed V97 APK
         shell: bash
         run: |
-          set +e
+          set -eu
+          cd build_v96
 
-          cd "$PROJECT_DIR"
-
-          if [ -f "./gradlew" ]; then
-            chmod +x ./gradlew
-            ./gradlew clean assembleDebug --no-daemon 2>&1 | tee /tmp/build.log
-            RESULT=${PIPESTATUS[0]}
+          if [ -f gradlew ]; then
+            chmod +x gradlew
+            ./gradlew assembleDebug --no-daemon
           else
-            gradle clean assembleDebug --no-daemon 2>&1 | tee /tmp/build.log
-            RESULT=${PIPESTATUS[0]}
-          fi
-
-          if [ "$RESULT" -ne 0 ]; then
-            echo ""
-            echo "========== REAL BUILD ERROR =========="
-            grep -Ei \
-              "FAILURE:|What went wrong|Execution failed|Caused by:|error:|Keystore|password|signing|Could not|Android SDK|SDK location" \
-              /tmp/build.log | tail -80 || true
-            echo "======================================"
-            exit "$RESULT"
+            gradle assembleDebug --no-daemon
           fi
 
       - name: Collect APK
@@ -207,10 +139,7 @@ jobs:
         run: |
           set -eu
 
-          APK="$(find "$PROJECT_DIR" -type f -name '*.apk' \
-            ! -name '*androidTest*' \
-            ! -name '*unaligned*' \
-            -print -quit)"
+          APK="$(find build_v96 -type f -name '*.apk' ! -name '*androidTest*' ! -name '*unaligned*' -print -quit)"
 
           if [ -z "$APK" ]; then
             echo "ERROR: APK not found"
@@ -218,8 +147,7 @@ jobs:
           fi
 
           cp "$APK" Tahalil-Alakkad-V97.apk
-
-          echo "APK READY: Tahalil-Alakkad-V97.apk"
+          echo "READY: Tahalil-Alakkad-V97.apk"
 
       - name: Upload V97 APK
         uses: actions/upload-artifact@v4
