@@ -1,4 +1,4 @@
-name: Build AK V96 from ZIP
+name: Build AK V97 Signed
 
 on:
   workflow_dispatch:
@@ -23,7 +23,7 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Extract prepared V96
+      - name: Extract project
         shell: bash
         run: |
           set -eu
@@ -35,47 +35,98 @@ jobs:
           fi
 
           if [ -z "$ZIP_FILE" ]; then
-            echo "ERROR: V96 ZIP not found"
+            echo "ERROR: Project ZIP not found"
             exit 1
           fi
 
-          echo "Using ZIP: $ZIP_FILE"
+          rm -rf build_app
+          mkdir -p build_app
+          unzip -q "$ZIP_FILE" -d build_app
 
-          rm -rf build_v96
-          mkdir -p build_v96
-          unzip -q "$ZIP_FILE" -d build_v96
-
-          echo "ZIP extracted"
+          echo "Project extracted from: $ZIP_FILE"
 
       - name: Locate Android project
         shell: bash
         run: |
           set -eu
 
-          PROJECT_DIR=""
-
-          SETTINGS="$(find build_v96 -type f \( -name 'settings.gradle' -o -name 'settings.gradle.kts' \) -print -quit)"
+          SETTINGS="$(find build_app -type f \( \
+            -name 'settings.gradle' -o \
+            -name 'settings.gradle.kts' \
+          \) -print -quit)"
 
           if [ -n "$SETTINGS" ]; then
             PROJECT_DIR="$(dirname "$SETTINGS")"
           else
-            BUILD_FILE="$(find build_v96 -type f \( -name 'build.gradle' -o -name 'build.gradle.kts' \) -print -quit)"
+            BUILD_FILE="$(find build_app -type f \( \
+              -name 'build.gradle' -o \
+              -name 'build.gradle.kts' \
+            \) -print -quit)"
 
-            if [ -n "$BUILD_FILE" ]; then
-              PROJECT_DIR="$(dirname "$BUILD_FILE")"
+            if [ -z "$BUILD_FILE" ]; then
+              echo "ERROR: Android project not found"
+              find build_app -maxdepth 4 -type f || true
+              exit 1
             fi
-          fi
 
-          if [ -z "$PROJECT_DIR" ]; then
-            echo "ERROR: Android Gradle project not found"
-            find build_v96 -maxdepth 4 -type f | head -100 || true
-            exit 1
+            PROJECT_DIR="$(dirname "$BUILD_FILE")"
           fi
 
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
           echo "Android project: $PROJECT_DIR"
 
-      - name: Restore original signing keystore
+      - name: Upgrade V96 to V97
+        shell: bash
+        run: |
+          set -eu
+
+          python3 <<'PY'
+          import pathlib
+          import re
+          import os
+
+          root = pathlib.Path(os.environ["PROJECT_DIR"])
+
+          files = list(root.rglob("build.gradle")) + list(root.rglob("build.gradle.kts"))
+
+          changed = False
+
+          for p in files:
+              try:
+                  s = p.read_text(encoding="utf-8")
+              except:
+                  continue
+
+              old = s
+
+              # versionName 96 -> 97
+              s = re.sub(
+                  r'(versionName\s*[= ]\s*["\'])([^"\']*?)(96)(["\'])',
+                  lambda m: m.group(1) + m.group(2) + "97" + m.group(4),
+                  s
+              )
+
+              # versionCode number -> +1
+              def bump(m):
+                  n = int(m.group(2))
+                  return m.group(1) + str(n + 1)
+
+              s = re.sub(
+                  r'(versionCode\s*[= ]\s*)(\d+)',
+                  bump,
+                  s
+              )
+
+              if s != old:
+                  p.write_text(s, encoding="utf-8")
+                  print("Updated:", p)
+                  changed = True
+
+          if not changed:
+              print("No V96 marker found; existing version kept.")
+          PY
+
+      - name: Restore original signing key
         shell: bash
         env:
           SIGNING_BUNDLE_B64: ${{ secrets.TAHALIL_SIGNING_BUNDLE_B64 }}
@@ -87,37 +138,29 @@ jobs:
             exit 1
           fi
 
-          rm -rf /tmp/tahalil_signing
-          mkdir -p /tmp/tahalil_signing
+          rm -rf /tmp/signing
+          mkdir -p /tmp/signing/files
 
-          printf '%s' "$SIGNING_BUNDLE_B64" | base64 --decode > /tmp/tahalil_signing/bundle.bin
+          printf '%s' "$SIGNING_BUNDLE_B64" | base64 --decode > /tmp/signing/bundle.bin
 
-          if unzip -t /tmp/tahalil_signing/bundle.bin >/dev/null 2>&1; then
+          if unzip -t /tmp/signing/bundle.bin >/dev/null 2>&1; then
 
-            echo "Signing secret is a ZIP bundle"
+            unzip -q /tmp/signing/bundle.bin -d /tmp/signing/files
 
-            mkdir -p /tmp/tahalil_signing/files
-
-            unzip -q /tmp/tahalil_signing/bundle.bin \
-              -d /tmp/tahalil_signing/files
-
-            KEYSTORE="$(find /tmp/tahalil_signing/files -type f \( \
+            KEYSTORE="$(find /tmp/signing/files -type f \( \
               -iname '*.keystore' -o \
               -iname '*.jks' \
             \) -print -quit)"
 
             if [ -z "$KEYSTORE" ]; then
-              echo "ERROR: No keystore found inside signing bundle"
-              find /tmp/tahalil_signing/files -type f || true
+              echo "ERROR: Keystore not found inside signing bundle"
+              find /tmp/signing/files -type f || true
               exit 1
             fi
 
             cp "$KEYSTORE" "$PROJECT_DIR/debug.keystore"
 
-            PROPS="$(find /tmp/tahalil_signing/files \
-              -type f \
-              -name 'gradle.properties' \
-              -print -quit || true)"
+            PROPS="$(find /tmp/signing/files -type f -name 'gradle.properties' -print -quit || true)"
 
             if [ -n "$PROPS" ]; then
               cp "$PROPS" "$PROJECT_DIR/gradle.properties"
@@ -125,51 +168,46 @@ jobs:
 
           else
 
-            echo "Signing secret is a raw keystore"
-
-            cp /tmp/tahalil_signing/bundle.bin \
-              "$PROJECT_DIR/debug.keystore"
+            cp /tmp/signing/bundle.bin "$PROJECT_DIR/debug.keystore"
 
           fi
 
-          if [ ! -s "$PROJECT_DIR/debug.keystore" ]; then
-            echo "ERROR: debug.keystore was not restored"
-            exit 1
-          fi
+          test -s "$PROJECT_DIR/debug.keystore"
 
-          echo "Original signing keystore restored"
+          echo "Original signing key restored"
 
-      - name: Build installable V96 APK
+      - name: Build signed V97 APK
         shell: bash
         run: |
-          set -eu
+          set +e
 
           cd "$PROJECT_DIR"
 
           if [ -f "./gradlew" ]; then
-
             chmod +x ./gradlew
-
-            ./gradlew clean assembleDebug \
-              --no-daemon \
-              --stacktrace
-
+            ./gradlew clean assembleDebug --no-daemon 2>&1 | tee /tmp/build.log
+            RESULT=${PIPESTATUS[0]}
           else
-
-            gradle clean assembleDebug \
-              --no-daemon \
-              --stacktrace
-
+            gradle clean assembleDebug --no-daemon 2>&1 | tee /tmp/build.log
+            RESULT=${PIPESTATUS[0]}
           fi
 
-      - name: Find and rename APK
+          if [ "$RESULT" -ne 0 ]; then
+            echo ""
+            echo "========== REAL BUILD ERROR =========="
+            grep -Ei \
+              "FAILURE:|What went wrong|Execution failed|Caused by:|error:|Keystore|password|signing|Could not|Android SDK|SDK location" \
+              /tmp/build.log | tail -80 || true
+            echo "======================================"
+            exit "$RESULT"
+          fi
+
+      - name: Collect APK
         shell: bash
         run: |
           set -eu
 
-          APK="$(find "$PROJECT_DIR" \
-            -type f \
-            -name '*.apk' \
+          APK="$(find "$PROJECT_DIR" -type f -name '*.apk' \
             ! -name '*androidTest*' \
             ! -name '*unaligned*' \
             -print -quit)"
@@ -179,14 +217,14 @@ jobs:
             exit 1
           fi
 
-          echo "APK found: $APK"
+          cp "$APK" Tahalil-Alakkad-V97.apk
 
-          cp "$APK" Tahalil-Alakkad-V96.apk
+          echo "APK READY: Tahalil-Alakkad-V97.apk"
 
-      - name: Upload APK
+      - name: Upload V97 APK
         uses: actions/upload-artifact@v4
         with:
-          name: Tahalil-Alakkad-V96
-          path: Tahalil-Alakkad-V96.apk
+          name: Tahalil-Alakkad-V97
+          path: Tahalil-Alakkad-V97.apk
           if-no-files-found: error
           retention-days: 30
