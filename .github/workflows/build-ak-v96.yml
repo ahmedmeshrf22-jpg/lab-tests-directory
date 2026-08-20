@@ -45,7 +45,102 @@ jobs:
 
           echo "Extracted: $ZIP_FILE"
 
-      - name: Restore OLD signing keystore
+      - name: Upgrade V96 to V97 safely
+        shell: bash
+        run: |
+          set -eu
+
+          python3 <<'PY'
+          import pathlib
+          import re
+
+          root = pathlib.Path("build_v96")
+
+          files = list(root.rglob("build.gradle")) + list(root.rglob("build.gradle.kts"))
+
+          found_v96 = False
+
+          for p in files:
+              try:
+                  text = p.read_text(encoding="utf-8")
+              except Exception:
+                  continue
+
+              original = text
+              changed_version = False
+
+              # Kotlin DSL: versionName = "96"
+              pattern_kts = r'(versionName\s*=\s*["\'])([^"\']*)(["\'])'
+
+              def replace_kts(m):
+                  global found_v96
+                  value = m.group(2)
+
+                  if "96" in value:
+                      found_v96 = True
+                      return m.group(1) + value.replace("96", "97") + m.group(3)
+
+                  return m.group(0)
+
+              new_text = re.sub(pattern_kts, replace_kts, text)
+
+              if new_text != text:
+                  changed_version = True
+                  text = new_text
+
+              # Groovy: versionName "96"
+              pattern_groovy = r'(versionName\s+["\'])([^"\']*)(["\'])'
+
+              def replace_groovy(m):
+                  global found_v96
+                  value = m.group(2)
+
+                  if "96" in value:
+                      found_v96 = True
+                      return m.group(1) + value.replace("96", "97") + m.group(3)
+
+                  return m.group(0)
+
+              new_text = re.sub(pattern_groovy, replace_groovy, text)
+
+              if new_text != text:
+                  changed_version = True
+                  text = new_text
+
+              # نزود versionCode فقط لو نفس الملف كان V96
+              if changed_version:
+
+                  def bump_kts(m):
+                      return m.group(1) + str(int(m.group(2)) + 1)
+
+                  text = re.sub(
+                      r'(versionCode\s*=\s*)(\d+)',
+                      bump_kts,
+                      text,
+                      count=1
+                  )
+
+                  def bump_groovy(m):
+                      return m.group(1) + str(int(m.group(2)) + 1)
+
+                  text = re.sub(
+                      r'(versionCode\s+)(\d+)',
+                      bump_groovy,
+                      text,
+                      count=1
+                  )
+
+              if text != original:
+                  p.write_text(text, encoding="utf-8")
+                  print("UPDATED:", p)
+
+          if found_v96:
+              print("V96 FOUND -> CHANGED TO V97")
+          else:
+              print("NO V96 FOUND - VERSION LEFT UNCHANGED")
+          PY
+
+      - name: Restore original signing keystore
         shell: bash
         env:
           SIGNING_BUNDLE_B64: ${{ secrets.TAHALIL_SIGNING_BUNDLE_B64 }}
@@ -53,85 +148,58 @@ jobs:
           set -eu
 
           if [ -z "$SIGNING_BUNDLE_B64" ]; then
-            echo "ERROR: signing secret missing"
+            echo "ERROR: TAHALIL_SIGNING_BUNDLE_B64 missing"
             exit 1
           fi
 
-          rm -rf /tmp/signing
-          mkdir -p /tmp/signing
+          rm -rf /tmp/tahalil_signing
+          mkdir -p /tmp/tahalil_signing/unpacked
 
-          printf '%s' "$SIGNING_BUNDLE_B64" | base64 --decode > /tmp/signing/bundle.bin
+          printf '%s' "$SIGNING_BUNDLE_B64" | base64 --decode > /tmp/tahalil_signing/signing.bin
 
-          if unzip -t /tmp/signing/bundle.bin >/dev/null 2>&1; then
-            mkdir -p /tmp/signing/unpacked
-            unzip -q /tmp/signing/bundle.bin -d /tmp/signing/unpacked
+          if unzip -t /tmp/tahalil_signing/signing.bin >/dev/null 2>&1; then
 
-            KEYSTORE="$(find /tmp/signing/unpacked -type f \( -iname '*.keystore' -o -iname '*.jks' \) -print -quit)"
+            unzip -q /tmp/tahalil_signing/signing.bin \
+              -d /tmp/tahalil_signing/unpacked
+
+            KEYSTORE="$(find /tmp/tahalil_signing/unpacked -type f \( \
+              -iname '*.keystore' -o \
+              -iname '*.jks' \
+              \) -print -quit)"
 
             if [ -z "$KEYSTORE" ]; then
-              echo "ERROR: no keystore inside signing bundle"
+              echo "ERROR: Keystore not found in signing bundle"
               exit 1
             fi
 
             cp "$KEYSTORE" build_v96/debug.keystore
+
           else
-            cp /tmp/signing/bundle.bin build_v96/debug.keystore
+
+            cp /tmp/tahalil_signing/signing.bin \
+              build_v96/debug.keystore
+
           fi
 
-          test -s build_v96/debug.keystore
+          if [ ! -s build_v96/debug.keystore ]; then
+            echo "ERROR: Signing keystore restore failed"
+            exit 1
+          fi
 
-          echo "Old signing keystore restored"
-
-      - name: Set version V97
-        shell: bash
-        run: |
-          set -eu
-
-          python3 <<'PY'
-          import pathlib, re
-
-          root = pathlib.Path("build_v96")
-
-          for p in list(root.rglob("build.gradle")) + list(root.rglob("build.gradle.kts")):
-              try:
-                  text = p.read_text(encoding="utf-8")
-              except:
-                  continue
-
-              old = text
-
-              text = re.sub(
-                  r'versionName\s*[= ]\s*["\'][^"\']*["\']',
-                  'versionName "97"',
-                  text
-              )
-
-              def bump(m):
-                  n = int(m.group(2))
-                  return m.group(1) + str(max(n + 1, 97))
-
-              text = re.sub(
-                  r'(versionCode\s*[= ]\s*)(\d+)',
-                  bump,
-                  text
-              )
-
-              if text != old:
-                  p.write_text(text, encoding="utf-8")
-                  print("Updated:", p)
-          PY
+          echo "OLD SIGNING KEY RESTORED"
 
       - name: Build signed V97 APK
         shell: bash
         run: |
           set -eu
+
           cd build_v96
 
           if [ -f gradlew ]; then
             chmod +x gradlew
-            ./gradlew assembleDebug --no-daemon
+            ./gradlew assembleDebug --no-daemon --stacktrace
           else
-            gradle assembleDebug --no-daemon
+            gradle assembleDebug --no-daemon --stacktrace
           fi
 
       - name: Collect APK
@@ -139,7 +207,11 @@ jobs:
         run: |
           set -eu
 
-          APK="$(find build_v96 -type f -name '*.apk' ! -name '*androidTest*' ! -name '*unaligned*' -print -quit)"
+          APK="$(find build_v96 -type f \
+            -name '*.apk' \
+            ! -name '*androidTest*' \
+            ! -name '*unaligned*' \
+            -print -quit)"
 
           if [ -z "$APK" ]; then
             echo "ERROR: APK not found"
@@ -147,7 +219,8 @@ jobs:
           fi
 
           cp "$APK" Tahalil-Alakkad-V97.apk
-          echo "READY: Tahalil-Alakkad-V97.apk"
+
+          echo "APK READY"
 
       - name: Upload V97 APK
         uses: actions/upload-artifact@v4
