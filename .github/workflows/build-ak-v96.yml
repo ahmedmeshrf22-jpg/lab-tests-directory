@@ -28,10 +28,10 @@ jobs:
         run: |
           set -eu
 
-          ZIP_FILE="$(find . -maxdepth 3 -type f -iname '*v96*.zip' -print -quit)"
+          ZIP_FILE="$(find . -maxdepth 4 -type f -iname '*v96*.zip' -print -quit)"
 
           if [ -z "$ZIP_FILE" ]; then
-            ZIP_FILE="$(find . -maxdepth 3 -type f -iname '*.zip' -print -quit)"
+            ZIP_FILE="$(find . -maxdepth 4 -type f -iname '*.zip' -print -quit)"
           fi
 
           if [ -z "$ZIP_FILE" ]; then
@@ -45,21 +45,32 @@ jobs:
           mkdir -p build_v96
           unzip -q "$ZIP_FILE" -d build_v96
 
-          echo "V96 extracted successfully"
+          echo "ZIP extracted"
 
       - name: Locate Android project
         shell: bash
         run: |
           set -eu
 
-          GRADLEW="$(find build_v96 -type f -name gradlew -print -quit)"
+          PROJECT_DIR=""
 
-          if [ -z "$GRADLEW" ]; then
-            echo "ERROR: gradlew not found"
-            exit 1
+          SETTINGS="$(find build_v96 -type f \( -name 'settings.gradle' -o -name 'settings.gradle.kts' \) -print -quit)"
+
+          if [ -n "$SETTINGS" ]; then
+            PROJECT_DIR="$(dirname "$SETTINGS")"
+          else
+            BUILD_FILE="$(find build_v96 -type f \( -name 'build.gradle' -o -name 'build.gradle.kts' \) -print -quit)"
+
+            if [ -n "$BUILD_FILE" ]; then
+              PROJECT_DIR="$(dirname "$BUILD_FILE")"
+            fi
           fi
 
-          PROJECT_DIR="$(dirname "$GRADLEW")"
+          if [ -z "$PROJECT_DIR" ]; then
+            echo "ERROR: Android Gradle project not found"
+            find build_v96 -maxdepth 4 -type f | head -100 || true
+            exit 1
+          fi
 
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
           echo "Android project: $PROJECT_DIR"
@@ -76,10 +87,53 @@ jobs:
             exit 1
           fi
 
-          printf '%s' "$SIGNING_BUNDLE_B64" | base64 --decode > "$PROJECT_DIR/debug.keystore"
+          rm -rf /tmp/tahalil_signing
+          mkdir -p /tmp/tahalil_signing
+
+          printf '%s' "$SIGNING_BUNDLE_B64" | base64 --decode > /tmp/tahalil_signing/bundle.bin
+
+          if unzip -t /tmp/tahalil_signing/bundle.bin >/dev/null 2>&1; then
+
+            echo "Signing secret is a ZIP bundle"
+
+            mkdir -p /tmp/tahalil_signing/files
+
+            unzip -q /tmp/tahalil_signing/bundle.bin \
+              -d /tmp/tahalil_signing/files
+
+            KEYSTORE="$(find /tmp/tahalil_signing/files -type f \( \
+              -iname '*.keystore' -o \
+              -iname '*.jks' \
+            \) -print -quit)"
+
+            if [ -z "$KEYSTORE" ]; then
+              echo "ERROR: No keystore found inside signing bundle"
+              find /tmp/tahalil_signing/files -type f || true
+              exit 1
+            fi
+
+            cp "$KEYSTORE" "$PROJECT_DIR/debug.keystore"
+
+            PROPS="$(find /tmp/tahalil_signing/files \
+              -type f \
+              -name 'gradle.properties' \
+              -print -quit || true)"
+
+            if [ -n "$PROPS" ]; then
+              cp "$PROPS" "$PROJECT_DIR/gradle.properties"
+            fi
+
+          else
+
+            echo "Signing secret is a raw keystore"
+
+            cp /tmp/tahalil_signing/bundle.bin \
+              "$PROJECT_DIR/debug.keystore"
+
+          fi
 
           if [ ! -s "$PROJECT_DIR/debug.keystore" ]; then
-            echo "ERROR: signing keystore is empty"
+            echo "ERROR: debug.keystore was not restored"
             exit 1
           fi
 
@@ -91,15 +145,31 @@ jobs:
           set -eu
 
           cd "$PROJECT_DIR"
-          chmod +x gradlew
-          ./gradlew clean assembleDebug --no-daemon --stacktrace
+
+          if [ -f "./gradlew" ]; then
+
+            chmod +x ./gradlew
+
+            ./gradlew clean assembleDebug \
+              --no-daemon \
+              --stacktrace
+
+          else
+
+            gradle clean assembleDebug \
+              --no-daemon \
+              --stacktrace
+
+          fi
 
       - name: Find and rename APK
         shell: bash
         run: |
           set -eu
 
-          APK="$(find "$PROJECT_DIR" -type f -name '*.apk' \
+          APK="$(find "$PROJECT_DIR" \
+            -type f \
+            -name '*.apk' \
             ! -name '*androidTest*' \
             ! -name '*unaligned*' \
             -print -quit)"
@@ -110,6 +180,7 @@ jobs:
           fi
 
           echo "APK found: $APK"
+
           cp "$APK" Tahalil-Alakkad-V96.apk
 
       - name: Upload APK
