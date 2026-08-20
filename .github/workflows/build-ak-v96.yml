@@ -26,84 +26,91 @@ jobs:
       - name: Extract prepared V96
         shell: bash
         run: |
-          set -euo pipefail
+          set -eu
 
-          ZIP_FILE="$(find . -maxdepth 2 -type f \( -iname '*v96*.zip' -o -iname '*.zip' \) | head -n 1)"
+          ZIP_FILE="$(find . -maxdepth 3 -type f -iname '*v96*.zip' -print -quit)"
 
-          if [ -z "${ZIP_FILE}" ]; then
-            echo "V96 ZIP not found"
+          if [ -z "$ZIP_FILE" ]; then
+            ZIP_FILE="$(find . -maxdepth 3 -type f -iname '*.zip' -print -quit)"
+          fi
+
+          if [ -z "$ZIP_FILE" ]; then
+            echo "ERROR: V96 ZIP not found"
             exit 1
           fi
 
+          echo "Using ZIP: $ZIP_FILE"
+
           rm -rf build_v96
           mkdir -p build_v96
-          unzip -q "${ZIP_FILE}" -d build_v96
+          unzip -q "$ZIP_FILE" -d build_v96
 
-          # لو الـZIP فيه فولدر واحد فقط، ننقل محتواه للمستوى الرئيسي
-          FIRST_DIR="$(find build_v96 -mindepth 1 -maxdepth 1 -type d | head -n 1 || true)"
-          FILE_COUNT="$(find build_v96 -mindepth 1 -maxdepth 1 | wc -l)"
+          echo "V96 extracted successfully"
 
-          if [ "${FILE_COUNT}" = "1" ] && [ -n "${FIRST_DIR}" ]; then
-            shopt -s dotglob
-            mv "${FIRST_DIR}"/* build_v96/
-            rmdir "${FIRST_DIR}"
+      - name: Locate Android project
+        shell: bash
+        run: |
+          set -eu
+
+          GRADLEW="$(find build_v96 -type f -name gradlew -print -quit)"
+
+          if [ -z "$GRADLEW" ]; then
+            echo "ERROR: gradlew not found"
+            exit 1
           fi
+
+          PROJECT_DIR="$(dirname "$GRADLEW")"
+
+          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
+          echo "Android project: $PROJECT_DIR"
 
       - name: Restore original signing keystore
         shell: bash
         env:
           SIGNING_BUNDLE_B64: ${{ secrets.TAHALIL_SIGNING_BUNDLE_B64 }}
         run: |
-          set -euo pipefail
+          set -eu
 
-          if [ -z "${SIGNING_BUNDLE_B64}" ]; then
-            echo "TAHALIL_SIGNING_BUNDLE_B64 secret is empty"
+          if [ -z "$SIGNING_BUNDLE_B64" ]; then
+            echo "ERROR: TAHALIL_SIGNING_BUNDLE_B64 is empty"
             exit 1
           fi
 
-          mkdir -p build_v96
+          printf '%s' "$SIGNING_BUNDLE_B64" | base64 --decode > "$PROJECT_DIR/debug.keystore"
 
-          printf '%s' "${SIGNING_BUNDLE_B64}" | base64 --decode > build_v96/debug.keystore
+          if [ ! -s "$PROJECT_DIR/debug.keystore" ]; then
+            echo "ERROR: signing keystore is empty"
+            exit 1
+          fi
 
-          test -s build_v96/debug.keystore
-
-          echo "Original keystore restored successfully"
+          echo "Original signing keystore restored"
 
       - name: Build installable V96 APK
         shell: bash
         run: |
-          set -euo pipefail
-          cd build_v96
+          set -eu
 
+          cd "$PROJECT_DIR"
           chmod +x gradlew
-
           ./gradlew clean assembleDebug --no-daemon --stacktrace
 
-      - name: Find built APK
-        id: apk
+      - name: Find and rename APK
         shell: bash
         run: |
-          set -euo pipefail
+          set -eu
 
-          APK="$(find build_v96 -type f -name '*.apk' \
+          APK="$(find "$PROJECT_DIR" -type f -name '*.apk' \
             ! -name '*androidTest*' \
             ! -name '*unaligned*' \
-            | head -n 1)"
+            -print -quit)"
 
-          if [ -z "${APK}" ]; then
-            echo "APK not found"
+          if [ -z "$APK" ]; then
+            echo "ERROR: APK not found"
             exit 1
           fi
 
-          echo "apk=${APK}" >> "$GITHUB_OUTPUT"
-          echo "Built APK: ${APK}"
-
-      - name: Rename APK
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          cp "${{ steps.apk.outputs.apk }}" Tahalil-Alakkad-V96.apk
+          echo "APK found: $APK"
+          cp "$APK" Tahalil-Alakkad-V96.apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
