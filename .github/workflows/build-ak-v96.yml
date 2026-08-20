@@ -1,46 +1,4 @@
-name: Build AK V97 Signed
-
-on:
-  workflow_dispatch:
-
-permissions:
-  contents: read
-
-jobs:
-  build:
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Java 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: "17"
-
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
-
-      - name: Extract project
-        shell: bash
-        run: |
-          set -eu
-
-          ZIP="$(find . -maxdepth 4 -type f -iname '*v96*.zip' -print -quit)"
-
-          if [ -z "$ZIP" ]; then
-            ZIP="$(find . -maxdepth 4 -type f -iname '*.zip' -print -quit)"
-          fi
-
-          test -n "$ZIP"
-
-          rm -rf build_v96
-          mkdir build_v96
-          unzip -q "$ZIP" -d build_v96
-
-      - name: Fix Kotlin Compose versions
+      - name: Fix Kotlin 2 Compose plugin
         shell: bash
         run: |
           set -eu
@@ -51,25 +9,15 @@ jobs:
 
           root = Path("build_v96")
 
+          # خلي Kotlin + Compose plugin على نفس إصدار 2.x
           for p in root.rglob("libs.versions.toml"):
               s = p.read_text(errors="ignore")
               old = s
 
+              # لو فيه kotlin version موجود، نخليه 2.0.21
               s = re.sub(
                   r'(?m)^(\s*kotlin\s*=\s*)["\'][^"\']+["\']',
-                  r'\1"1.9.24"',
-                  s
-              )
-
-              s = re.sub(
-                  r'(?m)^(\s*composeCompiler\s*=\s*)["\'][^"\']+["\']',
-                  r'\1"1.5.14"',
-                  s
-              )
-
-              s = re.sub(
-                  r'(?m)^(\s*compose-compiler\s*=\s*)["\'][^"\']+["\']',
-                  r'\1"1.5.14"',
+                  r'\1"2.0.21"',
                   s
               )
 
@@ -81,173 +29,35 @@ jobs:
               s = p.read_text(errors="ignore")
               old = s
 
+              # Kotlin Android plugin
               s = re.sub(
-                  r'(org\.jetbrains\.kotlin\.android["\']?\)?\s+version\s+["\'])[^"\']+(["\'])',
-                  r'\g<1>1.9.24\2',
+                  r'(id\("org\.jetbrains\.kotlin\.android"\)\s+version\s+")[^"]+(")',
+                  r'\g<1>2.0.21\2',
+                  s
+              )
+
+              # Kotlin Compose plugin
+              s = re.sub(
+                  r'(id\("org\.jetbrains\.kotlin\.plugin\.compose"\)\s+version\s+")[^"]+(")',
+                  r'\g<1>2.0.21\2',
+                  s
+              )
+
+              # لو النسخ بتيجي من plugin aliases، سيبها زي ما هي
+              # واحذف النظام القديم بتاع Compose Compiler
+              s = re.sub(
+                  r'(?ms)\s*composeOptions\s*\{.*?kotlinCompilerExtensionVersion.*?\}',
+                  '',
                   s
               )
 
               s = re.sub(
-                  r'(kotlin\(["\']android["\']\)\s+version\s+["\'])[^"\']+(["\'])',
-                  r'\g<1>1.9.24\2',
-                  s
-              )
-
-              s = re.sub(
-                  r'kotlinCompilerExtensionVersion\s*=\s*["\'][^"\']+["\']',
-                  'kotlinCompilerExtensionVersion = "1.5.14"',
-                  s
-              )
-
-              s = re.sub(
-                  r'kotlinCompilerExtensionVersion\s+["\'][^"\']+["\']',
-                  'kotlinCompilerExtensionVersion "1.5.14"',
+                  r'(?m)^\s*kotlinCompilerExtensionVersion\s*=.*$',
+                  '',
                   s
               )
 
               if s != old:
                   p.write_text(s)
                   print("FIXED:", p)
-
-      - name: Verify Kotlin Compose versions
-        shell: bash
-        run: |
-          set -eu
-
-          echo "===== DETECTED VERSION REFERENCES ====="
-
-          grep -RniE \
-            'kotlin.*version|kotlinCompilerExtensionVersion|composeCompiler|compose-compiler' \
-            build_v96 \
-            --include='*.gradle' \
-            --include='*.gradle.kts' \
-            --include='libs.versions.toml' \
-            || true
-
-          echo "======================================="
-
-          BAD_KOTLIN="$(grep -RniE \
-            'kotlin.*version.*"(2\.|1\.[0-8]\.)|kotlin\s*=\s*"(2\.|1\.[0-8]\.)' \
-            build_v96 \
-            --include='*.gradle' \
-            --include='*.gradle.kts' \
-            --include='libs.versions.toml' \
-            || true)"
-
-          BAD_COMPOSE="$(grep -RniE \
-            'kotlinCompilerExtensionVersion.*"(1\.[0-4]\.|1\.5\.(0|1|2|3|4|5|6|7|8|9|10|11|12|13))"|composeCompiler\s*=\s*"(1\.[0-4]\.|1\.5\.(0|1|2|3|4|5|6|7|8|9|10|11|12|13))"' \
-            build_v96 \
-            --include='*.gradle' \
-            --include='*.gradle.kts' \
-            --include='libs.versions.toml' \
-            || true)"
-
-          if [ -n "$BAD_KOTLIN" ]; then
-            echo "ERROR: incompatible Kotlin reference still found:"
-            echo "$BAD_KOTLIN"
-            exit 1
-          fi
-
-          if [ -n "$BAD_COMPOSE" ]; then
-            echo "ERROR: incompatible Compose compiler reference still found:"
-            echo "$BAD_COMPOSE"
-            exit 1
-          fi
-
-          echo "VERSION CHECK PASSED"
-          echo "Expected Kotlin: 1.9.24"
-          echo "Expected Compose Compiler: 1.5.14"
-
-      - name: Set V97
-        shell: bash
-        run: |
-          set -eu
-
-          python3 <<'PY'
-          from pathlib import Path
-          import re
-
-          root = Path("build_v96")
-
-          for p in list(root.rglob("build.gradle.kts")) + list(root.rglob("build.gradle")):
-              s = p.read_text(errors="ignore")
-              old = s
-
-              s = re.sub(
-                  r'(versionName\s*=\s*["\'])[^"\']+(["\'])',
-                  r'\g<1>97\2',
-                  s
-              )
-
-              s = re.sub(
-                  r'(versionName\s+["\'])[^"\']+(["\'])',
-                  r'\g<1>97\2',
-                  s
-              )
-
-              if s != old:
-                  p.write_text(s)
-                  print("V97:", p)
           PY
-
-      - name: Restore original signing keystore
-        shell: bash
-        env:
-          SIGNING_BUNDLE_B64: ${{ secrets.TAHALIL_SIGNING_BUNDLE_B64 }}
-        run: |
-          set -eu
-
-          test -n "$SIGNING_BUNDLE_B64"
-
-          rm -rf /tmp/sign
-          mkdir -p /tmp/sign/files
-
-          printf '%s' "$SIGNING_BUNDLE_B64" | base64 --decode > /tmp/sign/sign.bin
-
-          if unzip -t /tmp/sign/sign.bin >/dev/null 2>&1; then
-            unzip -q /tmp/sign/sign.bin -d /tmp/sign/files
-
-            KEY="$(find /tmp/sign/files -type f \( -iname '*.keystore' -o -iname '*.jks' \) -print -quit)"
-
-            test -n "$KEY"
-            cp "$KEY" build_v96/debug.keystore
-          else
-            cp /tmp/sign/sign.bin build_v96/debug.keystore
-          fi
-
-          test -s build_v96/debug.keystore
-
-      - name: Build V97
-        shell: bash
-        run: |
-          set -eu
-          cd build_v96
-
-          if [ -f gradlew ]; then
-            chmod +x gradlew
-            ./gradlew --stop || true
-            ./gradlew clean assembleDebug --no-daemon --refresh-dependencies
-          else
-            gradle clean assembleDebug --no-daemon --refresh-dependencies
-          fi
-
-      - name: Collect APK
-        shell: bash
-        run: |
-          set -eu
-
-          APK="$(find build_v96 -type f -name '*.apk' \
-            ! -name '*androidTest*' \
-            ! -name '*unaligned*' \
-            -print -quit)"
-
-          test -n "$APK"
-
-          cp "$APK" Tahalil-Alakkad-V97.apk
-
-      - name: Upload V97 APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: Tahalil-Alakkad-V97
-          path: Tahalil-Alakkad-V97.apk
-          if-no-files-found: error
