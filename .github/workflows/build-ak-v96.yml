@@ -23,121 +23,171 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Extract prepared project
+      - name: Extract project
         shell: bash
         run: |
           set -eu
 
-          ZIP_FILE="$(find . -maxdepth 3 -type f -iname '*v96*.zip' -print -quit)"
+          ZIP="$(find . -maxdepth 4 -type f -iname '*v96*.zip' -print -quit)"
 
-          if [ -z "$ZIP_FILE" ]; then
-            ZIP_FILE="$(find . -maxdepth 3 -type f -iname '*.zip' -print -quit)"
+          if [ -z "$ZIP" ]; then
+            ZIP="$(find . -maxdepth 4 -type f -iname '*.zip' -print -quit)"
           fi
 
-          if [ -z "$ZIP_FILE" ]; then
-            echo "ERROR: Project ZIP not found"
-            exit 1
-          fi
+          test -n "$ZIP"
 
           rm -rf build_v96
-          mkdir -p build_v96
-          unzip -q "$ZIP_FILE" -d build_v96
+          mkdir build_v96
+          unzip -q "$ZIP" -d build_v96
 
-          echo "Extracted: $ZIP_FILE"
-
-      - name: Upgrade V96 to V97 safely
+      - name: Fix Kotlin Compose versions
         shell: bash
         run: |
           set -eu
 
           python3 <<'PY'
-          import pathlib
+          from pathlib import Path
           import re
 
-          root = pathlib.Path("build_v96")
+          root = Path("build_v96")
 
-          files = list(root.rglob("build.gradle")) + list(root.rglob("build.gradle.kts"))
+          for p in root.rglob("libs.versions.toml"):
+              s = p.read_text(errors="ignore")
+              old = s
 
-          found_v96 = False
+              s = re.sub(
+                  r'(?m)^(\s*kotlin\s*=\s*)["\'][^"\']+["\']',
+                  r'\1"1.9.24"',
+                  s
+              )
 
-          for p in files:
-              try:
-                  text = p.read_text(encoding="utf-8")
-              except Exception:
-                  continue
+              s = re.sub(
+                  r'(?m)^(\s*composeCompiler\s*=\s*)["\'][^"\']+["\']',
+                  r'\1"1.5.14"',
+                  s
+              )
 
-              original = text
-              changed_version = False
+              s = re.sub(
+                  r'(?m)^(\s*compose-compiler\s*=\s*)["\'][^"\']+["\']',
+                  r'\1"1.5.14"',
+                  s
+              )
 
-              # Kotlin DSL: versionName = "96"
-              pattern_kts = r'(versionName\s*=\s*["\'])([^"\']*)(["\'])'
+              if s != old:
+                  p.write_text(s)
+                  print("FIXED:", p)
 
-              def replace_kts(m):
-                  global found_v96
-                  value = m.group(2)
+          for p in list(root.rglob("*.gradle.kts")) + list(root.rglob("*.gradle")):
+              s = p.read_text(errors="ignore")
+              old = s
 
-                  if "96" in value:
-                      found_v96 = True
-                      return m.group(1) + value.replace("96", "97") + m.group(3)
+              s = re.sub(
+                  r'(org\.jetbrains\.kotlin\.android["\']?\)?\s+version\s+["\'])[^"\']+(["\'])',
+                  r'\g<1>1.9.24\2',
+                  s
+              )
 
-                  return m.group(0)
+              s = re.sub(
+                  r'(kotlin\(["\']android["\']\)\s+version\s+["\'])[^"\']+(["\'])',
+                  r'\g<1>1.9.24\2',
+                  s
+              )
 
-              new_text = re.sub(pattern_kts, replace_kts, text)
+              s = re.sub(
+                  r'kotlinCompilerExtensionVersion\s*=\s*["\'][^"\']+["\']',
+                  'kotlinCompilerExtensionVersion = "1.5.14"',
+                  s
+              )
 
-              if new_text != text:
-                  changed_version = True
-                  text = new_text
+              s = re.sub(
+                  r'kotlinCompilerExtensionVersion\s+["\'][^"\']+["\']',
+                  'kotlinCompilerExtensionVersion "1.5.14"',
+                  s
+              )
 
-              # Groovy: versionName "96"
-              pattern_groovy = r'(versionName\s+["\'])([^"\']*)(["\'])'
+              if s != old:
+                  p.write_text(s)
+                  print("FIXED:", p)
 
-              def replace_groovy(m):
-                  global found_v96
-                  value = m.group(2)
+      - name: Verify Kotlin Compose versions
+        shell: bash
+        run: |
+          set -eu
 
-                  if "96" in value:
-                      found_v96 = True
-                      return m.group(1) + value.replace("96", "97") + m.group(3)
+          echo "===== DETECTED VERSION REFERENCES ====="
 
-                  return m.group(0)
+          grep -RniE \
+            'kotlin.*version|kotlinCompilerExtensionVersion|composeCompiler|compose-compiler' \
+            build_v96 \
+            --include='*.gradle' \
+            --include='*.gradle.kts' \
+            --include='libs.versions.toml' \
+            || true
 
-              new_text = re.sub(pattern_groovy, replace_groovy, text)
+          echo "======================================="
 
-              if new_text != text:
-                  changed_version = True
-                  text = new_text
+          BAD_KOTLIN="$(grep -RniE \
+            'kotlin.*version.*"(2\.|1\.[0-8]\.)|kotlin\s*=\s*"(2\.|1\.[0-8]\.)' \
+            build_v96 \
+            --include='*.gradle' \
+            --include='*.gradle.kts' \
+            --include='libs.versions.toml' \
+            || true)"
 
-              # نزود versionCode فقط لو نفس الملف كان V96
-              if changed_version:
+          BAD_COMPOSE="$(grep -RniE \
+            'kotlinCompilerExtensionVersion.*"(1\.[0-4]\.|1\.5\.(0|1|2|3|4|5|6|7|8|9|10|11|12|13))"|composeCompiler\s*=\s*"(1\.[0-4]\.|1\.5\.(0|1|2|3|4|5|6|7|8|9|10|11|12|13))"' \
+            build_v96 \
+            --include='*.gradle' \
+            --include='*.gradle.kts' \
+            --include='libs.versions.toml' \
+            || true)"
 
-                  def bump_kts(m):
-                      return m.group(1) + str(int(m.group(2)) + 1)
+          if [ -n "$BAD_KOTLIN" ]; then
+            echo "ERROR: incompatible Kotlin reference still found:"
+            echo "$BAD_KOTLIN"
+            exit 1
+          fi
 
-                  text = re.sub(
-                      r'(versionCode\s*=\s*)(\d+)',
-                      bump_kts,
-                      text,
-                      count=1
-                  )
+          if [ -n "$BAD_COMPOSE" ]; then
+            echo "ERROR: incompatible Compose compiler reference still found:"
+            echo "$BAD_COMPOSE"
+            exit 1
+          fi
 
-                  def bump_groovy(m):
-                      return m.group(1) + str(int(m.group(2)) + 1)
+          echo "VERSION CHECK PASSED"
+          echo "Expected Kotlin: 1.9.24"
+          echo "Expected Compose Compiler: 1.5.14"
 
-                  text = re.sub(
-                      r'(versionCode\s+)(\d+)',
-                      bump_groovy,
-                      text,
-                      count=1
-                  )
+      - name: Set V97
+        shell: bash
+        run: |
+          set -eu
 
-              if text != original:
-                  p.write_text(text, encoding="utf-8")
-                  print("UPDATED:", p)
+          python3 <<'PY'
+          from pathlib import Path
+          import re
 
-          if found_v96:
-              print("V96 FOUND -> CHANGED TO V97")
-          else:
-              print("NO V96 FOUND - VERSION LEFT UNCHANGED")
+          root = Path("build_v96")
+
+          for p in list(root.rglob("build.gradle.kts")) + list(root.rglob("build.gradle")):
+              s = p.read_text(errors="ignore")
+              old = s
+
+              s = re.sub(
+                  r'(versionName\s*=\s*["\'])[^"\']+(["\'])',
+                  r'\g<1>97\2',
+                  s
+              )
+
+              s = re.sub(
+                  r'(versionName\s+["\'])[^"\']+(["\'])',
+                  r'\g<1>97\2',
+                  s
+              )
+
+              if s != old:
+                  p.write_text(s)
+                  print("V97:", p)
           PY
 
       - name: Restore original signing keystore
@@ -147,59 +197,38 @@ jobs:
         run: |
           set -eu
 
-          if [ -z "$SIGNING_BUNDLE_B64" ]; then
-            echo "ERROR: TAHALIL_SIGNING_BUNDLE_B64 missing"
-            exit 1
-          fi
+          test -n "$SIGNING_BUNDLE_B64"
 
-          rm -rf /tmp/tahalil_signing
-          mkdir -p /tmp/tahalil_signing/unpacked
+          rm -rf /tmp/sign
+          mkdir -p /tmp/sign/files
 
-          printf '%s' "$SIGNING_BUNDLE_B64" | base64 --decode > /tmp/tahalil_signing/signing.bin
+          printf '%s' "$SIGNING_BUNDLE_B64" | base64 --decode > /tmp/sign/sign.bin
 
-          if unzip -t /tmp/tahalil_signing/signing.bin >/dev/null 2>&1; then
+          if unzip -t /tmp/sign/sign.bin >/dev/null 2>&1; then
+            unzip -q /tmp/sign/sign.bin -d /tmp/sign/files
 
-            unzip -q /tmp/tahalil_signing/signing.bin \
-              -d /tmp/tahalil_signing/unpacked
+            KEY="$(find /tmp/sign/files -type f \( -iname '*.keystore' -o -iname '*.jks' \) -print -quit)"
 
-            KEYSTORE="$(find /tmp/tahalil_signing/unpacked -type f \( \
-              -iname '*.keystore' -o \
-              -iname '*.jks' \
-              \) -print -quit)"
-
-            if [ -z "$KEYSTORE" ]; then
-              echo "ERROR: Keystore not found in signing bundle"
-              exit 1
-            fi
-
-            cp "$KEYSTORE" build_v96/debug.keystore
-
+            test -n "$KEY"
+            cp "$KEY" build_v96/debug.keystore
           else
-
-            cp /tmp/tahalil_signing/signing.bin \
-              build_v96/debug.keystore
-
+            cp /tmp/sign/sign.bin build_v96/debug.keystore
           fi
 
-          if [ ! -s build_v96/debug.keystore ]; then
-            echo "ERROR: Signing keystore restore failed"
-            exit 1
-          fi
+          test -s build_v96/debug.keystore
 
-          echo "OLD SIGNING KEY RESTORED"
-
-      - name: Build signed V97 APK
+      - name: Build V97
         shell: bash
         run: |
           set -eu
-
           cd build_v96
 
           if [ -f gradlew ]; then
             chmod +x gradlew
-            ./gradlew assembleDebug --no-daemon --stacktrace
+            ./gradlew --stop || true
+            ./gradlew clean assembleDebug --no-daemon --refresh-dependencies
           else
-            gradle assembleDebug --no-daemon --stacktrace
+            gradle clean assembleDebug --no-daemon --refresh-dependencies
           fi
 
       - name: Collect APK
@@ -207,20 +236,14 @@ jobs:
         run: |
           set -eu
 
-          APK="$(find build_v96 -type f \
-            -name '*.apk' \
+          APK="$(find build_v96 -type f -name '*.apk' \
             ! -name '*androidTest*' \
             ! -name '*unaligned*' \
             -print -quit)"
 
-          if [ -z "$APK" ]; then
-            echo "ERROR: APK not found"
-            exit 1
-          fi
+          test -n "$APK"
 
           cp "$APK" Tahalil-Alakkad-V97.apk
-
-          echo "APK READY"
 
       - name: Upload V97 APK
         uses: actions/upload-artifact@v4
@@ -228,4 +251,3 @@ jobs:
           name: Tahalil-Alakkad-V97
           path: Tahalil-Alakkad-V97.apk
           if-no-files-found: error
-          retention-days: 30
