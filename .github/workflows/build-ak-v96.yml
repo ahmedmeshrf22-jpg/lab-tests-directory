@@ -9,6 +9,7 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -17,39 +18,97 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: "17"
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '8.11.1'
 
       - name: Extract prepared V96
+        shell: bash
         run: |
-          rm -rf build_v96
-          mkdir build_v96
-          unzip -q Project3_AK_V96_EDITABLE_CATALOG.zip -d build_v96
+          set -euo pipefail
 
-      - name: Create debug keystore expected by project
+          ZIP_FILE="$(find . -maxdepth 2 -type f \( -iname '*v96*.zip' -o -iname '*.zip' \) | head -n 1)"
+
+          if [ -z "${ZIP_FILE}" ]; then
+            echo "V96 ZIP not found"
+            exit 1
+          fi
+
+          rm -rf build_v96
+          mkdir -p build_v96
+          unzip -q "${ZIP_FILE}" -d build_v96
+
+          # لو الـZIP فيه فولدر واحد فقط، ننقل محتواه للمستوى الرئيسي
+          FIRST_DIR="$(find build_v96 -mindepth 1 -maxdepth 1 -type d | head -n 1 || true)"
+          FILE_COUNT="$(find build_v96 -mindepth 1 -maxdepth 1 | wc -l)"
+
+          if [ "${FILE_COUNT}" = "1" ] && [ -n "${FIRST_DIR}" ]; then
+            shopt -s dotglob
+            mv "${FIRST_DIR}"/* build_v96/
+            rmdir "${FIRST_DIR}"
+          fi
+
+      - name: Restore original signing keystore
+        shell: bash
+        env:
+          SIGNING_BUNDLE_B64: ${{ secrets.TAHALIL_SIGNING_BUNDLE_B64 }}
         run: |
-          keytool -genkeypair -v \
-            -keystore build_v96/debug.keystore \
-            -storepass android \
-            -alias androiddebugkey \
-            -keypass android \
-            -keyalg RSA -keysize 2048 -validity 10000 \
-            -dname "CN=Android Debug,O=Android,C=US"
+          set -euo pipefail
+
+          if [ -z "${SIGNING_BUNDLE_B64}" ]; then
+            echo "TAHALIL_SIGNING_BUNDLE_B64 secret is empty"
+            exit 1
+          fi
+
+          mkdir -p build_v96
+
+          printf '%s' "${SIGNING_BUNDLE_B64}" | base64 --decode > build_v96/debug.keystore
+
+          test -s build_v96/debug.keystore
+
+          echo "Original keystore restored successfully"
 
       - name: Build installable V96 APK
-        working-directory: build_v96
-        run: gradle :app:assembleDebug --stacktrace
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd build_v96
+
+          chmod +x gradlew
+
+          ./gradlew clean assembleDebug --no-daemon --stacktrace
+
+      - name: Find built APK
+        id: apk
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          APK="$(find build_v96 -type f -name '*.apk' \
+            ! -name '*androidTest*' \
+            ! -name '*unaligned*' \
+            | head -n 1)"
+
+          if [ -z "${APK}" ]; then
+            echo "APK not found"
+            exit 1
+          fi
+
+          echo "apk=${APK}" >> "$GITHUB_OUTPUT"
+          echo "Built APK: ${APK}"
 
       - name: Rename APK
-        run: cp build_v96/app/build/outputs/apk/debug/app-debug.apk AK_Lab_Tests_V96.apk
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          cp "${{ steps.apk.outputs.apk }}" Tahalil-Alakkad-V96.apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: AK-Lab-Tests-V96-APK
-          path: AK_Lab_Tests_V96.apk
+          name: Tahalil-Alakkad-V96
+          path: Tahalil-Alakkad-V96.apk
+          if-no-files-found: error
           retention-days: 30
