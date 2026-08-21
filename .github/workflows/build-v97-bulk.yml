@@ -1,0 +1,508 @@
+name: Build V97 Bulk Update
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Extract Project3
+        shell: bash
+        run: |
+          set -eu
+
+          rm -rf build_v97
+          mkdir build_v97
+
+          unzip -q Project3.zip -d build_v97
+
+          echo "Project extracted"
+
+      - name: Add bulk update engine
+        shell: bash
+        run: |
+          set -eu
+
+          mkdir -p build_v97/app/src/main/java/com/example/data/repository
+
+          cat > build_v97/app/src/main/java/com/example/data/repository/BulkUpdateStore.kt <<'KOTLIN'
+          package com.example.data.repository
+
+          import android.content.Context
+          import org.json.JSONObject
+
+          object BulkUpdateStore {
+
+              private const val PREFS = "bulk_lab_updates"
+              private const val KEY_DATA = "price_updates"
+
+              fun saveUpdates(
+                  context: Context,
+                  updates: Map<String, String>
+              ) {
+                  val root = JSONObject()
+
+                  updates.forEach { (name, price) ->
+                      root.put(normalize(name), price.trim())
+                  }
+
+                  context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                      .edit()
+                      .putString(KEY_DATA, root.toString())
+                      .apply()
+              }
+
+              fun mergeUpdates(
+                  context: Context,
+                  updates: Map<String, String>
+              ) {
+                  val current = getUpdates(context).toMutableMap()
+
+                  updates.forEach { (name, price) ->
+                      current[normalize(name)] = price.trim()
+                  }
+
+                  saveUpdates(context, current)
+              }
+
+              fun getUpdates(context: Context): Map<String, String> {
+                  val raw = context
+                      .getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                      .getString(KEY_DATA, null)
+                      ?: return emptyMap()
+
+                  return try {
+                      val obj = JSONObject(raw)
+                      val map = mutableMapOf<String, String>()
+
+                      obj.keys().forEach { key ->
+                          map[key] = obj.optString(key)
+                      }
+
+                      map
+                  } catch (_: Exception) {
+                      emptyMap()
+                  }
+              }
+
+              fun getPrice(
+                  context: Context,
+                  testName: String,
+                  originalPrice: String?
+              ): String? {
+                  return getUpdates(context)[normalize(testName)]
+                      ?: originalPrice
+              }
+
+              fun clear(context: Context) {
+                  context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                      .edit()
+                      .remove(KEY_DATA)
+                      .apply()
+              }
+
+              fun normalize(value: String): String {
+                  return value
+                      .trim()
+                      .lowercase()
+                      .replace("أ", "ا")
+                      .replace("إ", "ا")
+                      .replace("آ", "ا")
+                      .replace("ة", "ه")
+                      .replace(Regex("\\s+"), " ")
+              }
+          }
+          KOTLIN
+
+      - name: Add bulk parser
+        shell: bash
+        run: |
+          set -eu
+
+          mkdir -p build_v97/app/src/main/java/com/example/util
+
+          cat > build_v97/app/src/main/java/com/example/util/BulkLabParser.kt <<'KOTLIN'
+          package com.example.util
+
+          object BulkLabParser {
+
+              data class ParsedItem(
+                  val name: String,
+                  val price: String
+              )
+
+              fun parse(text: String): List<ParsedItem> {
+                  return text
+                      .lines()
+                      .mapNotNull { parseLine(it) }
+              }
+
+              private fun parseLine(line: String): ParsedItem? {
+                  var value = line.trim()
+
+                  if (value.isBlank()) return null
+
+                  value = value
+                      .replace("جنيه", "", ignoreCase = true)
+                      .replace("ج.م", "", ignoreCase = true)
+                      .trim()
+
+                  val separators = listOf(
+                      "\t",
+                      "|",
+                      ";",
+                      ",",
+                      ":",
+                      "="
+                  )
+
+                  for (separator in separators) {
+                      val index = value.lastIndexOf(separator)
+
+                      if (index > 0) {
+                          val name = value.substring(0, index).trim()
+                          val price = value.substring(index + separator.length)
+                              .trim()
+                              .replace(",", "")
+
+                          if (
+                              name.isNotBlank() &&
+                              price.toDoubleOrNull() != null
+                          ) {
+                              return ParsedItem(name, price)
+                          }
+                      }
+                  }
+
+                  val regex = Regex(
+                      """^(.+?)\s+([0-9]+(?:\.[0-9]+)?)$"""
+                  )
+
+                  val match = regex.find(value) ?: return null
+
+                  val name = match.groupValues[1].trim()
+                  val price = match.groupValues[2].trim()
+
+                  return ParsedItem(name, price)
+              }
+          }
+          KOTLIN
+
+      - name: Add bulk update screen
+        shell: bash
+        run: |
+          set -eu
+
+          mkdir -p build_v97/app/src/main/java/com/example/ui
+
+          cat > build_v97/app/src/main/java/com/example/ui/BulkUpdateActivity.kt <<'KOTLIN'
+          package com.example.ui
+
+          import android.os.Bundle
+          import androidx.activity.compose.setContent
+          import androidx.fragment.app.FragmentActivity
+          import androidx.compose.foundation.layout.*
+          import androidx.compose.foundation.rememberScrollState
+          import androidx.compose.foundation.verticalScroll
+          import androidx.compose.material3.*
+          import androidx.compose.runtime.*
+          import androidx.compose.ui.Modifier
+          import androidx.compose.ui.unit.dp
+          import com.example.data.repository.BulkUpdateStore
+          import com.example.util.BulkLabParser
+
+          class BulkUpdateActivity : FragmentActivity() {
+
+              override fun onCreate(savedInstanceState: Bundle?) {
+                  super.onCreate(savedInstanceState)
+
+                  setContent {
+                      MaterialTheme {
+                          BulkUpdateScreen()
+                      }
+                  }
+              }
+
+              @Composable
+              private fun BulkUpdateScreen() {
+
+                  var text by remember { mutableStateOf("") }
+                  var message by remember { mutableStateOf("") }
+
+                  val parsed = remember(text) {
+                      BulkLabParser.parse(text)
+                  }
+
+                  Column(
+                      modifier = Modifier
+                          .fillMaxSize()
+                          .verticalScroll(rememberScrollState())
+                          .padding(20.dp)
+                  ) {
+
+                      Text(
+                          text = "التحديث الجماعي للتحاليل",
+                          style = MaterialTheme.typography.headlineSmall
+                      )
+
+                      Spacer(Modifier.height(12.dp))
+
+                      Text(
+                          "الصق التحاليل كلها مرة واحدة.\n" +
+                          "مثال:\nCBC 250\nTSH 400\nVitamin D 850"
+                      )
+
+                      Spacer(Modifier.height(16.dp))
+
+                      OutlinedTextField(
+                          value = text,
+                          onValueChange = { text = it },
+                          modifier = Modifier
+                              .fillMaxWidth()
+                              .height(300.dp),
+                          label = {
+                              Text("اسم التحليل + السعر")
+                          }
+                      )
+
+                      Spacer(Modifier.height(12.dp))
+
+                      Text(
+                          "تم التعرف على ${parsed.size} تحليل"
+                      )
+
+                      Spacer(Modifier.height(16.dp))
+
+                      Button(
+                          modifier = Modifier.fillMaxWidth(),
+                          enabled = parsed.isNotEmpty(),
+                          onClick = {
+                              val updates = parsed.associate {
+                                  it.name to it.price
+                              }
+
+                              BulkUpdateStore.mergeUpdates(
+                                  this@BulkUpdateActivity,
+                                  updates
+                              )
+
+                              message =
+                                  "تم حفظ ${updates.size} تعديل بنجاح"
+                          }
+                      ) {
+                          Text("تطبيق كل التعديلات")
+                      }
+
+                      Spacer(Modifier.height(10.dp))
+
+                      OutlinedButton(
+                          modifier = Modifier.fillMaxWidth(),
+                          onClick = {
+                              BulkUpdateStore.clear(
+                                  this@BulkUpdateActivity
+                              )
+                              message = "تم مسح التعديلات"
+                          }
+                      ) {
+                          Text("مسح التعديلات المحفوظة")
+                      }
+
+                      if (message.isNotBlank()) {
+                          Spacer(Modifier.height(16.dp))
+                          Text(message)
+                      }
+                  }
+              }
+          }
+          KOTLIN
+
+      - name: Register bulk update activity
+        shell: bash
+        run: |
+          set -eu
+
+          python3 <<'PY'
+          from pathlib import Path
+
+          manifest = Path(
+              "build_v97/app/src/main/AndroidManifest.xml"
+          )
+
+          text = manifest.read_text()
+
+          activity = '''
+              <activity
+                  android:name=".ui.BulkUpdateActivity"
+                  android:exported="true"
+                  android:label="تحديث التحاليل جماعياً">
+                  <intent-filter>
+                      <action android:name="android.intent.action.MAIN" />
+                      <category android:name="android.intent.category.LAUNCHER" />
+                  </intent-filter>
+              </activity>
+          '''
+
+          if "BulkUpdateActivity" not in text:
+              text = text.replace(
+                  "</application>",
+                  activity + "\n</application>"
+              )
+
+              manifest.write_text(text)
+
+          print("BulkUpdateActivity registered")
+          PY
+
+      - name: Patch repository to use updated prices
+        shell: bash
+        run: |
+          set -eu
+
+          python3 <<'PY'
+          from pathlib import Path
+          import re
+
+          p = Path(
+              "build_v97/app/src/main/java/com/example/data/repository/LabTestRepository.kt"
+          )
+
+          text = p.read_text()
+
+          old = text
+
+          # customerPrice = customerPrice
+          text = text.replace(
+              "customerPrice = customerPrice,",
+              """customerPrice = BulkUpdateStore.getPrice(
+                                  context,
+                                  nameEn ?: nameAr ?: "",
+                                  customerPrice
+                              ),"""
+          )
+
+          if text == old:
+              print("WARNING: automatic customerPrice patch was not applied")
+          else:
+              p.write_text(text)
+              print("Repository patched")
+          PY
+
+      - name: Set V97 safely
+        shell: bash
+        run: |
+          set -eu
+
+          python3 <<'PY'
+          from pathlib import Path
+          import re
+
+          p = Path("build_v97/app/build.gradle.kts")
+
+          text = p.read_text()
+
+          text = re.sub(
+              r'versionName\s*=\s*"[^"]+"',
+              'versionName = "97"',
+              text
+          )
+
+          text = re.sub(
+              r'versionCode\s*=\s*(\d+)',
+              lambda m:
+                  "versionCode = " +
+                  str(max(int(m.group(1)) + 1, 97)),
+              text
+          )
+
+          p.write_text(text)
+          PY
+
+      - name: Restore original signing keystore
+        shell: bash
+        env:
+          SIGNING_BUNDLE_B64: ${{ secrets.TAHALIL_SIGNING_BUNDLE_B64 }}
+        run: |
+          set -eu
+
+          test -n "$SIGNING_BUNDLE_B64"
+
+          rm -rf /tmp/sign
+          mkdir -p /tmp/sign/files
+
+          printf '%s' "$SIGNING_BUNDLE_B64" |
+            base64 --decode > /tmp/sign/sign.bin
+
+          if unzip -t /tmp/sign/sign.bin >/dev/null 2>&1; then
+
+            unzip -q /tmp/sign/sign.bin \
+              -d /tmp/sign/files
+
+            KEY="$(find /tmp/sign/files \
+              -type f \
+              \( -iname '*.keystore' -o -iname '*.jks' \) \
+              -print -quit)"
+
+            test -n "$KEY"
+
+            cp "$KEY" build_v97/debug.keystore
+
+          else
+
+            cp /tmp/sign/sign.bin \
+              build_v97/debug.keystore
+
+          fi
+
+          test -s build_v97/debug.keystore
+
+      - name: Build V97 APK
+        shell: bash
+        run: |
+          set -eu
+
+          cd build_v97
+
+          if [ -f gradlew ]; then
+            chmod +x gradlew
+            ./gradlew assembleDebug --no-daemon
+          else
+            gradle assembleDebug --no-daemon
+          fi
+
+      - name: Collect APK
+        shell: bash
+        run: |
+          set -eu
+
+          APK="$(find build_v97 \
+            -type f \
+            -name '*.apk' \
+            ! -name '*androidTest*' \
+            ! -name '*unaligned*' \
+            -print -quit)"
+
+          test -n "$APK"
+
+          cp "$APK" Tahalil-Alakkad-V97-Bulk.apk
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Tahalil-Alakkad-V97-Bulk
+          path: Tahalil-Alakkad-V97-Bulk.apk
+          if-no-files-found: error
+          retention-days: 30
