@@ -1,0 +1,159 @@
+name: Build AK V100 Lab Operator Results
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Gradle 8.11.1
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+
+      - name: Extract V100 project
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf build_v100
+          mkdir build_v100
+          unzip -q Project3_AK_V100_LAB_OPERATOR_RESULTS_FIXED.zip -d build_v100
+          test -f build_v100/app/build.gradle.kts
+          echo "V100 project extracted."
+
+      - name: Restore original signing bundle
+        shell: bash
+        env:
+          SIGNING_BUNDLE_B64: ${{ secrets.TAHALIL_SIGNING_BUNDLE_B64 }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${SIGNING_BUNDLE_B64:-}" ]; then
+            echo "ERROR: TAHALIL_SIGNING_BUNDLE_B64 is missing."
+            exit 1
+          fi
+
+          rm -rf /tmp/tahalil_sign
+          mkdir -p /tmp/tahalil_sign/files
+          printf '%s' "$SIGNING_BUNDLE_B64" | tr -d '\r\n ' | base64 --decode > /tmp/tahalil_sign/bundle.bin
+
+          if unzip -t /tmp/tahalil_sign/bundle.bin >/dev/null 2>&1; then
+            unzip -q /tmp/tahalil_sign/bundle.bin -d /tmp/tahalil_sign/files
+          else
+            cp /tmp/tahalil_sign/bundle.bin /tmp/tahalil_sign/files/original.keystore
+          fi
+
+          KEYSTORE="$(find /tmp/tahalil_sign/files -type f \( -iname '*.jks' -o -iname '*.keystore' \) -print -quit)"
+          if [ -z "$KEYSTORE" ]; then
+            echo "ERROR: No .jks/.keystore found in signing bundle."
+            find /tmp/tahalil_sign/files -maxdepth 3 -type f -print || true
+            exit 1
+          fi
+
+          STORE_PASSWORD=""
+          KEY_ALIAS=""
+          KEY_PASSWORD=""
+
+          while IFS= read -r META; do
+            [ -f "$META" ] || continue
+            if [ -z "$STORE_PASSWORD" ]; then
+              STORE_PASSWORD="$(sed -nE 's/^[[:space:]]*(STORE_PASSWORD|KEYSTORE_PASSWORD|storePassword|store_password)[[:space:]]*[:=][[:space:]]*"?([^"#]+)"?[[:space:]]*$/\2/p' "$META" | head -1 | xargs || true)"
+            fi
+            if [ -z "$KEY_ALIAS" ]; then
+              KEY_ALIAS="$(sed -nE 's/^[[:space:]]*(KEY_ALIAS|keyAlias|key_alias)[[:space:]]*[:=][[:space:]]*"?([^"#]+)"?[[:space:]]*$/\2/p' "$META" | head -1 | xargs || true)"
+            fi
+            if [ -z "$KEY_PASSWORD" ]; then
+              KEY_PASSWORD="$(sed -nE 's/^[[:space:]]*(KEY_PASSWORD|keyPassword|key_password)[[:space:]]*[:=][[:space:]]*"?([^"#]+)"?[[:space:]]*$/\2/p' "$META" | head -1 | xargs || true)"
+            fi
+          done < <(find /tmp/tahalil_sign/files -type f \( -iname '*.properties' -o -iname '*.env' -o -iname '*.txt' \) -print)
+
+          if [ -z "$STORE_PASSWORD" ] && keytool -list -keystore "$KEYSTORE" -storepass android >/dev/null 2>&1; then
+            STORE_PASSWORD="android"
+          fi
+
+          if [ -z "$STORE_PASSWORD" ]; then
+            echo "ERROR: Keystore password was not found in signing bundle."
+            exit 1
+          fi
+
+          if [ -z "$KEY_ALIAS" ]; then
+            KEY_ALIAS="$(keytool -list -v -keystore "$KEYSTORE" -storepass "$STORE_PASSWORD" 2>/dev/null | sed -n 's/^Alias name: //p' | head -1)"
+          fi
+          test -n "$KEY_ALIAS"
+          [ -n "$KEY_PASSWORD" ] || KEY_PASSWORD="$STORE_PASSWORD"
+
+          keytool -list -keystore "$KEYSTORE" -storepass "$STORE_PASSWORD" -alias "$KEY_ALIAS" >/dev/null
+          cp "$KEYSTORE" build_v100/original-signing-key.jks
+
+          echo "::add-mask::$STORE_PASSWORD"
+          echo "::add-mask::$KEY_ALIAS"
+          echo "::add-mask::$KEY_PASSWORD"
+
+          {
+            echo "KEYSTORE_PATH=$GITHUB_WORKSPACE/build_v100/original-signing-key.jks"
+            echo "STORE_PASSWORD=$STORE_PASSWORD"
+            echo "KEY_ALIAS=$KEY_ALIAS"
+            echo "KEY_PASSWORD=$KEY_PASSWORD"
+          } >> "$GITHUB_ENV"
+
+          echo "Original signing key loaded successfully."
+
+      - name: Verify V100 project
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q 'versionCode = 100' build_v100/app/build.gradle.kts
+          grep -q 'versionName = "5.20-lab-operator-results-v100"' build_v100/app/build.gradle.kts
+          grep -q 'firebase-messaging' build_v100/app/build.gradle.kts
+          grep -q 'firebase-storage' build_v100/app/build.gradle.kts
+          grep -q 'LabOperatorScreen' build_v100/app/src/main/java/com/example/MainActivity.kt
+          grep -q 'OrderFirebaseMessagingService' build_v100/app/src/main/AndroidManifest.xml
+          ! grep -q 'alias(libs.plugins.google.devtools.ksp)' build_v100/app/build.gradle.kts
+          echo "V100 order tracking / notifications / KSP checks passed."
+
+      - name: Build signed V100 release APK
+        working-directory: build_v100
+        shell: bash
+        run: |
+          set -euo pipefail
+          gradle \
+            --no-daemon \
+            --no-configuration-cache \
+            --no-parallel \
+            --max-workers=2 \
+            :app:assembleRelease
+
+      - name: Find and verify APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="$(find build_v100/app/build/outputs/apk/release -type f -name '*.apk' -print -quit)"
+          test -n "$APK"
+          test -s "$APK"
+          APKSIGNER="$ANDROID_HOME/build-tools/35.0.0/apksigner"
+          test -x "$APKSIGNER"
+          "$APKSIGNER" verify --verbose --print-certs "$APK"
+          cp "$APK" Tahalil-Alakkad-V100-LAB-RESULTS-SIGNED.apk
+          echo "APK ready: Tahalil-Alakkad-V100-LAB-RESULTS-SIGNED.apk"
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Tahalil-Alakkad-V100-LAB-RESULTS-SIGNED
+          path: Tahalil-Alakkad-V100-LAB-RESULTS-SIGNED.apk
+          if-no-files-found: error
+          retention-days: 30
