@@ -1,0 +1,82 @@
+name: Build AK V97 Bulk Fixed
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Gradle 8.11.1
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+
+      - name: Extract V97
+        run: |
+          set -eu
+          rm -rf build_v97
+          mkdir build_v97
+          unzip -q Project3_AK_V97_BULK_FIXED.zip -d build_v97
+
+      - name: Restore original signing key
+        env:
+          SIGNING_BUNDLE_B64: ${{ secrets.TAHALIL_SIGNING_BUNDLE_B64 }}
+        run: |
+          set -eu
+          if [ -z "${SIGNING_BUNDLE_B64:-}" ]; then
+            echo "ERROR: GitHub secret TAHALIL_SIGNING_BUNDLE_B64 is missing."
+            echo "This build intentionally refuses to create a new key because that would cause package signature conflict."
+            exit 1
+          fi
+          printf '%s' "$SIGNING_BUNDLE_B64" | base64 --decode > /tmp/signing.bin
+          if unzip -t /tmp/signing.bin >/dev/null 2>&1; then
+            rm -rf /tmp/signing && mkdir /tmp/signing
+            unzip -q /tmp/signing.bin -d /tmp/signing
+            KEY="$(find /tmp/signing -type f \( -iname '*.jks' -o -iname '*.keystore' \) -print -quit)"
+            test -n "$KEY"
+            cp "$KEY" build_v97/debug.keystore
+          else
+            cp /tmp/signing.bin build_v97/debug.keystore
+          fi
+          test -s build_v97/debug.keystore
+          keytool -list -keystore build_v97/debug.keystore -storepass android -alias androiddebugkey >/dev/null
+          echo "Original signing key restored."
+
+      - name: Verify KSP is removed
+        run: |
+          set -eu
+          ! grep -q 'alias(libs.plugins.google.devtools.ksp)' build_v97/app/build.gradle.kts
+          ! grep -q '"ksp"(' build_v97/app/build.gradle.kts
+          echo "KSP removed: OK"
+
+      - name: Build V97 APK
+        working-directory: build_v97
+        run: gradle :app:assembleDebug --stacktrace --no-daemon
+
+      - name: Verify APK signature
+        run: |
+          set -eu
+          APK=build_v97/app/build/outputs/apk/debug/app-debug.apk
+          test -s "$APK"
+          $ANDROID_HOME/build-tools/35.0.0/apksigner verify --verbose "$APK"
+          cp "$APK" AK_Lab_Tests_V97_Bulk.apk
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: AK-Lab-Tests-V97-Bulk-APK
+          path: AK_Lab_Tests_V97_Bulk.apk
+          retention-days: 30
