@@ -1,0 +1,63 @@
+name: Inspect Android Project
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Extract Project3
+        shell: bash
+        run: |
+          set -eu
+          rm -rf inspect_project
+          mkdir inspect_project
+          unzip -q Project3.zip -d inspect_project
+
+      - name: Show Android project structure
+        shell: bash
+        run: |
+          echo "========== PROJECT ROOT =========="
+          find inspect_project -maxdepth 4 -type f | sort | head -300
+
+          echo ""
+          echo "========== KOTLIN / JAVA FILES =========="
+          find inspect_project -type f \( \
+            -name '*.kt' -o \
+            -name '*.java' \
+          \) | sort
+
+          echo ""
+          echo "========== DATABASE / ROOM =========="
+          grep -RniE \
+            'RoomDatabase|@Database|@Dao|@Entity|SQLite|databaseBuilder' \
+            inspect_project \
+            --include='*.kt' \
+            --include='*.java' \
+            || true
+
+          echo ""
+          echo "========== TEST / LAB MODELS =========="
+          grep -RniE \
+            'class .*Test|data class .*Test|LabTest|Analysis|تحاليل|تحليل|price|السعر' \
+            inspect_project \
+            --include='*.kt' \
+            --include='*.java' \
+            | head -300 || true
+
+          echo ""
+          echo "========== ACTIVITIES / SCREENS =========="
+          grep -RniE \
+            'Activity|Screen|NavHost|composable\(' \
+            inspect_project \
+            --include='*.kt' \
+            --include='*.java' \
+            | head -300 || true
