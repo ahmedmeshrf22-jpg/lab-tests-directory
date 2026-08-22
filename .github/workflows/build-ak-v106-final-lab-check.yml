@@ -1,0 +1,198 @@
+name: Build AK V106 FINAL LAB CHECK
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Gradle 8.11.1
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+
+      - name: Extract V106 project
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf build_v106
+          mkdir build_v106
+          unzip -q Project3_AK_V106_FINAL_LAB_CHECK_FIXED.zip -d build_v106
+          test -f build_v106/app/build.gradle.kts
+          test -f build_v106/app/src/main/java/com/example/ui/LabOperatorScreen.kt
+          test -f build_v106/app/src/main/java/com/example/notifications/LabOrderBackgroundService.kt
+          echo "V106 project extracted."
+
+      - name: Restore original signing bundle
+        shell: bash
+        env:
+          SIGNING_BUNDLE_B64: ${{ secrets.TAHALIL_SIGNING_BUNDLE_B64 }}
+        run: |
+          set -euo pipefail
+
+          test -n "${SIGNING_BUNDLE_B64:-}"
+
+          rm -rf /tmp/tahalil_sign
+          mkdir -p /tmp/tahalil_sign/files
+          printf '%s' "$SIGNING_BUNDLE_B64" | tr -d '\r\n ' | base64 --decode > /tmp/tahalil_sign/bundle.bin
+
+          if unzip -t /tmp/tahalil_sign/bundle.bin >/dev/null 2>&1; then
+            unzip -q /tmp/tahalil_sign/bundle.bin -d /tmp/tahalil_sign/files
+          else
+            cp /tmp/tahalil_sign/bundle.bin /tmp/tahalil_sign/files/original.keystore
+          fi
+
+          KEYSTORE="$(find /tmp/tahalil_sign/files -type f \( -iname '*.jks' -o -iname '*.keystore' \) -print -quit)"
+          test -n "$KEYSTORE"
+
+          STORE_PASSWORD=""
+          KEY_ALIAS=""
+          KEY_PASSWORD=""
+
+          while IFS= read -r META; do
+            [ -f "$META" ] || continue
+            if [ -z "$STORE_PASSWORD" ]; then
+              STORE_PASSWORD="$(sed -nE 's/^[[:space:]]*(STORE_PASSWORD|KEYSTORE_PASSWORD|storePassword|store_password)[[:space:]]*[:=][[:space:]]*"?([^"#]+)"?[[:space:]]*$/\2/p' "$META" | head -1 | xargs || true)"
+            fi
+            if [ -z "$KEY_ALIAS" ]; then
+              KEY_ALIAS="$(sed -nE 's/^[[:space:]]*(KEY_ALIAS|keyAlias|key_alias)[[:space:]]*[:=][[:space:]]*"?([^"#]+)"?[[:space:]]*$/\2/p' "$META" | head -1 | xargs || true)"
+            fi
+            if [ -z "$KEY_PASSWORD" ]; then
+              KEY_PASSWORD="$(sed -nE 's/^[[:space:]]*(KEY_PASSWORD|keyPassword|key_password)[[:space:]]*[:=][[:space:]]*"?([^"#]+)"?[[:space:]]*$/\2/p' "$META" | head -1 | xargs || true)"
+            fi
+          done < <(find /tmp/tahalil_sign/files -type f \( -iname '*.properties' -o -iname '*.env' -o -iname '*.txt' \) -print)
+
+          if [ -z "$STORE_PASSWORD" ] && keytool -list -keystore "$KEYSTORE" -storepass android >/dev/null 2>&1; then
+            STORE_PASSWORD="android"
+          fi
+
+          test -n "$STORE_PASSWORD"
+
+          if [ -z "$KEY_ALIAS" ]; then
+            KEY_ALIAS="$(keytool -list -v -keystore "$KEYSTORE" -storepass "$STORE_PASSWORD" 2>/dev/null | sed -n 's/^Alias name: //p' | head -1)"
+          fi
+
+          test -n "$KEY_ALIAS"
+          [ -n "$KEY_PASSWORD" ] || KEY_PASSWORD="$STORE_PASSWORD"
+
+          keytool -list -keystore "$KEYSTORE" -storepass "$STORE_PASSWORD" -alias "$KEY_ALIAS" >/dev/null
+          cp "$KEYSTORE" build_v106/original-signing-key.jks
+
+          echo "::add-mask::$STORE_PASSWORD"
+          echo "::add-mask::$KEY_ALIAS"
+          echo "::add-mask::$KEY_PASSWORD"
+
+          {
+            echo "KEYSTORE_PATH=$GITHUB_WORKSPACE/build_v106/original-signing-key.jks"
+            echo "STORE_PASSWORD=$STORE_PASSWORD"
+            echo "KEY_ALIAS=$KEY_ALIAS"
+            echo "KEY_PASSWORD=$KEY_PASSWORD"
+          } >> "$GITHUB_ENV"
+
+      - name: Final V106 integrity checks
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          python3 <<'PY'
+          from pathlib import Path
+          import json, sys
+
+          root = Path("build_v106")
+          app = (root / "app/build.gradle.kts").read_text()
+          main = (root / "app/src/main/java/com/example/MainActivity.kt").read_text()
+          lab = (root / "app/src/main/java/com/example/ui/LabOperatorScreen.kt").read_text()
+          vm = (root / "app/src/main/java/com/example/ui/LabTestsViewModel.kt").read_text()
+          notif = (root / "app/src/main/java/com/example/notifications/OrderNotificationManager.kt").read_text()
+          bg = (root / "app/src/main/java/com/example/notifications/LabOrderBackgroundService.kt").read_text()
+          manifest = (root / "app/src/main/AndroidManifest.xml").read_text()
+          rootgrad = (root / "build.gradle.kts").read_text()
+          gs = json.loads((root / "app/google-services.json").read_text())
+
+          checks = {
+              "versionCode 106": 'versionCode = 106' in app,
+              "versionName V106": 'versionName = "5.26-final-lab-ux-v106"' in app,
+              "lab icon UI": all(x in lab for x in [
+                  'Icons.Default.Inbox', 'Icons.Default.PlayArrow',
+                  'Icons.Default.DoneAll', 'NotificationsActive'
+              ]),
+              "no financial values in lab UI": not any(x in lab for x in [
+                  'customerPrice', 'totalCustomerPrice', 'discountAmount',
+                  'paidAmount', 'remainingAmount', 'subtotalCustomerPrice'
+              ]),
+              "live lab listener": 'startLabOrdersRealtime' in vm and 'addSnapshotListener' in vm,
+              "bounded recent order query": '.limit(200)' in vm,
+              "lab-only notification channel": 'LAB_CHANNEL_ID = "lab_new_orders"' in notif,
+              "background fallback": 'setPeriodic(INTERVAL_MS)' in bg and 'lab_operator' in bg,
+              "background service manifest": 'LabOrderBackgroundService' in manifest,
+              "boot reschedule permission": 'RECEIVE_BOOT_COMPLETED' in manifest,
+              "FCM token refresh after login": main.count('OrderNotificationManager.registerCurrentToken()') >= 2,
+              "old app lab_queue removed": not any(
+                  'lab_queue' in p.read_text(errors='ignore')
+                  for p in (root / "app/src/main/java").rglob("*.kt")
+              ),
+              "KSP root plugin removed": 'google.devtools.ksp' not in rootgrad,
+              "unused Room removed": 'androidx.room' not in app,
+              "Firebase project": gs["project_info"]["project_id"] == "tahalil-alakkad",
+              "package id": 'applicationId = "com.aistudio.labtestsdirectory.egypt"' in app,
+              "signed updater preserved": 'ForcedUpdateGate' in main,
+          }
+
+          failed = [name for name, ok in checks.items() if not ok]
+          for name, ok in checks.items():
+              print(("OK   " if ok else "FAIL ") + name)
+          if failed:
+              raise SystemExit("V106 integrity check failed: " + ", ".join(failed))
+          print("ALL V106 FINAL CHECKS PASSED")
+          PY
+
+      - name: Unit tests and signed release build
+        working-directory: build_v106
+        shell: bash
+        run: |
+          set -euo pipefail
+          gradle \
+            --no-daemon \
+            --no-configuration-cache \
+            --no-parallel \
+            --max-workers=2 \
+            :app:testDebugUnitTest \
+            :app:assembleRelease
+
+      - name: Verify signed APK
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          APK="$(find build_v106/app/build/outputs/apk/release -type f -name '*.apk' -print -quit)"
+          test -n "$APK"
+          test -s "$APK"
+
+          APKSIGNER="$ANDROID_HOME/build-tools/35.0.0/apksigner"
+          test -x "$APKSIGNER"
+          "$APKSIGNER" verify --verbose --print-certs "$APK"
+
+          cp "$APK" Tahalil-Alakkad-V106-FINAL-LAB-CHECK-SIGNED.apk
+          echo "APK ready: Tahalil-Alakkad-V106-FINAL-LAB-CHECK-SIGNED.apk"
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Tahalil-Alakkad-V106-FINAL-LAB-CHECK-SIGNED
+          path: Tahalil-Alakkad-V106-FINAL-LAB-CHECK-SIGNED.apk
+          if-no-files-found: error
+          retention-days: 30
