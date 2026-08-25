@@ -1,0 +1,183 @@
+name: Build AK V116 PRODUCTION READY
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Setup Gradle 8.11.1
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+
+      - name: Extract V116
+        run: |
+          set -euo pipefail
+          rm -rf build_v116
+          mkdir build_v116
+          unzip -q Project3_AK_V116_PRODUCTION_READY_FIXED.zip -d build_v116
+          test -f build_v116/app/src/main/java/com/example/ui/LabTestsScreen.kt
+          test -f build_v116/app/src/main/java/com/example/ui/LabTestsViewModel.kt
+          test -f build_v116/app/src/main/java/com/example/data/repository/LabTestRepository.kt
+          test -f build_v116/firebase/functions/index.js
+          test -f build_v116/firestore.rules
+          test -f build_v116/storage.rules
+          test -f build_v116/firestore.indexes.json
+
+      - name: Restore signing
+        shell: bash
+        env:
+          SIGNING_BUNDLE_B64: ${{ secrets.TAHALIL_SIGNING_BUNDLE_B64 }}
+        run: |
+          set -euo pipefail
+          test -n "${SIGNING_BUNDLE_B64:-}"
+          rm -rf /tmp/tahalil_sign
+          mkdir -p /tmp/tahalil_sign/files
+          printf '%s' "$SIGNING_BUNDLE_B64" | tr -d '\r\n ' | base64 --decode > /tmp/tahalil_sign/bundle.bin
+          if unzip -t /tmp/tahalil_sign/bundle.bin >/dev/null 2>&1; then
+            unzip -q /tmp/tahalil_sign/bundle.bin -d /tmp/tahalil_sign/files
+          else
+            cp /tmp/tahalil_sign/bundle.bin /tmp/tahalil_sign/files/original.keystore
+          fi
+          KEYSTORE="$(find /tmp/tahalil_sign/files -type f \( -iname '*.jks' -o -iname '*.keystore' \) -print -quit)"
+          test -n "$KEYSTORE"
+          STORE_PASSWORD=""
+          KEY_ALIAS=""
+          KEY_PASSWORD=""
+          while IFS= read -r META; do
+            [ -f "$META" ] || continue
+            [ -n "$STORE_PASSWORD" ] || STORE_PASSWORD="$(sed -nE 's/^[[:space:]]*(STORE_PASSWORD|KEYSTORE_PASSWORD|storePassword|store_password)[[:space:]]*[:=][[:space:]]*"?([^"#]+)"?[[:space:]]*$/\2/p' "$META" | head -1 | xargs || true)"
+            [ -n "$KEY_ALIAS" ] || KEY_ALIAS="$(sed -nE 's/^[[:space:]]*(KEY_ALIAS|keyAlias|key_alias)[[:space:]]*[:=][[:space:]]*"?([^"#]+)"?[[:space:]]*$/\2/p' "$META" | head -1 | xargs || true)"
+            [ -n "$KEY_PASSWORD" ] || KEY_PASSWORD="$(sed -nE 's/^[[:space:]]*(KEY_PASSWORD|keyPassword|key_password)[[:space:]]*[:=][[:space:]]*"?([^"#]+)"?[[:space:]]*$/\2/p' "$META" | head -1 | xargs || true)"
+          done < <(find /tmp/tahalil_sign/files -type f \( -iname '*.properties' -o -iname '*.env' -o -iname '*.txt' \) -print)
+          if [ -z "$STORE_PASSWORD" ] && keytool -list -keystore "$KEYSTORE" -storepass android >/dev/null 2>&1; then STORE_PASSWORD="android"; fi
+          test -n "$STORE_PASSWORD"
+          [ -n "$KEY_ALIAS" ] || KEY_ALIAS="$(keytool -list -v -keystore "$KEYSTORE" -storepass "$STORE_PASSWORD" 2>/dev/null | sed -n 's/^Alias name: //p' | head -1)"
+          test -n "$KEY_ALIAS"
+          [ -n "$KEY_PASSWORD" ] || KEY_PASSWORD="$STORE_PASSWORD"
+          cp "$KEYSTORE" build_v116/original-signing-key.jks
+          echo "::add-mask::$STORE_PASSWORD"
+          echo "::add-mask::$KEY_ALIAS"
+          echo "::add-mask::$KEY_PASSWORD"
+          {
+            echo "KEYSTORE_PATH=$GITHUB_WORKSPACE/build_v116/original-signing-key.jks"
+            echo "STORE_PASSWORD=$STORE_PASSWORD"
+            echo "KEY_ALIAS=$KEY_ALIAS"
+            echo "KEY_PASSWORD=$KEY_PASSWORD"
+          } >> "$GITHUB_ENV"
+
+      - name: Verify V116 production source
+        run: |
+          set -euo pipefail
+          node --check build_v116/firebase/functions/index.js
+          python3 -m json.tool build_v116/firestore.indexes.json >/dev/null
+          python3 <<'PY'
+          from pathlib import Path
+          import json
+          root = Path("build_v116")
+          grad = (root / "app/build.gradle.kts").read_text()
+          main = (root / "app/src/main/java/com/example/MainActivity.kt").read_text()
+          screen = (root / "app/src/main/java/com/example/ui/LabTestsScreen.kt").read_text()
+          vm = (root / "app/src/main/java/com/example/ui/LabTestsViewModel.kt").read_text()
+          repo = (root / "app/src/main/java/com/example/data/repository/LabTestRepository.kt").read_text()
+          lab = (root / "app/src/main/java/com/example/ui/LabOperatorScreen.kt").read_text()
+          hub = (root / "app/src/main/java/com/example/ui/OrderHubScreen.kt").read_text()
+          rules = (root / "firestore.rules").read_text()
+          storage = (root / "storage.rules").read_text()
+          funcs = (root / "firebase/functions/index.js").read_text()
+          idx = json.loads((root / "firestore.indexes.json").read_text())
+          home = screen[screen.index("private fun ManagerHomeDashboard("):screen.index("private fun LabHomeStat(")]
+          catalog = json.loads((root / "app/src/main/assets/lab_tests_android.json").read_text())
+
+          checks = {
+              "versionCode 116": 'versionCode = 116' in grad,
+              "versionName V116": '5.36-production-ready-v116' in grad,
+              "same Android package": 'applicationId = "com.aistudio.labtestsdirectory.egypt"' in grad,
+              "catalog 331 records": len(catalog) == 331,
+
+              "one-way manager switch": 'fun switchToUser(profile: AppUserProfile' in vm and 'تبديل المستخدم متاح لعبد الرحمن فقط' in vm,
+              "cannot impersonate manager": 'لا يمكن التبديل إلى حساب عبد الرحمن' in vm,
+              "effective permissions": 'operationalProfile()' in vm and 'managerIsActingAsUser()' in vm,
+              "effective app routing": 'effectiveUserProfile' in main and 'managerActingAs' in main,
+              "return to manager": 'fun returnToManagerMode' in vm and 'رجوع لـ Abdelrahman' in screen,
+              "switch icon only manager": 'actualManager && actingAsUser == null' in home and 'تبديل المستخدم' in home,
+              "admin blocked while impersonating": 'ارجع لحساب عبد الرحمن أولًا لفتح الإدارة' in screen,
+
+              "all-home icons": 'shape = CircleShape' in screen and 'قراءة روشتة / طلب عيادة' in home and 'appText("الطلبات", "Orders")' in home,
+              "no collapsed menu": 'الخدمات الأخرى والإدارة ▼' not in screen and 'إخفاء الخدمات الأخرى ▲' not in screen,
+              "duplicate today launcher removed": 'تشغيل اليوم' not in home,
+
+              "wide search from 2 chars": 'if (normalized.length < 2) return allTests' in repo,
+              "natural sentence cleanup": 'meaningfulNaturalQuery' in repo and 'naturalSearchStopWords' in repo,
+              "wide lexical fields": all(x in repo for x in ['test.normEnglish','test.normArabic','test.normMarket','test.normSearch']),
+              "natural intents expanded": all(x in repo for x in ['تساقط شعر','فيتامينات','التهاب','املاح','البنكرياس','Urine Analysis','Stool Analysis']),
+              "manual multi inquiry": 'PriceInquiryBasketSection' in screen and 'إضافة إلى القائمة' in screen and 'viewModel.addSelectedTest(test)' in screen,
+              "single unified search label": 'ابحث عن تحليل أو اكتب ما تريد الاطمئنان عليه' in screen,
+
+              "order hub states": all(x in hub for x in ['قيد التنفيذ','مكتمل','تم الإلغاء']),
+              "result auto complete": 'resultSentAtMillis > 0L' in hub and 'resultUrls.isNotEmpty()' in hub,
+              "lab 3 stages": all(x in lab for x in ['طلبات جديدة','جاري التنفيذ','النتائج المرسلة']),
+              "lab no financial UI": not any(x in lab for x in ['customerPrice','discountAmount','paidAmount','remainingAmount']),
+
+              "single group daily query": 'collectionGroup("orders")' in vm and 'DAILY_ORDER_LIMIT = 1_500L' in vm,
+              "archive capacity": 'ORDER_ARCHIVE_LIMIT = 3_000L' in vm,
+              "realtime capacity": 'REALTIME_ORDER_LIMIT = 500L' in vm and 'take(500)' in vm,
+              "background fallback bounded": '.limit(200)' in (root / 'app/src/main/java/com/example/notifications/LabOrderBackgroundService.kt').read_text(),
+              "updated index": any(x.get('collectionGroup') == 'orders' and x.get('fieldPath') == 'updated_at_ms' for x in idx.get('fieldOverrides', [])),
+              "created index": any(x.get('collectionGroup') == 'orders' and x.get('fieldPath') == 'created_at_ms' for x in idx.get('fieldOverrides', [])),
+
+              "staff cancel uses normal firestore": 'fun voidOrder(' in vm and 'firestore.collection(CUSTOMERS_COLLECTION)' in vm[vm.index('fun voidOrder('):vm.index('fun deleteOrderPermanently(')],
+              "admin hard delete rules": 'allow delete: if isPrivilegedAdmin();' in rules,
+              "storage manager lab result": 'return isPrivilegedAdmin() || labOperator();' in storage,
+              "FCM chunking": 'MULTICAST_CHUNK = 500' in funcs and 'sendEachForMulticast' in funcs,
+              "function scaling": 'maxInstances: 20' in funcs and 'concurrency: 40' in funcs,
+              "cancel push": 'newStatus === "cancelled"' in funcs,
+              "lab edit routes clinic": 'marker === "edited_by_lab"' in funcs,
+          }
+          failed = [k for k,v in checks.items() if not v]
+          for k,v in checks.items(): print(("OK   " if v else "FAIL ") + k)
+          if failed: raise SystemExit("V116 production checks failed: " + ", ".join(failed))
+          print("ALL V116 PRODUCTION SOURCE CHECKS PASSED")
+          PY
+
+      - name: Build signed V116 release
+        working-directory: build_v116
+        run: |
+          set -euo pipefail
+          gradle --no-daemon --no-configuration-cache --no-parallel --max-workers=2 :app:assembleRelease
+
+      - name: Verify and upload APK
+        run: |
+          set -euo pipefail
+          APK="$(find build_v116/app/build/outputs/apk/release -type f -name '*.apk' -print -quit)"
+          test -n "$APK"
+          test -s "$APK"
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs "$APK"
+          cp "$APK" Tahalil-Alakkad-V116-PRODUCTION-READY-SIGNED.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Tahalil-Alakkad-V116-PRODUCTION-READY-SIGNED
+          path: Tahalil-Alakkad-V116-PRODUCTION-READY-SIGNED.apk
+          if-no-files-found: error
+          retention-days: 30
