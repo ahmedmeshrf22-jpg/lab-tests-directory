@@ -1,0 +1,148 @@
+name: Build AK V114 SMART TEST PICKER
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Gradle 8.11.1
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+
+      - name: Extract V114
+        run: |
+          set -euo pipefail
+          rm -rf build_v114
+          mkdir build_v114
+          unzip -q Project3_AK_V114_SMART_TEST_PICKER_FIXED.zip -d build_v114
+          test -f build_v114/app/src/main/java/com/example/ui/LabTestsScreen.kt
+          test -f build_v114/app/src/main/java/com/example/ui/OrderHubScreen.kt
+          test -f build_v114/app/src/main/java/com/example/ui/LabTestsViewModel.kt
+          test -f build_v114/app/src/main/java/com/example/data/repository/LabTestRepository.kt
+
+      - name: Restore signing
+        shell: bash
+        env:
+          SIGNING_BUNDLE_B64: ${{ secrets.TAHALIL_SIGNING_BUNDLE_B64 }}
+        run: |
+          set -euo pipefail
+          test -n "${SIGNING_BUNDLE_B64:-}"
+          rm -rf /tmp/tahalil_sign
+          mkdir -p /tmp/tahalil_sign/files
+          printf '%s' "$SIGNING_BUNDLE_B64" | tr -d '\r\n ' | base64 --decode > /tmp/tahalil_sign/bundle.bin
+          if unzip -t /tmp/tahalil_sign/bundle.bin >/dev/null 2>&1; then
+            unzip -q /tmp/tahalil_sign/bundle.bin -d /tmp/tahalil_sign/files
+          else
+            cp /tmp/tahalil_sign/bundle.bin /tmp/tahalil_sign/files/original.keystore
+          fi
+          KEYSTORE="$(find /tmp/tahalil_sign/files -type f \( -iname '*.jks' -o -iname '*.keystore' \) -print -quit)"
+          test -n "$KEYSTORE"
+          STORE_PASSWORD=""
+          KEY_ALIAS=""
+          KEY_PASSWORD=""
+          while IFS= read -r META; do
+            [ -f "$META" ] || continue
+            [ -n "$STORE_PASSWORD" ] || STORE_PASSWORD="$(sed -nE 's/^[[:space:]]*(STORE_PASSWORD|KEYSTORE_PASSWORD|storePassword|store_password)[[:space:]]*[:=][[:space:]]*"?([^"#]+)"?[[:space:]]*$/\2/p' "$META" | head -1 | xargs || true)"
+            [ -n "$KEY_ALIAS" ] || KEY_ALIAS="$(sed -nE 's/^[[:space:]]*(KEY_ALIAS|keyAlias|key_alias)[[:space:]]*[:=][[:space:]]*"?([^"#]+)"?[[:space:]]*$/\2/p' "$META" | head -1 | xargs || true)"
+            [ -n "$KEY_PASSWORD" ] || KEY_PASSWORD="$(sed -nE 's/^[[:space:]]*(KEY_PASSWORD|keyPassword|key_password)[[:space:]]*[:=][[:space:]]*"?([^"#]+)"?[[:space:]]*$/\2/p' "$META" | head -1 | xargs || true)"
+          done < <(find /tmp/tahalil_sign/files -type f \( -iname '*.properties' -o -iname '*.env' -o -iname '*.txt' \) -print)
+          if [ -z "$STORE_PASSWORD" ] && keytool -list -keystore "$KEYSTORE" -storepass android >/dev/null 2>&1; then STORE_PASSWORD="android"; fi
+          test -n "$STORE_PASSWORD"
+          [ -n "$KEY_ALIAS" ] || KEY_ALIAS="$(keytool -list -v -keystore "$KEYSTORE" -storepass "$STORE_PASSWORD" 2>/dev/null | sed -n 's/^Alias name: //p' | head -1)"
+          test -n "$KEY_ALIAS"
+          [ -n "$KEY_PASSWORD" ] || KEY_PASSWORD="$STORE_PASSWORD"
+          cp "$KEYSTORE" build_v114/original-signing-key.jks
+          echo "::add-mask::$STORE_PASSWORD"
+          echo "::add-mask::$KEY_ALIAS"
+          echo "::add-mask::$KEY_PASSWORD"
+          {
+            echo "KEYSTORE_PATH=$GITHUB_WORKSPACE/build_v114/original-signing-key.jks"
+            echo "STORE_PASSWORD=$STORE_PASSWORD"
+            echo "KEY_ALIAS=$KEY_ALIAS"
+            echo "KEY_PASSWORD=$KEY_PASSWORD"
+          } >> "$GITHUB_ENV"
+
+      - name: Verify V114 smart picker
+        run: |
+          set -euo pipefail
+          python3 <<'PY2'
+          from pathlib import Path
+          root = Path("build_v114")
+          grad = (root / "app/build.gradle.kts").read_text()
+          screen = (root / "app/src/main/java/com/example/ui/LabTestsScreen.kt").read_text()
+          vm = (root / "app/src/main/java/com/example/ui/LabTestsViewModel.kt").read_text()
+          repo = (root / "app/src/main/java/com/example/data/repository/LabTestRepository.kt").read_text()
+          hub = (root / "app/src/main/java/com/example/ui/OrderHubScreen.kt").read_text()
+          lab = (root / "app/src/main/java/com/example/ui/LabOperatorScreen.kt").read_text()
+          gs = (root / "app/google-services.json").read_text()
+
+          checks = {
+              "versionCode 114": 'versionCode = 114' in grad,
+              "versionName V114": '5.34-smart-test-picker-v114' in grad,
+              "same package": 'applicationId = "com.aistudio.labtestsdirectory.egypt"' in grad,
+              "same Firebase": 'tahalil-alakkad' in gs,
+              "real orders icon": 'fun OrdersHubIconShortcut(' in screen and 'shape = CircleShape' in screen and 'title = appText("الطلبات", "Orders")' in screen,
+              "single smart field": 'ابحث عن تحليل أو اكتب ما تريد الاطمئنان عليه' in screen,
+              "dropdown on focus": '.onFocusChanged { focused = it.isFocused }' in screen and 'if (focused && suggestions.isNotEmpty())' in screen,
+              "full list before two chars": 'if (normalized.length < 2) return allTests' in repo,
+              "two char smart search": 'fun smartSearchTests(query: String)' in repo,
+              "manual selection only": 'onSuggestionSelected(test)' in screen and 'enabled = !selected' in screen,
+              "multi select preserved": 'selectedIds = selectedTests.map { it.id }.toSet()' in screen,
+              "arabic english market search": all(x in repo for x in ['test.normEnglish','test.normArabic','test.normMarket','test.normSearch']),
+              "natural language liver": 'اطمن على الكبد' in repo and 'ALT (SGPT)' in repo,
+              "natural language kidney": 'اطمن على الكلى' in repo and 'Creatinine' in repo,
+              "natural language sugar": 'اطمن على السكر' in repo and 'Glycated Haemoglobin (HbA1c)' in repo,
+              "natural language thyroid": 'الغدة الدرقية' in repo and 'Free T4' in repo,
+              "natural language anemia": 'انيميا' in repo and 'Ferritin' in repo,
+              "scan stays inside field": 'Icons.Default.QrCodeScanner' in screen and 'trailingIcon' in screen,
+              "orders hub preserved": 'fun OrderHubScreen(' in hub and all(x in hub for x in ['قيد التنفيذ','مكتمل','تم الإلغاء']),
+              "automatic completion preserved": 'resultSentAtMillis > 0L' in hub and 'resultUrls.isNotEmpty()' in hub,
+              "lab stages preserved": all(x in lab for x in ['طلبات جديدة','جاري التنفيذ','النتائج المرسلة']),
+              "lab prices hidden": not any(x in lab for x in ['customerPrice','discountAmount','paidAmount','remainingAmount']),
+              "auto send preserved": 'workflowStatus = "sent_to_lab"' in vm,
+          }
+          failed = [name for name, ok in checks.items() if not ok]
+          for name, ok in checks.items():
+              print(("OK   " if ok else "FAIL ") + name)
+          if failed:
+              raise SystemExit("V114 checks failed: " + ", ".join(failed))
+          print("ALL V114 SMART PICKER CHECKS PASSED")
+          PY2
+
+      - name: Build signed V114 release
+        working-directory: build_v114
+        run: |
+          set -euo pipefail
+          gradle --no-daemon --no-configuration-cache --no-parallel --max-workers=2 :app:assembleRelease
+
+      - name: Verify and upload APK
+        run: |
+          set -euo pipefail
+          APK="$(find build_v114/app/build/outputs/apk/release -type f -name '*.apk' -print -quit)"
+          test -n "$APK"
+          test -s "$APK"
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs "$APK"
+          cp "$APK" Tahalil-Alakkad-V114-SMART-TEST-PICKER-SIGNED.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Tahalil-Alakkad-V114-SMART-TEST-PICKER-SIGNED
+          path: Tahalil-Alakkad-V114-SMART-TEST-PICKER-SIGNED.apk
+          if-no-files-found: error
+          retention-days: 30
