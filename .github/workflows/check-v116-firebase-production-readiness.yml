@@ -1,0 +1,172 @@
+name: Check V116 Firebase Production Readiness
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  firebase-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Check billing, Firebase services, storage and functions
+        shell: bash
+        run: |
+          set -uo pipefail
+          PROJECT="tahalil-alakkad"
+          BUCKET="gs://tahalil-alakkad.firebasestorage.app"
+          REPORT="$GITHUB_WORKSPACE/FIREBASE_V116_PRODUCTION_CHECK.txt"
+          : > "$REPORT"
+
+          say() { echo "$*" | tee -a "$REPORT"; }
+          section() { say ""; say "===== $* ====="; }
+
+          say "Tahalil Alakkad V116 - Firebase production readiness"
+          say "UTC: $(date -u +'%Y-%m-%d %H:%M:%S')"
+          say "Project: $PROJECT"
+
+          section "BILLING / BLAZE"
+          BILLING_JSON="$(gcloud beta billing projects describe "$PROJECT" --format=json 2>/tmp/billing.err || true)"
+          if [ -n "$BILLING_JSON" ]; then
+            printf '%s' "$BILLING_JSON" > /tmp/billing.json
+            python3 - <<'PY' | tee -a "$REPORT"
+          import json
+          d=json.load(open('/tmp/billing.json'))
+          enabled=bool(d.get('billingEnabled'))
+          account=d.get('billingAccountName') or d.get('billingAccount') or ''
+          print('billingEnabled:', enabled)
+          print('billingAccount:', account or '(not returned)')
+          print('RESULT:', 'PASS - billing linked (Firebase Blaze)' if enabled else 'FAIL - billing is not enabled; Storage/Functions production use will not be reliable')
+          PY
+          else
+            say "RESULT: COULD NOT READ BILLING STATUS"
+            sed 's/^/  /' /tmp/billing.err | tee -a "$REPORT" || true
+          fi
+
+          section "ENABLED CORE SERVICES"
+          for svc in firestore.googleapis.com firebasestorage.googleapis.com cloudfunctions.googleapis.com run.googleapis.com eventarc.googleapis.com artifactregistry.googleapis.com; do
+            if gcloud services list --enabled --project "$PROJECT" --filter="config.name=$svc" --format='value(config.name)' 2>/dev/null | grep -qx "$svc"; then
+              say "PASS $svc"
+            else
+              say "WARN $svc not shown as enabled (or service account cannot list it)"
+            fi
+          done
+
+          section "FIRESTORE DATABASE"
+          if gcloud firestore databases describe --database='(default)' --project "$PROJECT" --format='yaml(name,locationId,type,concurrencyMode,appEngineIntegrationMode)' >> "$REPORT" 2>/tmp/firestore.err; then
+            say "RESULT: PASS - Firestore database reachable"
+          else
+            say "RESULT: FAIL/WARN - Firestore database could not be described"
+            sed 's/^/  /' /tmp/firestore.err | tee -a "$REPORT" || true
+          fi
+
+          section "CLOUD STORAGE"
+          if gcloud storage buckets describe "$BUCKET" --format='yaml(name,location,storage_class,soft_delete_policy)' >> "$REPORT" 2>/tmp/storage.err; then
+            say "RESULT: PASS - report bucket reachable"
+          else
+            say "RESULT: FAIL - report bucket not reachable; result image/PDF uploads may fail"
+            sed 's/^/  /' /tmp/storage.err | tee -a "$REPORT" || true
+          fi
+
+          section "CLOUD FUNCTIONS GEN2"
+          if gcloud functions list --gen2 --project "$PROJECT" --format='table(name.basename(),region,state,environment)' >> "$REPORT" 2>/tmp/functions.err; then
+            COUNT="$(gcloud functions list --gen2 --project "$PROJECT" --format='value(name)' 2>/dev/null | wc -l | tr -d ' ')"
+            say "Gen2 functions found: ${COUNT:-0}"
+            if gcloud functions list --gen2 --project "$PROJECT" --format='value(name.basename())' 2>/dev/null | grep -qx 'notifyNewLabOrder'; then say "PASS notifyNewLabOrder"; else say "WARN notifyNewLabOrder not deployed yet"; fi
+            if gcloud functions list --gen2 --project "$PROJECT" --format='value(name.basename())' 2>/dev/null | grep -qx 'notifyOrderStatusChanged'; then say "PASS notifyOrderStatusChanged"; else say "WARN notifyOrderStatusChanged not deployed yet"; fi
+          else
+            say "RESULT: WARN - could not list Gen2 functions"
+            sed 's/^/  /' /tmp/functions.err | tee -a "$REPORT" || true
+          fi
+
+          section "BUDGETS (BEST EFFORT)"
+          ACCOUNT="$(python3 - <<'PY'
+          import json
+          try:
+              d=json.load(open('/tmp/billing.json'))
+              x=d.get('billingAccountName') or d.get('billingAccount') or ''
+              print(x.split('/')[-1])
+          except Exception:
+              print('')
+          PY
+          )"
+          if [ -n "$ACCOUNT" ]; then
+            if gcloud billing budgets list --billing-account="$ACCOUNT" --format='table(displayName,amount.specifiedAmount.currencyCode,amount.specifiedAmount.units)' >> "$REPORT" 2>/tmp/budget.err; then
+              BCOUNT="$(gcloud billing budgets list --billing-account="$ACCOUNT" --format='value(name)' 2>/dev/null | wc -l | tr -d ' ')"
+              if [ "${BCOUNT:-0}" -gt 0 ]; then say "PASS - budget configuration found"; else say "WARN - no budget found; add billing alerts before production"; fi
+            else
+              say "WARN - budget list unavailable to this service account"
+              sed 's/^/  /' /tmp/budget.err | tee -a "$REPORT" || true
+            fi
+          else
+            say "WARN - billing account id unavailable, budget check skipped"
+          fi
+
+      - name: Read last 24h Firestore activity from Cloud Monitoring
+        shell: bash
+        run: |
+          set -uo pipefail
+          REPORT="$GITHUB_WORKSPACE/FIREBASE_V116_PRODUCTION_CHECK.txt"
+          TOKEN="$(gcloud auth print-access-token 2>/dev/null || true)"
+          if [ -z "$TOKEN" ]; then
+            echo "Monitoring: unavailable (no access token)" | tee -a "$REPORT"
+            exit 0
+          fi
+          ACCESS_TOKEN="$TOKEN" python3 - <<'PY' | tee -a "$REPORT"
+          import os, json, urllib.parse, urllib.request
+          from datetime import datetime, timezone, timedelta
+          project='tahalil-alakkad'
+          token=os.environ['ACCESS_TOKEN']
+          end=datetime.now(timezone.utc)
+          start=end-timedelta(hours=24)
+          metrics={
+              'Firestore reads (24h)':'firestore.googleapis.com/document/read_count',
+              'Firestore writes (24h)':'firestore.googleapis.com/document/write_count',
+              'Firestore deletes (24h)':'firestore.googleapis.com/document/delete_count',
+          }
+          print('\n===== LAST 24H FIRESTORE ACTIVITY (BEST EFFORT) =====')
+          for label,metric in metrics.items():
+              total=0.0; page=None; ok=True
+              try:
+                  while True:
+                      params=[
+                          ('filter',f'metric.type="{metric}"'),
+                          ('interval.startTime',start.isoformat().replace('+00:00','Z')),
+                          ('interval.endTime',end.isoformat().replace('+00:00','Z')),
+                          ('view','FULL'),
+                          ('pageSize','1000'),
+                      ]
+                      if page: params.append(('pageToken',page))
+                      url='https://monitoring.googleapis.com/v3/projects/'+project+'/timeSeries?'+urllib.parse.urlencode(params)
+                      req=urllib.request.Request(url,headers={'Authorization':'Bearer '+token})
+                      with urllib.request.urlopen(req,timeout=30) as r: d=json.load(r)
+                      for ts in d.get('timeSeries',[]):
+                          for p in ts.get('points',[]):
+                              v=p.get('value',{})
+                              if 'int64Value' in v: total += float(v['int64Value'])
+                              elif 'doubleValue' in v: total += float(v['doubleValue'])
+                      page=d.get('nextPageToken')
+                      if not page: break
+              except Exception as e:
+                  ok=False
+                  print(f'{label}: unavailable ({e})')
+              if ok: print(f'{label}: {int(total):,}')
+          print('Reference free Firestore quota: 50,000 reads/day, 20,000 writes/day, 20,000 deletes/day.')
+          PY
+
+      - name: Upload readiness report
+        uses: actions/upload-artifact@v4
+        with:
+          name: FIREBASE-V116-PRODUCTION-CHECK
+          path: FIREBASE_V116_PRODUCTION_CHECK.txt
+          if-no-files-found: error
+          retention-days: 30
