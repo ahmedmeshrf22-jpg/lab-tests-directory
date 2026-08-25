@@ -1,0 +1,148 @@
+name: Build AK V113 ORDERS HUB NOTIFICATIONS
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Gradle 8.11.1
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+
+      - name: Extract V113
+        run: |
+          set -euo pipefail
+          rm -rf build_v113
+          mkdir build_v113
+          unzip -q Project3_AK_V113_ORDERS_HUB_NOTIFICATIONS_FIXED.zip -d build_v113
+          test -f build_v113/app/src/main/java/com/example/ui/LabTestsScreen.kt
+          test -f build_v113/app/src/main/java/com/example/ui/OrderHubScreen.kt
+          test -f build_v113/app/src/main/java/com/example/ui/CustomerSystemDialog.kt
+          test -f build_v113/app/src/main/java/com/example/ui/LabTestsViewModel.kt
+
+      - name: Restore signing
+        shell: bash
+        env:
+          SIGNING_BUNDLE_B64: ${{ secrets.TAHALIL_SIGNING_BUNDLE_B64 }}
+        run: |
+          set -euo pipefail
+          test -n "${SIGNING_BUNDLE_B64:-}"
+          rm -rf /tmp/tahalil_sign
+          mkdir -p /tmp/tahalil_sign/files
+          printf '%s' "$SIGNING_BUNDLE_B64" | tr -d '\r\n ' | base64 --decode > /tmp/tahalil_sign/bundle.bin
+          if unzip -t /tmp/tahalil_sign/bundle.bin >/dev/null 2>&1; then
+            unzip -q /tmp/tahalil_sign/bundle.bin -d /tmp/tahalil_sign/files
+          else
+            cp /tmp/tahalil_sign/bundle.bin /tmp/tahalil_sign/files/original.keystore
+          fi
+          KEYSTORE="$(find /tmp/tahalil_sign/files -type f \( -iname '*.jks' -o -iname '*.keystore' \) -print -quit)"
+          test -n "$KEYSTORE"
+          STORE_PASSWORD=""
+          KEY_ALIAS=""
+          KEY_PASSWORD=""
+          while IFS= read -r META; do
+            [ -f "$META" ] || continue
+            [ -n "$STORE_PASSWORD" ] || STORE_PASSWORD="$(sed -nE 's/^[[:space:]]*(STORE_PASSWORD|KEYSTORE_PASSWORD|storePassword|store_password)[[:space:]]*[:=][[:space:]]*"?([^"#]+)"?[[:space:]]*$/\2/p' "$META" | head -1 | xargs || true)"
+            [ -n "$KEY_ALIAS" ] || KEY_ALIAS="$(sed -nE 's/^[[:space:]]*(KEY_ALIAS|keyAlias|key_alias)[[:space:]]*[:=][[:space:]]*"?([^"#]+)"?[[:space:]]*$/\2/p' "$META" | head -1 | xargs || true)"
+            [ -n "$KEY_PASSWORD" ] || KEY_PASSWORD="$(sed -nE 's/^[[:space:]]*(KEY_PASSWORD|keyPassword|key_password)[[:space:]]*[:=][[:space:]]*"?([^"#]+)"?[[:space:]]*$/\2/p' "$META" | head -1 | xargs || true)"
+          done < <(find /tmp/tahalil_sign/files -type f \( -iname '*.properties' -o -iname '*.env' -o -iname '*.txt' \) -print)
+          if [ -z "$STORE_PASSWORD" ] && keytool -list -keystore "$KEYSTORE" -storepass android >/dev/null 2>&1; then STORE_PASSWORD="android"; fi
+          test -n "$STORE_PASSWORD"
+          [ -n "$KEY_ALIAS" ] || KEY_ALIAS="$(keytool -list -v -keystore "$KEYSTORE" -storepass "$STORE_PASSWORD" 2>/dev/null | sed -n 's/^Alias name: //p' | head -1)"
+          test -n "$KEY_ALIAS"
+          [ -n "$KEY_PASSWORD" ] || KEY_PASSWORD="$STORE_PASSWORD"
+          cp "$KEYSTORE" build_v113/original-signing-key.jks
+          echo "::add-mask::$STORE_PASSWORD"
+          echo "::add-mask::$KEY_ALIAS"
+          echo "::add-mask::$KEY_PASSWORD"
+          {
+            echo "KEYSTORE_PATH=$GITHUB_WORKSPACE/build_v113/original-signing-key.jks"
+            echo "STORE_PASSWORD=$STORE_PASSWORD"
+            echo "KEY_ALIAS=$KEY_ALIAS"
+            echo "KEY_PASSWORD=$KEY_PASSWORD"
+          } >> "$GITHUB_ENV"
+
+      - name: Verify V113 orders hub
+        run: |
+          set -euo pipefail
+          python3 <<'PY'
+          from pathlib import Path
+          root = Path("build_v113")
+          grad = (root / "app/build.gradle.kts").read_text()
+          screen = (root / "app/src/main/java/com/example/ui/LabTestsScreen.kt").read_text()
+          hub = (root / "app/src/main/java/com/example/ui/OrderHubScreen.kt").read_text()
+          customer = (root / "app/src/main/java/com/example/ui/CustomerSystemDialog.kt").read_text()
+          vm = (root / "app/src/main/java/com/example/ui/LabTestsViewModel.kt").read_text()
+          lab = (root / "app/src/main/java/com/example/ui/LabOperatorScreen.kt").read_text()
+          main = (root / "app/src/main/java/com/example/MainActivity.kt").read_text()
+          gs = (root / "app/google-services.json").read_text()
+
+          checks = {
+              "versionCode 113": 'versionCode = 113' in grad,
+              "versionName V113": '5.33-orders-hub-notifications-v113' in grad,
+              "same package": 'applicationId = "com.aistudio.labtestsdirectory.egypt"' in grad,
+              "same Firebase": 'tahalil-alakkad' in gs,
+              "orders icon": 'سجل الطلبات' in screen and 'onOrders' in screen,
+              "orders hub screen": 'fun OrderHubScreen(' in hub,
+              "default seven days": 'add(Calendar.DAY_OF_YEAR, -6)' in hub,
+              "date calendar": 'DatePickerDialog' in hub and 'CalendarMonth' in hub,
+              "search fields": all(x in hub for x in ['order.orderNumber','order.customerName','order.customerPhone','order.customerFileNumber']),
+              "simple status labels": all(x in hub for x in ['قيد التنفيذ','مكتمل','تم الإلغاء']),
+              "sent included in active": 'workflowStatus in setOf("ready", "delivered")' in hub,
+              "automatic completed result": 'resultSentAtMillis > 0L' in hub and 'resultUrls.isNotEmpty()' in hub,
+              "notification center": 'مركز الإشعارات' in hub and 'نتيجة جديدة وصلت' in hub,
+              "unread result badge": 'HUB_SEEN_RESULTS' in hub and 'NotificationsActive' in hub,
+              "system notification deep link": 'handleOrderNotificationIntent' in main and 'pendingOpenOrderId' in screen,
+              "archive loader": 'fun loadOrderArchive(' in vm and '_orderArchive' in vm,
+              "staff cancel": 'إلغاء الطلب' in customer,
+              "admin hard delete": 'deleteOrderPermanently' in vm and 'الحذف النهائي متاح للإدارة فقط' in vm and 'حذف نهائي — الإدارة فقط' in customer,
+              "existing auto-send preserved": 'workflowStatus = "sent_to_lab"' in vm,
+              "lab result send preserved": 'result_sent_at_ms' in vm and 'workflow_status' in vm and '"ready"' in vm,
+              "lab stages preserved": all(x in lab for x in ['طلبات جديدة','جاري التنفيذ','النتائج المرسلة']),
+              "lab prices still hidden": not any(x in lab for x in ['customerPrice','discountAmount','paidAmount','remainingAmount']),
+          }
+          failed = [name for name, ok in checks.items() if not ok]
+          for name, ok in checks.items():
+              print(("OK   " if ok else "FAIL ") + name)
+          if failed:
+              raise SystemExit("V113 checks failed: " + ", ".join(failed))
+          print("ALL V113 ORDERS HUB CHECKS PASSED")
+          PY
+
+      - name: Build signed V113 release
+        working-directory: build_v113
+        run: |
+          set -euo pipefail
+          gradle --no-daemon --no-configuration-cache --no-parallel --max-workers=2 :app:assembleRelease
+
+      - name: Verify and upload APK
+        run: |
+          set -euo pipefail
+          APK="$(find build_v113/app/build/outputs/apk/release -type f -name '*.apk' -print -quit)"
+          test -n "$APK"
+          test -s "$APK"
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs "$APK"
+          cp "$APK" Tahalil-Alakkad-V113-ORDERS-HUB-NOTIFICATIONS-SIGNED.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Tahalil-Alakkad-V113-ORDERS-HUB-NOTIFICATIONS-SIGNED
+          path: Tahalil-Alakkad-V113-ORDERS-HUB-NOTIFICATIONS-SIGNED.apk
+          if-no-files-found: error
+          retention-days: 30
