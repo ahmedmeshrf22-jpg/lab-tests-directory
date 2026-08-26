@@ -1,0 +1,128 @@
+name: Build Tahalil Alakkad V119 Windows Current Fixes
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    name: Windows V119 Portable + Setup
+    runs-on: windows-latest
+    timeout-minutes: 60
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: "false"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Extract Windows V119 source
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $zip='Tahalil_Alakkad_System_V119_WINDOWS_CURRENT_FIXES.zip'
+          if (!(Test-Path $zip)) { throw "Missing $zip in repository root" }
+          if (Test-Path build_windows_v119) { Remove-Item build_windows_v119 -Recurse -Force }
+          Expand-Archive -Path $zip -DestinationPath build_windows_v119 -Force
+          if (!(Test-Path 'build_windows_v119/windows-system/package.json')) { throw 'Invalid ZIP structure' }
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Verify Windows V119 source
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $root=Join-Path $PWD 'build_windows_v119/windows-system'
+          $pkg=Get-Content (Join-Path $root 'package.json') -Raw | ConvertFrom-Json
+          if ($pkg.version -ne '119.0.0') { throw "Expected 119.0.0, got $($pkg.version)" }
+          $tests=Get-Content (Join-Path $root 'public/lab_tests_android.json') -Raw | ConvertFrom-Json
+          if ($tests.Count -ne 331) { throw "Expected 331 tests" }
+          if (($tests | Where-Object { $null -ne $_.customer_price }).Count -ne 0) { throw 'Embedded customer prices still present' }
+          $data=Get-Content (Join-Path $root 'src/data.js') -Raw
+          foreach($x in @("labOrders:'lab_orders'",'labMirrorData','collection(db,C.labOrders)')) { if(!$data.Contains($x)){throw "Missing privacy marker $x"} }
+          $backup=Get-Content (Join-Path $root 'src/backup.js') -Raw
+          foreach($x in @('SCHEMA=2','result_file_activity',"'lab_orders'")){if(!$backup.Contains($x)){throw "Missing backup marker $x"}}
+          $fb=Get-Content (Join-Path $root 'src/firebase.js') -Raw
+          if(!$fb.Contains('browserSessionPersistence')){throw 'Session-only auth missing'}
+          $app=Get-Content (Join-Path $root 'src/app.js') -Raw
+          foreach($x in @('Unified System V119','310000','verifyLocalPin')){if(!$app.Contains($x)){throw "Missing app hardening $x"}}
+          $html=Get-Content (Join-Path $root 'index.html') -Raw
+          if(!$html.Contains('Content-Security-Policy') -or !$html.Contains("object-src 'none'")){throw 'CSP missing'}
+          $rs=Get-Content (Join-Path $root 'src/resultStore.js') -Raw
+          foreach($x in @('sha256: digest','sha256_hex: digest','meta.sha256 || meta.sha256_hex')){if(!$rs.Contains($x)){throw "Missing SHA compatibility $x"}}
+          $main=Get-Content (Join-Path $root 'electron/main.cjs') -Raw
+          foreach($x in @('sandbox: true','contextIsolation: true','nodeIntegration: false','webSecurity: true','allowRunningInsecureContent: false','webviewTag: false','devTools: false','setContentProtection(true)','cleanupResultTemp','will-navigate','TAHALIL_SMOKE_TEST')){if(!$main.Contains($x)){throw "Missing Electron hardening $x"}}
+          if(!$pkg.scripts.'dist:portable' -or !$pkg.scripts.'dist:setup'){throw 'Portable/Setup scripts missing'}
+          Get-ChildItem (Join-Path $root 'src') -Filter '*.js' -File | ForEach-Object { Get-Content $_.FullName -Raw | node --input-type=module --check; if($LASTEXITCODE -ne 0){throw "JS syntax failed: $($_.Name)"} }
+          node --check (Join-Path $root 'electron/main.cjs'); if($LASTEXITCODE -ne 0){throw 'main.cjs syntax failed'}
+          node --check (Join-Path $root 'electron/preload.cjs'); if($LASTEXITCODE -ne 0){throw 'preload.cjs syntax failed'}
+          Write-Host 'ALL WINDOWS V119 CURRENT-FIX CHECKS PASSED'
+
+      - name: Install dependencies
+        working-directory: build_windows_v119/windows-system
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          npm install --no-audit --no-fund
+          if($LASTEXITCODE -ne 0){throw 'npm install failed'}
+
+      - name: Build Portable EXE
+        working-directory: build_windows_v119/windows-system
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          npm run dist:portable
+          if($LASTEXITCODE -ne 0){throw 'Portable build failed'}
+
+      - name: Smoke launch Portable EXE
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $release=Join-Path $PWD 'build_windows_v119/windows-system/release'
+          $exe=Get-ChildItem $release -Filter '*Portable*.exe' -File | Sort-Object Length -Descending | Select-Object -First 1
+          if(!$exe){throw 'Portable EXE not found'}
+          $env:TAHALIL_SMOKE_TEST='1'
+          $p=Start-Process -FilePath $exe.FullName -PassThru
+          if(!$p.WaitForExit(30000)){Stop-Process -Id $p.Id -Force;throw 'Portable smoke launch timed out'}
+          if($p.ExitCode -ne 0){throw "Portable smoke launch exit code $($p.ExitCode)"}
+          Write-Host 'PACKAGED WINDOWS EXE SMOKE LAUNCH PASSED'
+
+      - name: Build Setup EXE
+        working-directory: build_windows_v119/windows-system
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          npm run dist:setup
+          if($LASTEXITCODE -ne 0){throw 'Setup build failed'}
+
+      - name: Prepare release files
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $release=Join-Path $PWD 'build_windows_v119/windows-system/release'
+          $portable=Get-ChildItem $release -Filter '*Portable*.exe' -File | Sort-Object Length -Descending | Select-Object -First 1
+          $setup=Get-ChildItem $release -Filter '*Setup*.exe' -File | Sort-Object Length -Descending | Select-Object -First 1
+          if(!$portable -or !$setup){throw 'Expected Portable and Setup EXEs'}
+          Copy-Item $portable.FullName (Join-Path $PWD 'Tahalil-Alakkad-V119-Windows-Portable.exe') -Force
+          Copy-Item $setup.FullName (Join-Path $PWD 'Tahalil-Alakkad-V119-Windows-Setup.exe') -Force
+          foreach($name in @('Tahalil-Alakkad-V119-Windows-Portable.exe','Tahalil-Alakkad-V119-Windows-Setup.exe')){
+            if((Get-Item $name).Length -lt 1000000){throw "$name unexpectedly small"}
+            $hash=(Get-FileHash $name -Algorithm SHA256).Hash.ToLowerInvariant()
+            "$hash  $name" | Set-Content "$name.sha256" -Encoding ascii
+          }
+
+      - name: Publish Windows V119
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference='Stop'
+          gh release view v119 --repo "$env:GITHUB_REPOSITORY" 2>$null | Out-Null
+          if($LASTEXITCODE -ne 0){gh release create v119 --repo "$env:GITHUB_REPOSITORY" --title "تحاليل العقاد V119 Current Fixes" --notes "V119 current-fixes release"}
+          gh release upload v119 "Tahalil-Alakkad-V119-Windows-Portable.exe" "Tahalil-Alakkad-V119-Windows-Portable.exe.sha256" "Tahalil-Alakkad-V119-Windows-Setup.exe" "Tahalil-Alakkad-V119-Windows-Setup.exe.sha256" --repo "$env:GITHUB_REPOSITORY" --clobber
+          if($LASTEXITCODE -ne 0){throw 'Could not upload Windows V119 files'}
+          gh release edit v119 --repo "$env:GITHUB_REPOSITORY" --latest
