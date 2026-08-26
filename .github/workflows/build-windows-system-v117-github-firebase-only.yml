@@ -1,0 +1,125 @@
+name: Build Tahalil Alakkad Windows V117 Firebase Only
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: "false"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Extract Windows V117 source
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $zip = 'Tahalil_Alakkad_System_V117_WINDOWS_GITHUB_FIREBASE_ONLY.zip'
+          if (!(Test-Path $zip)) { throw "Missing $zip in repository root" }
+          if (Test-Path 'build_windows_v117') { Remove-Item 'build_windows_v117' -Recurse -Force }
+          Expand-Archive -Path $zip -DestinationPath 'build_windows_v117' -Force
+          if (!(Test-Path 'build_windows_v117/windows-system/package.json')) { throw 'Invalid ZIP structure: windows-system/package.json not found' }
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Verify V117 Windows source
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $root = Join-Path $PWD 'build_windows_v117/windows-system'
+          $pkg = Get-Content (Join-Path $root 'package.json') -Raw | ConvertFrom-Json
+          if ($pkg.version -ne '117.0.0') { throw "Expected version 117.0.0, got $($pkg.version)" }
+
+          $tests = Get-Content (Join-Path $root 'public/lab_tests_android.json') -Raw | ConvertFrom-Json
+          if ($tests.Count -ne 331) { throw "Expected 331 tests, got $($tests.Count)" }
+
+          $srcFiles = Get-ChildItem (Join-Path $root 'src') -Filter '*.js' -File
+          $source = ($srcFiles | ForEach-Object { Get-Content $_.FullName -Raw }) -join "`n"
+          if ($source -match 'firebase/storage|getStorage\s*\(|uploadBytes\s*\(|storageRef\s*\(') { throw 'Firebase Storage dependency still present in Windows V117 source' }
+          if ($source -match 'supabase') { throw 'Supabase reference found; V117 must be GitHub/Firebase-only' }
+
+          $resultStore = Get-Content (Join-Path $root 'src/resultStore.js') -Raw
+          foreach ($needle in @('420 * 1024','6 * 1024 * 1024','result_file_chunk','result_file_meta','fsr:/')) {
+            if (!$resultStore.Contains($needle)) { throw "Missing Firestore result-file check: $needle" }
+          }
+
+          $data = Get-Content (Join-Path $root 'src/data.js') -Raw
+          foreach ($needle in @('smartSearchTests','labCancelOrder','isActualManager','abdelrahman@tahali.com')) {
+            if (!$data.Contains($needle)) { throw "Missing data feature: $needle" }
+          }
+
+          $app = Get-Content (Join-Path $root 'src/app.js') -Raw
+          foreach ($needle in @('Unified System V117','تبديل المستخدم','رجوع لعبد الرحمن','ارجع لحساب عبد الرحمن أولًا لفتح الإدارة','حفظ وإرسال الطلب للمعمل')) {
+            if (!$app.Contains($needle)) { throw "Missing UI feature: $needle" }
+          }
+
+          $preload = Get-Content (Join-Path $root 'electron/preload.cjs') -Raw
+          $main = Get-Content (Join-Path $root 'electron/main.cjs') -Raw
+          if (!$preload.Contains('openResultBytes') -or !$main.Contains('result:openBytes')) { throw 'Windows result-file open bridge is missing' }
+
+          foreach ($file in $srcFiles) {
+            Get-Content $file.FullName -Raw | node --input-type=module --check
+            if ($LASTEXITCODE -ne 0) { throw "JavaScript syntax check failed: $($file.Name)" }
+          }
+          node --check (Join-Path $root 'electron/main.cjs')
+          if ($LASTEXITCODE -ne 0) { throw 'electron/main.cjs syntax check failed' }
+          node --check (Join-Path $root 'electron/preload.cjs')
+          if ($LASTEXITCODE -ne 0) { throw 'electron/preload.cjs syntax check failed' }
+
+          Write-Host 'ALL WINDOWS V117 SOURCE CHECKS PASSED'
+
+      - name: Install dependencies
+        working-directory: build_windows_v117/windows-system
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          npm install --no-audit --no-fund
+          if ($LASTEXITCODE -ne 0) { throw 'npm install failed' }
+
+      - name: Build Windows V117 portable EXE
+        working-directory: build_windows_v117/windows-system
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          npm run dist:win
+          if ($LASTEXITCODE -ne 0) { throw 'Windows build failed' }
+
+      - name: Prepare Windows release files
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $release = Join-Path $PWD 'build_windows_v117/windows-system/release'
+          $exe = Get-ChildItem $release -Filter 'Tahalil_Alakkad_System_V117_Windows_*.exe' -File | Sort-Object Length -Descending | Select-Object -First 1
+          if (!$exe) { throw 'No Windows EXE was produced' }
+          $dest = Join-Path $PWD 'Tahalil-Alakkad-V117-Windows.exe'
+          Copy-Item $exe.FullName $dest -Force
+          if ((Get-Item $dest).Length -lt 1000000) { throw 'Produced EXE is unexpectedly small' }
+          $hash = (Get-FileHash $dest -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  Tahalil-Alakkad-V117-Windows.exe" | Set-Content (Join-Path $PWD 'Tahalil-Alakkad-V117-Windows.sha256.txt') -Encoding ascii
+          Write-Host "Windows EXE ready: $dest"
+          Write-Host "SHA256: $hash"
+
+      - name: Publish Windows EXE to V117 Release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $false
+          gh release view v117 --repo "$env:GITHUB_REPOSITORY" 2>$null | Out-Null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create v117 --repo "$env:GITHUB_REPOSITORY" --title "تحاليل العقاد V117" --notes "Android + Windows V117 • Firebase Spark only • no Firebase Storage • no Cloud Functions • no Supabase."
+            if ($LASTEXITCODE -ne 0) { throw 'Could not create V117 release' }
+          }
+          gh release upload v117 "Tahalil-Alakkad-V117-Windows.exe" "Tahalil-Alakkad-V117-Windows.sha256.txt" --repo "$env:GITHUB_REPOSITORY" --clobber
+          if ($LASTEXITCODE -ne 0) { throw 'Could not upload Windows V117 release files' }
+          Write-Host 'WINDOWS V117 PUBLISHED TO GITHUB RELEASES'
