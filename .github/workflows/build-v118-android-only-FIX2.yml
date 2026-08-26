@@ -1,0 +1,153 @@
+name: Build Tahalil Alakkad V118 Android Only FIX2
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  android:
+    name: Android V118 Secure
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Gradle 8.11.1
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+
+      - name: Extract Android V118 secure source
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf build_v118_android
+          mkdir build_v118_android
+          unzip -q Project3_AK_V118_SECURE_FIXED.zip -d build_v118_android
+          test -f build_v118_android/app/build.gradle.kts
+          test -f build_v118_android/app/src/main/java/com/example/backend/FirestoreResultFileStore.kt
+          test -f build_v118_android/app/src/main/java/com/example/settings/AppSettings.kt
+
+      - name: Restore original Android signing
+        shell: bash
+        env:
+          SIGNING_BUNDLE_B64: ${{ secrets.TAHALIL_SIGNING_BUNDLE_B64 }}
+        run: |
+          set -euo pipefail
+          test -n "${SIGNING_BUNDLE_B64:-}"
+          rm -rf /tmp/tahalil_sign
+          mkdir -p /tmp/tahalil_sign/files
+          printf '%s' "$SIGNING_BUNDLE_B64" | tr -d '\r\n ' | base64 --decode > /tmp/tahalil_sign/bundle.bin
+          if unzip -t /tmp/tahalil_sign/bundle.bin >/dev/null 2>&1; then
+            unzip -q /tmp/tahalil_sign/bundle.bin -d /tmp/tahalil_sign/files
+          else
+            cp /tmp/tahalil_sign/bundle.bin /tmp/tahalil_sign/files/original.keystore
+          fi
+          KEYSTORE="$(find /tmp/tahalil_sign/files -type f \( -iname '*.jks' -o -iname '*.keystore' \) -print -quit)"
+          test -n "$KEYSTORE"
+          STORE_PASSWORD=""
+          KEY_ALIAS=""
+          KEY_PASSWORD=""
+          while IFS= read -r META; do
+            [ -f "$META" ] || continue
+            [ -n "$STORE_PASSWORD" ] || STORE_PASSWORD="$(sed -nE 's/^[[:space:]]*(STORE_PASSWORD|KEYSTORE_PASSWORD|storePassword|store_password)[[:space:]]*[:=][[:space:]]*"?([^"#]+)"?[[:space:]]*$/\2/p' "$META" | head -1 | xargs || true)"
+            [ -n "$KEY_ALIAS" ] || KEY_ALIAS="$(sed -nE 's/^[[:space:]]*(KEY_ALIAS|keyAlias|key_alias)[[:space:]]*[:=][[:space:]]*"?([^"#]+)"?[[:space:]]*$/\2/p' "$META" | head -1 | xargs || true)"
+            [ -n "$KEY_PASSWORD" ] || KEY_PASSWORD="$(sed -nE 's/^[[:space:]]*(KEY_PASSWORD|keyPassword|key_password)[[:space:]]*[:=][[:space:]]*"?([^"#]+)"?[[:space:]]*$/\2/p' "$META" | head -1 | xargs || true)"
+          done < <(find /tmp/tahalil_sign/files -type f \( -iname '*.properties' -o -iname '*.env' -o -iname '*.txt' \) -print)
+          if [ -z "$STORE_PASSWORD" ] && keytool -list -keystore "$KEYSTORE" -storepass android >/dev/null 2>&1; then STORE_PASSWORD="android"; fi
+          test -n "$STORE_PASSWORD"
+          [ -n "$KEY_ALIAS" ] || KEY_ALIAS="$(keytool -list -v -keystore "$KEYSTORE" -storepass "$STORE_PASSWORD" 2>/dev/null | sed -n 's/^Alias name: //p' | head -1)"
+          test -n "$KEY_ALIAS"
+          [ -n "$KEY_PASSWORD" ] || KEY_PASSWORD="$STORE_PASSWORD"
+          cp "$KEYSTORE" build_v118_android/original-signing-key.jks
+          echo "::add-mask::$STORE_PASSWORD"
+          echo "::add-mask::$KEY_ALIAS"
+          echo "::add-mask::$KEY_PASSWORD"
+          {
+            echo "KEYSTORE_PATH=$GITHUB_WORKSPACE/build_v118_android/original-signing-key.jks"
+            echo "STORE_PASSWORD=$STORE_PASSWORD"
+            echo "KEY_ALIAS=$KEY_ALIAS"
+            echo "KEY_PASSWORD=$KEY_PASSWORD"
+          } >> "$GITHUB_ENV"
+
+      - name: Verify Android V118 security source
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 <<'PY'
+          from pathlib import Path
+          import json
+          r=Path('build_v118_android')
+          grad=(r/'app/build.gradle.kts').read_text()
+          result=(r/'app/src/main/java/com/example/backend/FirestoreResultFileStore.kt').read_text()
+          settings=(r/'app/src/main/java/com/example/settings/AppSettings.kt').read_text()
+          main=(r/'app/src/main/java/com/example/MainActivity.kt').read_text()
+          manifest=(r/'app/src/main/AndroidManifest.xml').read_text()
+          network=(r/'app/src/main/res/xml/network_security_config.xml').read_text()
+          backup=(r/'app/src/main/res/xml/backup_rules.xml').read_text()
+          tests=json.loads((r/'app/src/main/assets/lab_tests_android.json').read_text())
+          source='\n'.join(p.read_text(errors='ignore') for p in (r/'app/src/main/java').rglob('*.kt'))
+          checks={
+            'version 118': 'versionCode = 118' in grad and '5.38-secure-v118' in grad,
+            '331 tests': len(tests)==331,
+            'result SHA256 write': '"sha256" to sha256Hex(bytes)' in result,
+            'result SHA256 verify': 'فشل فحص سلامة ملف النتيجة' in result and 'MessageDigest.isEqual' in result,
+            'stale result cache cleanup': 'cleanupStaleResultCache' in result and 'cleanupStaleResultCache(this)' in main,
+            'strong local PIN': 'PIN_PBKDF2_STRONG_ITERATIONS = 310_000' in settings and 'PIN_VERSION_PBKDF2_STRONG = 3' in settings,
+            'screen capture blocked': 'FLAG_SECURE' in main,
+            'overlay protection': 'setHideOverlayWindows(true)' in main,
+            'backup disabled': 'android:allowBackup="false"' in manifest and 'exclude domain="database" path="."' in backup,
+            'TLS only': 'cleartextTrafficPermitted="false"' in network and 'android:usesCleartextTraffic="false"' in manifest,
+            'App Check': 'PlayIntegrityAppCheckProviderFactory' in main,
+            'no Supabase client/import': all(x not in source.lower() for x in ['import io.supabase', 'createsupabaseclient', 'supabaseclient', 'supabase.co']),
+            'no Firebase Storage client': 'FirebaseStorage' not in source and 'firebase.storage' not in source,
+          }
+          for k,v in checks.items(): print(('OK   ' if v else 'FAIL ')+k)
+          bad=[k for k,v in checks.items() if not v]
+          if bad: raise SystemExit('Android V118 FIX2 security check failed: '+', '.join(bad))
+          print('ALL ANDROID V118 FIX2 SECURITY CHECKS PASSED')
+          PY
+
+      - name: Build signed Android V118
+        working-directory: build_v118_android
+        shell: bash
+        run: |
+          set -euo pipefail
+          gradle --no-daemon --no-configuration-cache --no-parallel --max-workers=2 :app:assembleRelease
+
+      - name: Verify Android signature and prepare release
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="$(find build_v118_android/app/build/outputs/apk/release -type f -name '*.apk' -print -quit)"
+          test -n "$APK"
+          test -s "$APK"
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs "$APK"
+          cp "$APK" Tahalil-Alakkad-V118-Android-SIGNED.apk
+          sha256sum Tahalil-Alakkad-V118-Android-SIGNED.apk > Tahalil-Alakkad-V118-Android-SIGNED.apk.sha256
+
+      - name: Publish Android V118 to GitHub Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TAG=v118-android
+          if ! gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release create "$TAG" --repo "$GITHUB_REPOSITORY" \
+              --title "تحاليل العقاد V118 Android" \
+              --notes "Android V118 فقط • Firebase Spark only • no Firebase Storage • no Cloud Functions • no Supabase."
+          fi
+          gh release upload "$TAG" \
+            Tahalil-Alakkad-V118-Android-SIGNED.apk \
+            Tahalil-Alakkad-V118-Android-SIGNED.apk.sha256 \
+            --repo "$GITHUB_REPOSITORY" --clobber
