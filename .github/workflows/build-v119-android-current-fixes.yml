@@ -1,0 +1,153 @@
+name: Build Tahalil Alakkad V119 Android Current Fixes
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  android:
+    name: Android V119 Signed
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Gradle 8.11.1
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+
+      - name: Extract Android V119 source
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f Project3_AK_V119_CURRENT_FIXES.zip
+          rm -rf build_v119
+          mkdir build_v119
+          unzip -q Project3_AK_V119_CURRENT_FIXES.zip -d build_v119
+          test -f build_v119/app/build.gradle.kts
+          test -f build_v119/firestore.rules
+          test -f build_v119/firestore.indexes.json
+
+      - name: Restore original Android signing
+        shell: bash
+        env:
+          SIGNING_BUNDLE_B64: ${{ secrets.TAHALIL_SIGNING_BUNDLE_B64 }}
+        run: |
+          set -euo pipefail
+          test -n "${SIGNING_BUNDLE_B64:-}"
+          rm -rf /tmp/tahalil_sign
+          mkdir -p /tmp/tahalil_sign/files
+          printf '%s' "$SIGNING_BUNDLE_B64" | tr -d '\r\n ' | base64 --decode > /tmp/tahalil_sign/bundle.bin
+          if unzip -t /tmp/tahalil_sign/bundle.bin >/dev/null 2>&1; then
+            unzip -q /tmp/tahalil_sign/bundle.bin -d /tmp/tahalil_sign/files
+          else
+            cp /tmp/tahalil_sign/bundle.bin /tmp/tahalil_sign/files/original.keystore
+          fi
+          KEYSTORE="$(find /tmp/tahalil_sign/files -type f \( -iname '*.jks' -o -iname '*.keystore' \) -print -quit)"
+          test -n "$KEYSTORE"
+          STORE_PASSWORD=""; KEY_ALIAS=""; KEY_PASSWORD=""
+          while IFS= read -r META; do
+            [ -f "$META" ] || continue
+            [ -n "$STORE_PASSWORD" ] || STORE_PASSWORD="$(sed -nE 's/^[[:space:]]*(STORE_PASSWORD|KEYSTORE_PASSWORD|storePassword|store_password)[[:space:]]*[:=][[:space:]]*"?([^"#]+)"?[[:space:]]*$/\2/p' "$META" | head -1 | xargs || true)"
+            [ -n "$KEY_ALIAS" ] || KEY_ALIAS="$(sed -nE 's/^[[:space:]]*(KEY_ALIAS|keyAlias|key_alias)[[:space:]]*[:=][[:space:]]*"?([^"#]+)"?[[:space:]]*$/\2/p' "$META" | head -1 | xargs || true)"
+            [ -n "$KEY_PASSWORD" ] || KEY_PASSWORD="$(sed -nE 's/^[[:space:]]*(KEY_PASSWORD|keyPassword|key_password)[[:space:]]*[:=][[:space:]]*"?([^"#]+)"?[[:space:]]*$/\2/p' "$META" | head -1 | xargs || true)"
+          done < <(find /tmp/tahalil_sign/files -type f \( -iname '*.properties' -o -iname '*.env' -o -iname '*.txt' \) -print)
+          if [ -z "$STORE_PASSWORD" ] && keytool -list -keystore "$KEYSTORE" -storepass android >/dev/null 2>&1; then STORE_PASSWORD=android; fi
+          test -n "$STORE_PASSWORD"
+          [ -n "$KEY_ALIAS" ] || KEY_ALIAS="$(keytool -list -v -keystore "$KEYSTORE" -storepass "$STORE_PASSWORD" 2>/dev/null | sed -n 's/^Alias name: //p' | head -1)"
+          test -n "$KEY_ALIAS"
+          [ -n "$KEY_PASSWORD" ] || KEY_PASSWORD="$STORE_PASSWORD"
+          keytool -list -keystore "$KEYSTORE" -storepass "$STORE_PASSWORD" -alias "$KEY_ALIAS" >/dev/null
+          cp "$KEYSTORE" build_v119/original-signing-key.jks
+          echo "::add-mask::$STORE_PASSWORD"; echo "::add-mask::$KEY_ALIAS"; echo "::add-mask::$KEY_PASSWORD"
+          {
+            echo "KEYSTORE_PATH=$GITHUB_WORKSPACE/build_v119/original-signing-key.jks"
+            echo "STORE_PASSWORD=$STORE_PASSWORD"
+            echo "KEY_ALIAS=$KEY_ALIAS"
+            echo "KEY_PASSWORD=$KEY_PASSWORD"
+          } >> "$GITHUB_ENV"
+
+      - name: Verify V119 current fixes
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 <<'PY'
+          from pathlib import Path
+          import json
+          r=Path('build_v119')
+          grad=(r/'app/build.gradle.kts').read_text()
+          vm=(r/'app/src/main/java/com/example/ui/LabTestsViewModel.kt').read_text()
+          store=(r/'app/src/main/java/com/example/backend/FirestoreResultFileStore.kt').read_text()
+          backup=(r/'app/src/main/java/com/example/util/CommercialBackupManager.kt').read_text()
+          main=(r/'app/src/main/java/com/example/MainActivity.kt').read_text()
+          settings=(r/'app/src/main/java/com/example/settings/AppSettings.kt').read_text()
+          manifest=(r/'app/src/main/AndroidManifest.xml').read_text()
+          network=(r/'app/src/main/res/xml/network_security_config.xml').read_text()
+          rules=(r/'firestore.rules').read_text()
+          tests=json.loads((r/'app/src/main/assets/lab_tests_android.json').read_text())
+          source='\n'.join(p.read_text(errors='ignore') for p in (r/'app/src/main/java').rglob('*.kt'))
+          checks={
+            'version 119':'versionCode = 119' in grad and '5.39-current-fixes-v119' in grad,
+            'same package':'applicationId = "com.aistudio.labtestsdirectory.egypt"' in grad,
+            '331 tests':len(tests)==331,
+            'embedded prices removed':all(x.get('customer_price') is None for x in tests),
+            'lab sanitized mirror':'LAB_ORDERS_COLLECTION = "lab_orders"' in vm and 'labMirrorData' in vm,
+            'lab no private order query':'firestore.collection(LAB_ORDERS_COLLECTION)' in vm,
+            'strict finance rules':'match /lab_orders/{orderId}' in rules and 'allow read: if clinicUser();' in rules,
+            'backup result docs':'SCHEMA_VERSION = 2' in backup and 'result_file_activity' in backup and 'fetchResultFileActivity' in backup,
+            'cross platform sha':'"sha256" to sha256Hex(bytes)' in store and '"sha256_hex" to sha256Hex(bytes)' in store,
+            'upload complete':'"upload_complete" to true' in store,
+            'strong local PIN':'PIN_PBKDF2_STRONG_ITERATIONS = 310_000' in settings,
+            'screen capture blocked':'FLAG_SECURE' in main,
+            'overlay protection':'setHideOverlayWindows(true)' in main,
+            'TLS only':'cleartextTrafficPermitted="false"' in network and 'android:usesCleartextTraffic="false"' in manifest,
+            'App Check':'PlayIntegrityAppCheckProviderFactory' in main,
+            'no Supabase SDK':all(x not in source.lower() for x in ['io.supabase','supabaseclient','createsupabaseclient']) and 'supabase' not in grad.lower(),
+            'no Firebase Storage':'FirebaseStorage' not in source and 'firebase.storage' not in source and 'firebase-storage' not in grad.lower(),
+          }
+          for k,v in checks.items(): print(('OK   ' if v else 'FAIL ')+k)
+          bad=[k for k,v in checks.items() if not v]
+          if bad: raise SystemExit('V119 checks failed: '+', '.join(bad))
+          print('ALL ANDROID V119 CURRENT-FIX CHECKS PASSED')
+          PY
+
+      - name: Build signed Android V119
+        working-directory: build_v119
+        shell: bash
+        run: |
+          set -euo pipefail
+          gradle --no-daemon --no-configuration-cache --no-parallel --max-workers=2 :app:assembleRelease
+
+      - name: Verify signature and prepare release
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="$(find build_v119/app/build/outputs/apk/release -type f -name '*.apk' -print -quit)"
+          test -n "$APK"; test -s "$APK"
+          APKSIGNER="$ANDROID_HOME/build-tools/35.0.0/apksigner"
+          "$APKSIGNER" verify --verbose --print-certs "$APK"
+          cp "$APK" Tahalil-Alakkad-V119-Android-SIGNED.apk
+          sha256sum Tahalil-Alakkad-V119-Android-SIGNED.apk > Tahalil-Alakkad-V119-Android-SIGNED.apk.sha256
+
+      - name: Publish Android V119
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TAG=v119
+          if ! gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --title "تحاليل العقاد V119 Current Fixes" --notes "V119: financial privacy isolation, full result backup, Android/Windows SHA compatibility, unified Windows hardening. Firebase Spark only."
+          fi
+          gh release upload "$TAG" Tahalil-Alakkad-V119-Android-SIGNED.apk Tahalil-Alakkad-V119-Android-SIGNED.apk.sha256 --repo "$GITHUB_REPOSITORY" --clobber
+          gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --latest
