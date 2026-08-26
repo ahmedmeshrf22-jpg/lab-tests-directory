@@ -1,0 +1,142 @@
+name: Deploy V119 Android Transition Rules FIX2
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy-transition-rules:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Prepare transition Firestore rules
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f Project3_AK_V118_SECURE_FIXED.zip
+          rm -rf /tmp/v119_transition
+          mkdir -p /tmp/v119_transition
+          unzip -q Project3_AK_V118_SECURE_FIXED.zip firestore.rules -d /tmp/v119_transition
+          test -f /tmp/v119_transition/firestore.rules
+          python3 <<'PY'
+          from pathlib import Path
+          p=Path('/tmp/v119_transition/firestore.rules')
+          src=p.read_text()
+          helper = """
+              // V119 transition helper: mirror documents must never contain financial fields.
+              function labMirrorHasNoFinance() {
+                return !request.resource.data.keys().hasAny([
+                  'subtotal_customer_price','discount_amount','discount_percent','total_customer_price',
+                  'payment_status','paid_amount','remaining_amount','customer_price','lab_to_lab_price'
+                ]);
+              }
+
+          """
+          marker='    match /users/{uid} {'
+          if marker not in src: raise SystemExit('V118 rules marker /users missing')
+          src=src.replace(marker, helper + marker, 1)
+          block = """
+              // Temporary V119 compatibility stage. Mirrors contain no financial fields.
+              match /lab_orders/{orderId} {
+                allow read: if activeUser();
+                allow create, update: if activeUser() && labMirrorHasNoFinance();
+                allow delete: if isPrivilegedAdmin();
+              }
+
+          """
+          marker2='    match /customers/{customerId} {'
+          if marker2 not in src: raise SystemExit('V118 rules marker /customers missing')
+          src=src.replace(marker2, block + marker2, 1)
+          p.write_text(src)
+          PY
+          grep -q 'match /lab_orders/{orderId}' /tmp/v119_transition/firestore.rules
+          grep -q 'labMirrorHasNoFinance' /tmp/v119_transition/firestore.rules
+          echo 'TRANSITION RULES PREPARED'
+
+      - name: Deploy rules directly with Firebase Rules API
+        shell: bash
+        env:
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+        run: |
+          set -euo pipefail
+          if [ -z "${FIREBASE_SERVICE_ACCOUNT_JSON:-}" ]; then
+            echo 'ERROR: FIREBASE_SERVICE_ACCOUNT_JSON secret is required.'
+            exit 1
+          fi
+
+          cat > /tmp/v119_transition/deploy-rules.mjs <<'NODE'
+          import fs from 'node:fs';
+          import crypto from 'node:crypto';
+
+          const project = 'tahalil-alakkad';
+          const sa = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
+          const rules = fs.readFileSync('/tmp/v119_transition/firestore.rules', 'utf8');
+
+          const b64url = (v) => Buffer.from(JSON.stringify(v)).toString('base64url');
+          const now = Math.floor(Date.now() / 1000);
+          const header = { alg: 'RS256', typ: 'JWT' };
+          const payload = {
+            iss: sa.client_email,
+            scope: 'https://www.googleapis.com/auth/cloud-platform',
+            aud: 'https://oauth2.googleapis.com/token',
+            iat: now,
+            exp: now + 3600,
+          };
+          const unsigned = `${b64url(header)}.${b64url(payload)}`;
+          const signer = crypto.createSign('RSA-SHA256');
+          signer.update(unsigned);
+          signer.end();
+          const signature = signer.sign(sa.private_key).toString('base64url');
+          const assertion = `${unsigned}.${signature}`;
+
+          const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
+            method: 'POST',
+            headers: { 'content-type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({
+              grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+              assertion,
+            }),
+          });
+          if (!tokenRes.ok) throw new Error(`OAuth token failed ${tokenRes.status}: ${await tokenRes.text()}`);
+          const { access_token } = await tokenRes.json();
+          const auth = { authorization: `Bearer ${access_token}`, 'content-type': 'application/json' };
+
+          const rulesetRes = await fetch(`https://firebaserules.googleapis.com/v1/projects/${project}/rulesets`, {
+            method: 'POST',
+            headers: auth,
+            body: JSON.stringify({
+              source: { files: [{ name: 'firestore.rules', content: rules }] },
+            }),
+          });
+          const rulesetText = await rulesetRes.text();
+          if (!rulesetRes.ok) throw new Error(`Create ruleset failed ${rulesetRes.status}: ${rulesetText}`);
+          const ruleset = JSON.parse(rulesetText);
+          if (!ruleset.name) throw new Error('Rules API did not return a ruleset name.');
+          console.log(`RULESET CREATED: ${ruleset.name}`);
+
+          const releaseName = `projects/${project}/releases/cloud.firestore`;
+          const patchRes = await fetch(`https://firebaserules.googleapis.com/v1/${releaseName}`, {
+            method: 'PATCH',
+            headers: auth,
+            body: JSON.stringify({
+              release: { name: releaseName, rulesetName: ruleset.name },
+              updateMask: 'rulesetName',
+            }),
+          });
+          const patchText = await patchRes.text();
+          if (!patchRes.ok) throw new Error(`Activate ruleset failed ${patchRes.status}: ${patchText}`);
+          console.log('V119 ANDROID TRANSITION RULES ACTIVE');
+          console.log('Strict V119 privacy rules are NOT active yet.');
+          NODE
+
+          node /tmp/v119_transition/deploy-rules.mjs
