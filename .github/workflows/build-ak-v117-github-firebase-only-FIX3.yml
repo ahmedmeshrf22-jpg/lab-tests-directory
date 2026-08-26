@@ -1,0 +1,173 @@
+name: Build AK V117 GITHUB FIREBASE ONLY FIX3
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Gradle 8.11.1
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+
+      - name: Extract V117
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf build_v117
+          mkdir build_v117
+          unzip -q Project3_AK_V117_GITHUB_FIREBASE_ONLY_FIXED.zip -d build_v117
+          test -f build_v117/app/src/main/java/com/example/backend/FirestoreResultFileStore.kt
+          test -f build_v117/app/src/main/java/com/example/ui/LabTestsViewModel.kt
+          test -f build_v117/firestore.rules
+
+      - name: Restore original signing
+        shell: bash
+        env:
+          SIGNING_BUNDLE_B64: ${{ secrets.TAHALIL_SIGNING_BUNDLE_B64 }}
+        run: |
+          set -euo pipefail
+          test -n "${SIGNING_BUNDLE_B64:-}"
+          rm -rf /tmp/tahalil_sign
+          mkdir -p /tmp/tahalil_sign/files
+          printf '%s' "$SIGNING_BUNDLE_B64" | tr -d '\r\n ' | base64 --decode > /tmp/tahalil_sign/bundle.bin
+          if unzip -t /tmp/tahalil_sign/bundle.bin >/dev/null 2>&1; then
+            unzip -q /tmp/tahalil_sign/bundle.bin -d /tmp/tahalil_sign/files
+          else
+            cp /tmp/tahalil_sign/bundle.bin /tmp/tahalil_sign/files/original.keystore
+          fi
+          KEYSTORE="$(find /tmp/tahalil_sign/files -type f \( -iname '*.jks' -o -iname '*.keystore' \) -print -quit)"
+          test -n "$KEYSTORE"
+          STORE_PASSWORD=""
+          KEY_ALIAS=""
+          KEY_PASSWORD=""
+          while IFS= read -r META; do
+            [ -f "$META" ] || continue
+            [ -n "$STORE_PASSWORD" ] || STORE_PASSWORD="$(sed -nE 's/^[[:space:]]*(STORE_PASSWORD|KEYSTORE_PASSWORD|storePassword|store_password)[[:space:]]*[:=][[:space:]]*"?([^"#]+)"?[[:space:]]*$/\2/p' "$META" | head -1 | xargs || true)"
+            [ -n "$KEY_ALIAS" ] || KEY_ALIAS="$(sed -nE 's/^[[:space:]]*(KEY_ALIAS|keyAlias|key_alias)[[:space:]]*[:=][[:space:]]*"?([^"#]+)"?[[:space:]]*$/\2/p' "$META" | head -1 | xargs || true)"
+            [ -n "$KEY_PASSWORD" ] || KEY_PASSWORD="$(sed -nE 's/^[[:space:]]*(KEY_PASSWORD|keyPassword|key_password)[[:space:]]*[:=][[:space:]]*"?([^"#]+)"?[[:space:]]*$/\2/p' "$META" | head -1 | xargs || true)"
+          done < <(find /tmp/tahalil_sign/files -type f \( -iname '*.properties' -o -iname '*.env' -o -iname '*.txt' \) -print)
+          if [ -z "$STORE_PASSWORD" ] && keytool -list -keystore "$KEYSTORE" -storepass android >/dev/null 2>&1; then STORE_PASSWORD="android"; fi
+          test -n "$STORE_PASSWORD"
+          [ -n "$KEY_ALIAS" ] || KEY_ALIAS="$(keytool -list -v -keystore "$KEYSTORE" -storepass "$STORE_PASSWORD" 2>/dev/null | sed -n 's/^Alias name: //p' | head -1)"
+          test -n "$KEY_ALIAS"
+          [ -n "$KEY_PASSWORD" ] || KEY_PASSWORD="$STORE_PASSWORD"
+          cp "$KEYSTORE" build_v117/original-signing-key.jks
+          echo "::add-mask::$STORE_PASSWORD"
+          echo "::add-mask::$KEY_ALIAS"
+          echo "::add-mask::$KEY_PASSWORD"
+          {
+            echo "KEYSTORE_PATH=$GITHUB_WORKSPACE/build_v117/original-signing-key.jks"
+            echo "STORE_PASSWORD=$STORE_PASSWORD"
+            echo "KEY_ALIAS=$KEY_ALIAS"
+            echo "KEY_PASSWORD=$KEY_PASSWORD"
+          } >> "$GITHUB_ENV"
+
+      - name: Production source checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 <<'PY'
+          from pathlib import Path
+          import json
+          root=Path('build_v117')
+          grad=(root/'app/build.gradle.kts').read_text()
+          vm=(root/'app/src/main/java/com/example/ui/LabTestsViewModel.kt').read_text()
+          store=(root/'app/src/main/java/com/example/backend/FirestoreResultFileStore.kt').read_text()
+          customer=(root/'app/src/main/java/com/example/ui/CustomerSystemDialog.kt').read_text()
+          manager=(root/'app/src/main/java/com/example/ui/ManagerSettingsDialog.kt').read_text()
+          bg=(root/'app/src/main/java/com/example/notifications/LabOrderBackgroundService.kt').read_text()
+          repo=(root/'app/src/main/java/com/example/data/repository/LabTestRepository.kt').read_text()
+          lab=(root/'app/src/main/java/com/example/ui/LabOperatorScreen.kt').read_text()
+          settings=(root/'app/src/main/java/com/example/settings/AppSettings.kt').read_text()
+          tests=json.loads((root/'app/src/main/assets/lab_tests_android.json').read_text())
+          checks={
+            'versionCode 117': 'versionCode = 117' in grad,
+            'versionName Firebase-only': '5.37-github-firebase-only-v117' in grad,
+            'same package': 'applicationId = "com.aistudio.labtestsdirectory.egypt"' in grad,
+            '331 lab tests preserved': len(tests) == 331,
+            'smart wide search preserved': 'fun smartSearchTests' in repo and 'intent' in repo.lower(),
+            'Abdelrahman one-way switch preserved': 'only the real Abdelrahman account may switch' in vm and 'لا يمكن التبديل إلى حساب عبد الرحمن' in vm,
+            'lab realtime/deep link preserved': 'pendingOpenOrderId' in lab and 'LaunchedEffect' in lab,
+            'Firestore result chunk store': 'object FirestoreResultFileStore' in store and 'RAW_CHUNK_BYTES = 420 * 1024' in store,
+            'Firestore safe per-doc chunking': 'data_b64' in store and 'result_file_chunk' in store,
+            'existing rules compatible': 'collection("activity")' in store and 'actor_uid' in store,
+            'activity timeline not polluted': 'file_created_ms' in store and '"created_at_ms" to' not in store,
+            'new result ref': '.scheme("fsr")' in store,
+            'legacy result links preserved': '!storedRef.startsWith("fsr:")' in store,
+            'local secure open': 'FileProvider.getUriForFile' in store and 'FLAG_GRANT_READ_URI_PERMISSION' in store,
+            'result UI opens local file': 'openResultFile(url)' in customer,
+            'no external result-server settings': 'resultBackendProjectRef' not in settings and 'معرّف خادم النتائج' not in manager,
+            'no Supabase source tree': not (root/'supabase').exists(),
+            'no Firebase paid functions source': not (root/'firebase/functions').exists(),
+            'no Firebase Storage rules/runtime': not (root/'storage.rules').exists() and 'FirebaseStorage' not in vm,
+            'optimized background reads': 'whereGreaterThan("updated_at_ms", lastScan)' in bg and '.limit(200)' in bg,
+            'three lab stages preserved': all(x in lab for x in ['طلبات جديدة','جاري التنفيذ','النتائج المرسلة']),
+            'result ready workflow': '"workflow_status" to "ready"' in vm,
+          }
+          failed=[k for k,v in checks.items() if not v]
+          for k,v in checks.items(): print(('OK   ' if v else 'FAIL ')+k)
+          if failed: raise SystemExit('V117 integrity check failed: '+', '.join(failed))
+          print('ALL V117 GITHUB/FIREBASE-ONLY SOURCE CHECKS PASSED')
+          PY
+
+      - name: Build signed V117 release
+        working-directory: build_v117
+        shell: bash
+        run: |
+          set -euo pipefail
+          gradle --no-daemon --no-configuration-cache --no-parallel --max-workers=2 :app:assembleRelease
+
+      - name: Verify signed APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="$(find build_v117/app/build/outputs/apk/release -type f -name '*.apk' -print -quit)"
+          test -n "$APK"
+          test -s "$APK"
+          APKSIGNER="$ANDROID_HOME/build-tools/35.0.0/apksigner"
+          test -x "$APKSIGNER"
+          "$APKSIGNER" verify --verbose --print-certs "$APK"
+          cp "$APK" Tahalil-Alakkad-V117-GITHUB-FIREBASE-ONLY-SIGNED.apk
+
+      - name: Publish APK to fixed V117 GitHub Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          APK="Tahalil-Alakkad-V117-GITHUB-FIREBASE-ONLY-SIGNED.apk"
+          test -s "$APK"
+          sha256sum "$APK" > "$APK.sha256"
+          TAG="v117"
+
+          # Keep exactly one obvious V117 release.
+          gh release delete "$TAG" --yes --cleanup-tag >/dev/null 2>&1 || true
+          git push origin ":refs/tags/$TAG" >/dev/null 2>&1 || true
+
+          gh release create "$TAG" \
+            "$APK#Tahalil Alakkad V117 Signed APK" \
+            "$APK.sha256#SHA256" \
+            --title "تحاليل العقاد V117" \
+            --notes "V117 signed release APK - Firebase Spark only / no paid Storage / no Cloud Functions." \
+            --latest
+
+          gh release view "$TAG" --json tagName,name,url,isDraft,isPrerelease
+          gh release download "$TAG" --pattern "$APK" --dir /tmp/v117-release-check
+          test -s "/tmp/v117-release-check/$APK"
+          echo "V117_RELEASE_READY=https://github.com/${GITHUB_REPOSITORY}/releases/tag/$TAG"
