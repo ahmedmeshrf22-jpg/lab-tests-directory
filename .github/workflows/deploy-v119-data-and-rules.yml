@@ -1,0 +1,130 @@
+name: Deploy V119 Data Migration and Strict Rules
+
+on:
+  workflow_dispatch:
+    inputs:
+      activate_strict_rules:
+        description: 'Activate strict V119 Firestore rules now (do this only after V119 Android/Windows clients are ready)'
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  migrate-and-optional-activate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Extract V119 and V118 price seed
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f Project3_AK_V119_CURRENT_FIXES.zip
+          test -f Project3_AK_V118_SECURE_FIXED.zip
+          rm -rf deploy_v119 /tmp/v118_seed
+          mkdir deploy_v119 /tmp/v118_seed
+          unzip -q Project3_AK_V119_CURRENT_FIXES.zip -d deploy_v119
+          unzip -q Project3_AK_V118_SECURE_FIXED.zip app/src/main/assets/lab_tests_android.json -d /tmp/v118_seed
+          test -f deploy_v119/firestore.rules
+          test -f deploy_v119/firestore.indexes.json
+          test -f /tmp/v118_seed/app/src/main/assets/lab_tests_android.json
+
+      - name: Prepare Firebase Admin credentials
+        shell: bash
+        env:
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+        run: |
+          set -euo pipefail
+          if [ -z "${FIREBASE_SERVICE_ACCOUNT_JSON:-}" ]; then
+            echo 'ERROR: repository secret FIREBASE_SERVICE_ACCOUNT_JSON is required.'
+            exit 1
+          fi
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT_JSON" > "$RUNNER_TEMP/firebase-service-account.json"
+          echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/firebase-service-account.json" >> "$GITHUB_ENV"
+          mkdir -p /tmp/v119_admin
+          cd /tmp/v119_admin
+          npm init -y >/dev/null 2>&1
+          npm install firebase-admin@13 --no-audit --no-fund >/dev/null
+
+      - name: Backfill prices and sanitized lab order mirrors
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > /tmp/v119_admin/migrate.mjs <<'JS'
+          import fs from 'node:fs';
+          import admin from 'firebase-admin';
+          admin.initializeApp({credential: admin.credential.applicationDefault(), projectId:'tahalil-alakkad'});
+          const db=admin.firestore();
+          const seed=JSON.parse(fs.readFileSync('/tmp/v118_seed/app/src/main/assets/lab_tests_android.json','utf8'));
+          if(seed.length!==331) throw new Error(`Expected 331 seed tests, got ${seed.length}`);
+
+          const existing=await db.collection('customer_price_overrides').get();
+          const have=new Set(existing.docs.map(d=>d.id));
+          let priceWrites=0, batch=db.batch(), ops=0;
+          for(const t of seed){
+            const id=String(t.id); if(have.has(id)) continue;
+            const price=Number(t.customer_price); if(!Number.isFinite(price)) throw new Error(`Missing price seed for ${id}`);
+            batch.set(db.collection('customer_price_overrides').doc(id),{id:Number(t.id),customer_price:price,updated_at_ms:Date.now(),migration:'v119_seed'},{merge:true});
+            priceWrites++;ops++; if(ops>=400){await batch.commit();batch=db.batch();ops=0;}
+          }
+          if(ops) await batch.commit();
+          const afterPrices=await db.collection('customer_price_overrides').get();
+          const priceIds=new Set(afterPrices.docs.map(d=>d.id));
+          for(const t of seed) if(!priceIds.has(String(t.id))) throw new Error(`Price override missing after seed: ${t.id}`);
+
+          const allowed=new Set(['order_number','operation_id','customer_id','customer_file_number','customer_name','customer_phone','customer_age','customer_gender','items','tests_count','workflow_status','status_history','notes','created_at_ms','created_at','created_by_uid','created_by_email','updated_at_ms','updated_at','updated_by_uid','updated_by_email','edit_count','is_voided','void_reason','voided_at_ms','voided_by_uid','voided_by_email','result_urls','result_names','result_sent_at_ms','result_sent_at','result_uploaded_by_uid','result_uploaded_by_email']);
+          const mirrorItems=(items=[]) => (Array.isArray(items)?items:[]).map(x=>({test_id:Number(x?.test_id??x?.id??0),english_name:String(x?.english_name||''),arabic_name:String(x?.arabic_name||''),market_name:String(x?.market_name||'')})).filter(x=>x.test_id>0);
+          const sanitize=(d,customerId)=>{const out={privacy_schema:1};for(const [k,v] of Object.entries(d||{}))if(allowed.has(k))out[k]=v;out.customer_id=String(d?.customer_id||customerId||'');out.items=mirrorItems(d?.items);out.tests_count=out.items.length;return out;};
+          const forbidden=['subtotal_customer_price','discount_amount','discount_percent','total_customer_price','payment_status','paid_amount','remaining_amount','customer_price','lab_to_lab_price'];
+
+          const orders=await db.collectionGroup('orders').get();
+          const seen=new Set(); let mirrors=0; batch=db.batch();ops=0;
+          for(const d of orders.docs){
+            if(seen.has(d.id)) throw new Error(`Duplicate order id across customers: ${d.id}`); seen.add(d.id);
+            const customerId=d.ref.parent.parent?.id||d.data()?.customer_id||'';
+            const clean=sanitize(d.data(),customerId);
+            for(const f of forbidden) if(Object.prototype.hasOwnProperty.call(clean,f)) throw new Error(`Finance leak ${f} in ${d.id}`);
+            for(const item of clean.items) if(Object.keys(item).some(k=>k.toLowerCase().includes('price'))) throw new Error(`Nested price leak in ${d.id}`);
+            batch.set(db.collection('lab_orders').doc(d.id),clean,{merge:false});mirrors++;ops++;
+            if(ops>=350){await batch.commit();batch=db.batch();ops=0;}
+          }
+          if(ops) await batch.commit();
+
+          const verify=await db.collection('lab_orders').get();
+          if(verify.size!==orders.size) throw new Error(`Mirror count mismatch private=${orders.size} mirror=${verify.size}`);
+          for(const d of verify.docs){const x=d.data();for(const f of forbidden)if(Object.prototype.hasOwnProperty.call(x,f))throw new Error(`Forbidden field ${f} in mirror ${d.id}`);for(const item of (x.items||[]))if(Object.keys(item||{}).some(k=>k.toLowerCase().includes('price')))throw new Error(`Nested price leak in mirror ${d.id}`);}
+          console.log(`V119 PREPARED: seeded ${priceWrites} missing prices; mirrored ${mirrors} orders; strict privacy verification passed.`);
+          JS
+          cd /tmp/v119_admin
+          node migrate.mjs
+
+      - name: Install Firebase CLI
+        if: ${{ inputs.activate_strict_rules }}
+        shell: bash
+        run: npm install --global firebase-tools
+
+      - name: Activate strict V119 Firestore rules and indexes
+        if: ${{ inputs.activate_strict_rules }}
+        working-directory: deploy_v119
+        shell: bash
+        run: |
+          set -euo pipefail
+          firebase deploy --project tahalil-alakkad --only firestore:rules,firestore:indexes --non-interactive
+          echo 'STRICT V119 FIRESTORE RULES ARE NOW ACTIVE'
+
+      - name: Safe stop before activation
+        if: ${{ !inputs.activate_strict_rules }}
+        shell: bash
+        run: |
+          echo 'PREPARATION COMPLETE. Strict rules were NOT activated.'
+          echo 'Build/install V119 clients, then rerun this workflow with activate_strict_rules=true.'
