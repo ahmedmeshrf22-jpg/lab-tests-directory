@@ -1,0 +1,102 @@
+name: Deploy V119 Android Transition Rules
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy-transition-rules:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Prepare transition Firestore rules
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f Project3_AK_V118_SECURE_FIXED.zip
+          rm -rf /tmp/v119_transition
+          mkdir -p /tmp/v119_transition
+          unzip -q Project3_AK_V118_SECURE_FIXED.zip firestore.rules firestore.indexes.json -d /tmp/v119_transition
+          test -f /tmp/v119_transition/firestore.rules
+          python3 <<'PY'
+          from pathlib import Path
+          p=Path('/tmp/v119_transition/firestore.rules')
+          src=p.read_text()
+          helper = """
+              // V119 transition helper: mirror documents must never contain financial fields.
+              function labMirrorHasNoFinance() {
+                return !request.resource.data.keys().hasAny([
+                  'subtotal_customer_price','discount_amount','discount_percent','total_customer_price',
+                  'payment_status','paid_amount','remaining_amount','customer_price','lab_to_lab_price'
+                ]);
+              }
+          
+          """
+          marker='    match /users/{uid} {'
+          if marker not in src: raise SystemExit('V118 rules marker /users missing')
+          src=src.replace(marker, helper + marker, 1)
+          block = """
+              // Temporary V119 compatibility stage. Mirrors contain no financial fields.
+              match /lab_orders/{orderId} {
+                allow read: if activeUser();
+                allow create, update: if activeUser() && labMirrorHasNoFinance();
+                allow delete: if isPrivilegedAdmin();
+              }
+          
+          """
+          marker2='    match /customers/{customerId} {'
+          if marker2 not in src: raise SystemExit('V118 rules marker /customers missing')
+          src=src.replace(marker2, block + marker2, 1)
+          p.write_text(src)
+          PY
+          cat > /tmp/v119_transition/firebase.compat.json <<'JSON'
+          {
+            "firestore": {
+              "rules": "firestore.rules",
+              "indexes": "firestore.indexes.json"
+            }
+          }
+          JSON
+          grep -q 'match /lab_orders/{orderId}' /tmp/v119_transition/firestore.rules
+          grep -q 'labMirrorHasNoFinance' /tmp/v119_transition/firestore.rules
+          echo 'TRANSITION RULES PREPARED'
+
+      - name: Prepare Firebase credentials
+        shell: bash
+        env:
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+        run: |
+          set -euo pipefail
+          if [ -z "${FIREBASE_SERVICE_ACCOUNT_JSON:-}" ]; then
+            echo 'ERROR: FIREBASE_SERVICE_ACCOUNT_JSON secret is required.'
+            exit 1
+          fi
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT_JSON" > "$RUNNER_TEMP/firebase-service-account.json"
+          echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/firebase-service-account.json" >> "$GITHUB_ENV"
+
+      - name: Install Firebase CLI
+        shell: bash
+        run: npm install --global firebase-tools
+
+      - name: Deploy V119 Android transition rules
+        working-directory: /tmp/v119_transition
+        shell: bash
+        run: |
+          set -euo pipefail
+          firebase deploy \
+            --project tahalil-alakkad \
+            --config firebase.compat.json \
+            --only firestore:rules \
+            --non-interactive
+          echo 'V119 ANDROID TRANSITION RULES ACTIVE'
+          echo 'Strict V119 privacy rules are NOT active yet.'
