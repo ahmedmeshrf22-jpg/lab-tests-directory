@@ -1,0 +1,249 @@
+name: Build Tahalil Alakkad V134 Safety
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: tahalil-v134-safety
+  cancel-in-progress: false
+
+jobs:
+  build-v134-safety:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Checkout verified V133 LTS base
+        uses: actions/checkout@v4
+        with:
+          ref: v133-lts-base
+          fetch-depth: 1
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Gradle 8.11.1
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+
+      - name: Apply V134 Safety patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > /tmp/v134-safety.patch.gz.b64 <<'PATCH64'
+          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
+          PATCH64
+          tr -d '\r\n ' < /tmp/v134-safety.patch.gz.b64 | base64 --decode | gzip -dc > /tmp/v134-safety.patch
+          patch -p2 < /tmp/v134-safety.patch
+          echo "V134 safety patch applied directly over v133-lts-base"
+
+      - name: Audit V134 safety invariants
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 <<'PYAUDIT'
+          from pathlib import Path
+          r=Path('.')
+          src=r/'app/src/main/java'
+          allkt='\n'.join(p.read_text(errors='ignore') for p in src.rglob('*.kt'))
+          grad=(r/'app/build.gradle.kts').read_text()
+          backup=(src/'com/example/util/CommercialBackupManager.kt').read_text()
+          vm=(src/'com/example/ui/LabTestsViewModel.kt').read_text()
+          login=(src/'com/example/ui/LoginScreen.kt').read_text()
+          changed={str(p) for p in [Path(x.strip()) for x in __import__('subprocess').check_output(['git','diff','--name-only'], text=True).splitlines()]}
+          allowed={
+            'app/build.gradle.kts',
+            'app/src/main/java/com/example/ui/LabTestsViewModel.kt',
+            'app/src/main/java/com/example/util/CommercialBackupManager.kt',
+            'V134_SAFETY_BACKUP_NOTES.txt',
+          }
+          checks={
+            'V134 version':'versionCode = 134' in grad and '5.54-safety-backup-v134' in grad,
+            'same package':'applicationId = "com.aistudio.labtestsdirectory.egypt"' in grad,
+            'only safety files changed':changed <= allowed and changed == allowed,
+            'backup schema v3':'SCHEMA_VERSION = 3' in backup,
+            'users archived':'put("users", JSONArray(users))' in backup,
+            'devices archived':'put("user_devices", JSONArray(userDevices))' in backup,
+            'audit archived':'put("audit_logs", JSONArray(auditLogs))' in backup,
+            'security archive manual recovery':'security_archive_restore_mode' in backup and 'manual_only' in backup,
+            'V134 backup active':'createEncryptedBackupV134' in vm,
+            'shadow users':'mirrorPath("users/$newUid"' in vm,
+            'shadow devices':'users/${device.uid}/devices/${device.id}' in vm,
+            'shadow audit':'mirrorPath(auditRef.path, now)' in vm,
+            'Firebase preserved':'FirebaseFirestore' in allkt and 'FirebaseAuth' in allkt,
+            'Supabase standby preserved':'tahalil-shadow-mirror' in allkt and 'tahalil-recovery-probe' in allkt,
+            'offline preserved':'OfflineAccessVault' in allkt,
+            'results preserved':'saveResultToDownloads' in allkt and 'requestResultRevision' in allkt,
+            'notifications preserved':'class OrderRealtimeNotificationService' in allkt,
+            'credential reset preserved':'resetUserLoginCredentials' in allkt and 'sendPasswordResetEmail' not in allkt,
+            'login compile fix preserved':'import androidx.compose.foundation.layout.weight' not in login,
+            'no Cloudflare':'cloudflare' not in allkt.lower() and 'workers.dev' not in allkt.lower(),
+            'no Supabase secret in APK source':all(x not in allkt for x in ['SUPABASE_SERVICE_ROLE_KEY','SUPABASE_SECRET_KEYS','sb_secret_','BEGIN PRIVATE KEY']),
+          }
+          for k,v in checks.items(): print(('OK   ' if v else 'FAIL ')+k)
+          bad=[k for k,v in checks.items() if not v]
+          if bad: raise SystemExit('V134 SAFETY AUDIT FAILED: '+', '.join(bad))
+          print('ALL V134 SAFETY CHECKS PASSED')
+          PYAUDIT
+
+      - name: Publish immutable V134 safety source branch
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          BRANCH="v134-safety-base"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$BRANCH"
+          git add app/build.gradle.kts app/src/main/java/com/example/ui/LabTestsViewModel.kt app/src/main/java/com/example/util/CommercialBackupManager.kt V134_SAFETY_BACKUP_NOTES.txt
+          git commit -m "V134 safety backup hardening"
+          COMMIT_SHA="$(git rev-parse HEAD)"
+          if git ls-remote --exit-code --heads origin "$BRANCH" >/dev/null 2>&1; then
+            git fetch -q origin "$BRANCH"
+            LOCAL_TREE="$(git rev-parse HEAD^{tree})"
+            REMOTE_TREE="$(git rev-parse FETCH_HEAD^{tree})"
+            if [ "$LOCAL_TREE" != "$REMOTE_TREE" ]; then
+              echo "::error::Existing $BRANCH differs; refusing to overwrite an immutable safety source."
+              exit 1
+            fi
+            COMMIT_SHA="$(git rev-parse FETCH_HEAD)"
+            echo "Verified existing $BRANCH @ $COMMIT_SHA"
+          else
+            git push origin "HEAD:refs/heads/$BRANCH"
+            echo "Published $BRANCH @ $COMMIT_SHA"
+          fi
+          echo "V134_COMMIT_SHA=$COMMIT_SHA" >> "$GITHUB_ENV"
+
+      - name: Restore original Android signing identity
+        shell: bash
+        env:
+          SIGNING_BUNDLE_B64: ${{ secrets.TAHALIL_SIGNING_BUNDLE_B64 }}
+        run: |
+          set -euo pipefail
+          test -n "${SIGNING_BUNDLE_B64:-}"
+          SIGN_DIR="$RUNNER_TEMP/tahalil_v134_signing"
+          rm -rf "$SIGN_DIR" && mkdir -p "$SIGN_DIR/files"
+          printf '%s' "$SIGNING_BUNDLE_B64" | tr -d '\r\n ' | base64 --decode > "$SIGN_DIR/bundle.bin"
+          if unzip -t "$SIGN_DIR/bundle.bin" >/dev/null 2>&1; then
+            unzip -q "$SIGN_DIR/bundle.bin" -d "$SIGN_DIR/files"
+          else
+            cp "$SIGN_DIR/bundle.bin" "$SIGN_DIR/files/original.keystore"
+          fi
+          KEYSTORE="$(find "$SIGN_DIR/files" -type f \( -iname '*.jks' -o -iname '*.keystore' \) -print -quit)"
+          test -n "$KEYSTORE"
+          STORE_PASSWORD=""; KEY_ALIAS=""; KEY_PASSWORD=""
+          while IFS= read -r META; do
+            [ -f "$META" ] || continue
+            [ -n "$STORE_PASSWORD" ] || STORE_PASSWORD="$(sed -nE 's/^[[:space:]]*(STORE_PASSWORD|KEYSTORE_PASSWORD|storePassword|store_password)[[:space:]]*[:=][[:space:]]*"?([^"#]+)"?[[:space:]]*$/\2/p' "$META" | head -1 | xargs || true)"
+            [ -n "$KEY_ALIAS" ] || KEY_ALIAS="$(sed -nE 's/^[[:space:]]*(KEY_ALIAS|keyAlias|key_alias)[[:space:]]*[:=][[:space:]]*"?([^"#]+)"?[[:space:]]*$/\2/p' "$META" | head -1 | xargs || true)"
+            [ -n "$KEY_PASSWORD" ] || KEY_PASSWORD="$(sed -nE 's/^[[:space:]]*(KEY_PASSWORD|keyPassword|key_password)[[:space:]]*[:=][[:space:]]*"?([^"#]+)"?[[:space:]]*$/\2/p' "$META" | head -1 | xargs || true)"
+          done < <(find "$SIGN_DIR/files" -type f \( -iname '*.properties' -o -iname '*.env' -o -iname '*.txt' \) -print)
+          if [ -z "$STORE_PASSWORD" ] && keytool -list -keystore "$KEYSTORE" -storepass android >/dev/null 2>&1; then STORE_PASSWORD=android; fi
+          test -n "$STORE_PASSWORD"
+          [ -n "$KEY_ALIAS" ] || KEY_ALIAS="$(keytool -list -v -keystore "$KEYSTORE" -storepass "$STORE_PASSWORD" 2>/dev/null | sed -n 's/^Alias name: //p' | head -1)"
+          test -n "$KEY_ALIAS"
+          [ -n "$KEY_PASSWORD" ] || KEY_PASSWORD="$STORE_PASSWORD"
+          keytool -list -keystore "$KEYSTORE" -storepass "$STORE_PASSWORD" -alias "$KEY_ALIAS" >/dev/null
+          echo "::add-mask::$STORE_PASSWORD"
+          echo "::add-mask::$KEY_ALIAS"
+          echo "::add-mask::$KEY_PASSWORD"
+          {
+            echo "KEYSTORE_PATH=$KEYSTORE"
+            echo "STORE_PASSWORD=$STORE_PASSWORD"
+            echo "KEY_ALIAS=$KEY_ALIAS"
+            echo "KEY_PASSWORD=$KEY_PASSWORD"
+          } >> "$GITHUB_ENV"
+
+      - name: Build signed Android V134 Safety
+        shell: bash
+        run: |
+          set -euo pipefail
+          gradle --no-daemon --no-configuration-cache --no-parallel --max-workers=2 :app:assembleRelease
+
+      - name: Verify APK signature and package
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="$(find app/build/outputs/apk/release -type f -name '*.apk' -print -quit)"
+          test -n "$APK" && test -s "$APK"
+          APKSIGNER="$ANDROID_HOME/build-tools/35.0.0/apksigner"
+          "$APKSIGNER" verify --verbose --print-certs "$APK"
+          cp "$APK" Tahalil-Alakkad-V134-Safety-Android-SIGNED.apk
+          sha256sum Tahalil-Alakkad-V134-Safety-Android-SIGNED.apk > Tahalil-Alakkad-V134-Safety-Android-SIGNED.apk.sha256
+
+      - name: Publish V134 Safety release directly
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if gh release view v134 >/dev/null 2>&1; then
+            echo "::error::Release v134 already exists. Refusing to overwrite it."
+            exit 1
+          fi
+          gh release create v134 \
+            Tahalil-Alakkad-V134-Safety-Android-SIGNED.apk \
+            Tahalil-Alakkad-V134-Safety-Android-SIGNED.apk.sha256 \
+            --target "$V134_COMMIT_SHA" \
+            --title "تحاليل العقاد V134 — Safety" \
+            --notes "V134 Safety: no UI changes. Encrypted backup schema v3 archives users, device authorization records and immutable audit history; Supabase remains shadow backup only; Firebase remains authoritative. Builds directly from verified V133 LTS base."
+
+      - name: Final status
+        shell: bash
+        run: |
+          echo "V134 Safety built, signed, source-pinned and released without Actions artifacts."
