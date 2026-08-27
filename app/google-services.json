@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "266327573884",
+    "project_id": "tahalil-alakkad",
+    "storage_bucket": "tahalil-alakkad.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:266327573884:android:bbc040c1457100a34290f9",
+        "android_client_info": {
+          "package_name": "com.aistudio.labtestsdirectory.egypt"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDHw4qrzsE04pQR7uj3GVOgEdyU5Cev49U"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

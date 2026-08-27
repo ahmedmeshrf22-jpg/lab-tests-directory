@@ -1,0 +1,12 @@
+Tahalil Alakkad V115 - Home Icons + Multi Test Inquiry + Lab Sync
+
+- No collapsed arrow/menu on the clinic home. Core, scan, admin, prices and settings are visible as circular icons.
+- Prescription / clinic-request reading is visible again on the main home screen.
+- Test inquiry is now a real multi-select basket without creating a customer.
+- Search CBC (or any test), tap from the dropdown or the normal results, then continue searching for more tests.
+- Selected tests remain in one list with an instant customer-price total and remove controls.
+- The same smart search rules from V114 remain: 2-character filtering, Arabic/English/market/search text, typo tolerance and conservative natural-language suggestions.
+- Lab operator is updated with realtime new/edit/cancel notifications and notification deep-linking to the exact order.
+- Lab operator has soft Cancel, not permanent Delete. Permanent deletion remains an admin-only clinic action.
+- Lab result upload still changes workflow to ready, which Orders Hub maps automatically to Completed.
+- V113 Orders Hub and notification center remain preserved.

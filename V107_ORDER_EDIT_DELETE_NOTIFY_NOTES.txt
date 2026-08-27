@@ -1,0 +1,17 @@
+V107 - Orders Edit/Delete + Two-Sided Notifications
+
+Implemented:
+- Clinic: edit an active order's tests and notes from the order details screen.
+- Clinic: cancel/delete an order with audit retention.
+- Lab: delete/cancel an order from the lab queue with confirmation.
+- Lab: immediate in-app notifications for new, edited, and cancelled requests.
+- Clinic: immediate in-app notifications when lab accepts a request or sends results.
+- Both sides: periodic Android background fallback checks (15-minute OS minimum).
+- Same Firestore order document remains the source of truth.
+- Lab UI continues to hide all financial values.
+- FCM device tokens remain registered for future/available server-side push delivery.
+- Firestore rules in this package were updated for V107 order edit/cancel permissions.
+
+Important runtime note:
+The Android app cannot deploy Firestore security rules by itself. The live Firebase project must
+have compatible rules for non-admin clinic order-content edits and lab cancellation writes.

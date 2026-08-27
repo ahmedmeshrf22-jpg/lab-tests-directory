@@ -1,0 +1,155 @@
+workflows:
+  android-release:
+    name: Build Tahalil Alakkad V69 BATCH PRICE SEARCH
+    instance_type: mac_mini_m2
+    max_build_duration: 30
+
+    environment:
+      java: 17
+      android_signing:
+        - tahalil_alakkad_release
+
+    scripts:
+      - name: Extract V69 project
+        script: |
+          set -euo pipefail
+
+          ZIP_FILE="$CM_BUILD_DIR/Project3_AK_V69_BATCH_PRICE_SEARCH.zip"
+          WORK_DIR="$CM_BUILD_DIR/android_project"
+
+          test -f "$ZIP_FILE"
+          rm -rf "$WORK_DIR"
+          mkdir -p "$WORK_DIR"
+          unzip -q -o "$ZIP_FILE" -d "$WORK_DIR"
+
+          SETTINGS_FILE="$(find "$WORK_DIR" -type f -name settings.gradle.kts -print -quit)"
+          test -n "$SETTINGS_FILE"
+          PROJECT_DIR="$(dirname "$SETTINGS_FILE")"
+          echo "PROJECT_DIR=$PROJECT_DIR" >> "$CM_ENV"
+          echo "Project: $PROJECT_DIR"
+
+      - name: Verify V69 batch price search
+        script: |
+          set -euo pipefail
+
+          python3 - "$PROJECT_DIR" <<'PY'
+          from pathlib import Path
+          import sys
+
+          root = Path(sys.argv[1])
+          build = (root / "app/build.gradle.kts").read_text(encoding="utf-8")
+          screen = (root / "app/src/main/java/com/example/ui/LabTestsScreen.kt").read_text(encoding="utf-8")
+          ops = (root / "app/src/main/java/com/example/ui/OperationsV14Dialog.kt").read_text(encoding="utf-8")
+          customer = (root / "app/src/main/java/com/example/ui/CustomerSystemDialog.kt").read_text(encoding="utf-8")
+          repo = (root / "app/src/main/java/com/example/data/repository/LabTestRepository.kt").read_text(encoding="utf-8")
+          main = (root / "app/src/main/java/com/example/MainActivity.kt").read_text(encoding="utf-8")
+
+          checks = {
+              "versionCode": 'versionCode = 69' in build,
+              "versionName": 'versionName = "4.36-batch-price-search-v69"' in build,
+              "daily price": 'استعلام عن سعر تحليل' in screen,
+              "daily order": 'طلب تحاليل جديد' in screen,
+              "daily customers": 'سجلات العملاء' in screen,
+              "scan hub": 'HomeScanHubDialog(' in screen and 'QR / صورة / PDF' in screen,
+              "catalog": 'التحاليل المتاحة' in screen,
+              "single admin entry": 'لوحة الإدارة 🔒' in screen,
+              "admin PIN for all UI": 'if (adminUnlocked)' in screen and 'val requireAdmin' in screen,
+              "admin settings in panel": 'onOpenAdminSettings' in ops and 'إعدادات الإدارة' in ops,
+              "forced price display": 'val forcePriceInquiry = !allowSelection' in screen,
+              "V66 quick QR": 'initialAutoScan: Boolean = false' in customer and 'openScannedCustomer()' in customer,
+              "V66 aliases preserved": 'private fun aliasTargets(normQuery: String)' in repo and '"وظائف كبد"' in repo and '"وظائف كلي"' in repo,
+              "V68 edit distance": 'private fun editDistance(a: String, b: String)' in repo,
+              "V68 fuzzy token": 'private fun fuzzyTokenDistance(queryToken: String, candidateToken: String)' in repo,
+              "V68 fuzzy catalogue": 'private fun fuzzyCatalogueDistance(queryPhrase: String, candidateFields: List<String>)' in repo,
+              "V68 Arabic plurals": all(x in repo for x in ['"ات"', '"ون"', '"ين"']),
+              "V68 nearest score band": 'bestFuzzyScore + 1' in repo,
+              "V68 fuzzy aliases": 'fuzzyPhraseDistance(q, removeArabicArticles(normalizeText(alias)))' in repo,
+              "modern image share": all(x in main for x in ['"image/heic"','"image/heif"','"image/avif"']),
+              "Firebase AI Logic": 'implementation(libs.firebase.ai)' in build,
+              "V68 notes": (root / "FUZZY_SEARCH_V68_NOTES.txt").exists(),
+              "V69 notes": (root / "BATCH_PRICE_SEARCH_V69_NOTES.txt").exists(),
+              "V69 compact Latin": "compactLatinKey" in repo,
+              "V69 exact requested test": "isExactRequestedTest" in (root / "app/src/main/java/com/example/ui/LabTestsViewModel.kt").read_text(encoding="utf-8"),
+              "V69 total summary": "PriceInquirySummaryCard" in screen and "price_inquiry_summary" in screen,
+          }
+          failed = [name for name, ok in checks.items() if not ok]
+          if failed:
+              raise SystemExit("V69 verification failed: " + ", ".join(failed))
+          print("V69 batch-price-search verification passed")
+          PY
+
+      - name: Configure Android build tools
+        script: |
+          set -euo pipefail
+
+          ANDROID_HOME="/usr/local/share/android-sdk"
+          echo "ANDROID_HOME=$ANDROID_HOME" >> "$CM_ENV"
+          echo "ANDROID_SDK_ROOT=$ANDROID_HOME" >> "$CM_ENV"
+          echo "sdk.dir=$ANDROID_HOME" > "$PROJECT_DIR/local.properties"
+
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          test -x "$SDKMANAGER"
+          yes | "$SDKMANAGER" --licenses >/dev/null 2>&1 || true
+          "$SDKMANAGER" "platform-tools" "platforms;android-36" "build-tools;35.0.0"
+
+          GRADLE_BIN="$(command -v gradle || true)"
+          if [ -z "$GRADLE_BIN" ]; then
+            GRADLE_BIN="$HOME/programs/gradle-8.14.1/bin/gradle"
+          fi
+          test -x "$GRADLE_BIN"
+          echo "GRADLE_BIN=$GRADLE_BIN" >> "$CM_ENV"
+          "$GRADLE_BIN" --version
+
+      - name: Validate signing
+        script: |
+          set -euo pipefail
+
+          test -n "${CM_KEYSTORE_PATH:-}"
+          test -f "$CM_KEYSTORE_PATH"
+          test -n "${CM_KEYSTORE_PASSWORD:-}"
+          test -n "${CM_KEY_ALIAS:-}"
+          test -n "${CM_KEY_PASSWORD:-}"
+
+          keytool -list \
+            -keystore "$CM_KEYSTORE_PATH" \
+            -storepass "$CM_KEYSTORE_PASSWORD" \
+            -alias "$CM_KEY_ALIAS" \
+            >/dev/null
+
+      - name: Build V69 APK and AAB
+        script: |
+          set -euo pipefail
+
+          export KEYSTORE_PATH="$CM_KEYSTORE_PATH"
+          export STORE_PASSWORD="$CM_KEYSTORE_PASSWORD"
+          export KEY_ALIAS="$CM_KEY_ALIAS"
+          export KEY_PASSWORD="$CM_KEY_PASSWORD"
+          export GRADLE_USER_HOME="$CM_BUILD_DIR/.gradle-v69-batch-price-search"
+
+          cd "$PROJECT_DIR"
+          "$GRADLE_BIN" \
+            --no-daemon \
+            --no-configuration-cache \
+            --no-parallel \
+            --max-workers=2 \
+            --console=plain \
+            clean \
+            :app:assembleRelease \
+            :app:bundleRelease
+
+          APK_FILE="$(find app/build/outputs/apk/release -type f -name '*.apk' -print -quit)"
+          AAB_FILE="$(find app/build/outputs/bundle/release -type f -name '*.aab' -print -quit)"
+          test -f "$APK_FILE"
+          test -f "$AAB_FILE"
+
+          RELEASE_DIR="$CM_BUILD_DIR/release"
+          rm -rf "$RELEASE_DIR"
+          mkdir -p "$RELEASE_DIR"
+          cp "$APK_FILE" "$RELEASE_DIR/Tahalil-Alakkad-V69-BATCH-PRICE-SEARCH.apk"
+          cp "$AAB_FILE" "$RELEASE_DIR/Tahalil-Alakkad-V69-BATCH-PRICE-SEARCH.aab"
+          ls -lah "$RELEASE_DIR"
+
+    artifacts:
+      - release/*.apk
+      - release/*.aab
+      - android_project/**/app/build/outputs/mapping/release/mapping.txt

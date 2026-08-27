@@ -1,0 +1,10 @@
+V11 CUSTOMER CONTROL
+- versionCode 15
+- Manager-only customer blacklist controls.
+- Optional blacklist reason.
+- Blacklisted customers are excluded from new-order customer selection.
+- Safe customer removal uses archive instead of destructive delete, preserving order history.
+- Customer list has Active / Blacklist / Deleted sections with counters.
+- Archived customers can be restored by the manager.
+- Blacklisted customers can be unblocked by the manager.
+- New Firestore rules file: FIRESTORE_RULES_V11.txt.

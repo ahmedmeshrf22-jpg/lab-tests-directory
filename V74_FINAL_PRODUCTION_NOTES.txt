@@ -1,0 +1,23 @@
+Tahalil Alakkad V74 FINAL PRODUCTION
+Version code: 74
+Version name: 4.41-production-final-v74
+
+Production changes:
+1) Admin PIN can be changed from protected Admin Settings using current PIN + new PIN + confirmation.
+2) Admin unlock no longer ships a fixed PIN verifier and no longer auto-creates the privileged Firebase admin account.
+3) Admin PIN retains local brute-force protection: 5 failed attempts => 60-second lock.
+4) Admin session locks whenever the app goes to background (existing security behavior preserved).
+5) Lab 2 Lab is forced off in normal/daily display settings and remains available only through the protected Prices / Lab 2 Lab administration icon.
+6) Order output is image-only in the UI. Customer image and lab-request image each provide Save and Share actions.
+7) Direct image saving uses Android MediaStore on Android 10+ and Pictures/Tahalil Alakkad. Android 7-9 uses the legacy storage permission only when needed.
+8) Duplicate order submissions are blocked while an order save is in progress.
+9) Customer form stays minimal: name, WhatsApp, age, date picker, optional notes. Payment data stays per order.
+10) Partial/unpaid orders still require a paid-amount entry; paid and remaining amounts are calculated automatically.
+11) Batch price search, add-all, customer binding, image output, QR/image import, fuzzy search and V72 medical guide are preserved.
+12) Android security baseline preserved: backups disabled, cleartext traffic disabled, release signing unchanged.
+
+Deployment:
+- Upload Project3_AK_V74_FINAL_PRODUCTION.zip to repo root.
+- Replace .github/workflows/build-apk.yml with build-apk-V74-FINAL.yml.
+- Run workflow: Build Tahalil Alakkad V74 FINAL PRODUCTION.
+- Artifact: Tahalil-Alakkad-V74-FINAL.apk

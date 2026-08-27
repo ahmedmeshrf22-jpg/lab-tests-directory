@@ -1,0 +1,10 @@
+Tahalil Alakkad V40 - Read lab tests from image/PDF
+
+- Adds a "Read tests from image or PDF" action next to the normal test search.
+- Uses bundled on-device ML Kit Latin Text Recognition (works immediately/offline after install).
+- Renders up to 20 PDF pages locally and extracts printed test names/abbreviations.
+- Matches OCR output against the app's existing lab-test catalogue.
+- Detected tests are loaded into the existing multi-test search as exact English names for review before selection.
+- Does not auto-save an order and does not auto-select uncertain results.
+- Best accuracy: clear printed English test names/abbreviations. Handwriting and Arabic-script OCR are not guaranteed.
+- Preserves V39 QR camera/file/share customer lookup and V38 optional PDF/PNG order output.

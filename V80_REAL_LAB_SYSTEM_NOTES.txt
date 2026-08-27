@@ -1,0 +1,19 @@
+V80 — REAL LAB SYSTEM
+
+Built from the stable V78 premium UI, not from the rejected V79 counter layout.
+
+Operational changes:
+- Home is now a real lab control dashboard while preserving the premium 3D look.
+- Today's orders card with live counts: total, active, ready, remaining payment.
+- New Daily Worklist screen for today's orders.
+- Search by customer name, order number, or test name.
+- Filter by workflow status: new, collected, processing, ready, delivered.
+- One-tap move to the next workflow stage.
+- Open the related customer file directly from the worklist.
+- New orders refresh today's worklist automatically.
+- Main counter actions are now: New Order, Search & Prices, Customers & Orders, Quick Image, Prescription/QR.
+- Admin, Lab2Lab and Settings remain separated at the bottom.
+- Existing V78 3D glow assets, PIN security, quick image, test guide, customer records and image outputs are retained.
+
+Compatibility:
+- Today's worklist uses the already-authorized customer/{id}/orders path so no Firestore rules deployment is required.

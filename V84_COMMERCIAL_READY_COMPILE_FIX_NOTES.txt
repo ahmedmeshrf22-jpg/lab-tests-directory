@@ -1,0 +1,6 @@
+V84 COMMERCIAL READY COMPILE FIX
+
+- Fixed Compose compilation in Backup/Restore callbacks.
+- Replaced composable appText() calls inside non-composable launcher/onClick callbacks with runtime tr().
+- No workflow change required.
+- Retains all V83 commercial-ready features and production security.

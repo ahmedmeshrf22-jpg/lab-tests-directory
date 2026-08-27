@@ -1,0 +1,9 @@
+V14 permissions fix
+- Reports/accounts/debt overview card is visible only to Abdulrahman (Super Admin).
+- Reports screen is manager-only.
+- loadReports is hard-blocked for non-manager users.
+- Staff default can_view_sales_reports=false.
+- User permissions UI no longer allows granting report access.
+- Staff can still see the currently opened customer file, that customer order history, and that customer balance/debt, as previously approved.
+- Manager-only features remain: global reports, global debts, accounts totals, profits, Lab2Lab, users, Audit, blacklist/deleted management.
+- versionCode 19.

@@ -1,0 +1,2 @@
+
+V10 FIX: Added a file-local paymentStatusArabic helper in LabTestsScreen.kt so the dashboard does not call the private helper from CustomerSystemDialog.kt.

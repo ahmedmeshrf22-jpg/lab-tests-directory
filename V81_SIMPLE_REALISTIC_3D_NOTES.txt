@@ -1,0 +1,9 @@
+V81 — SIMPLE REALISTIC 3D MEDICAL UI
+
+- Built from the V80 real lab system feature set.
+- Reworked service icons to a simple realistic 3D medical presentation.
+- Removed excessive neon/glow/game-like card treatment.
+- Uses restrained white/glass cards, soft depth, realistic shadows, and existing medical 3D assets.
+- Daily swipe navigation uses the same restrained 3D visual language.
+- Admin, Lab2Lab, settings, QR and daily service cards share the same professional icon treatment.
+- No workflow or security features intentionally removed.

@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- Background -->
+    <rect id="bg" width="1024" height="1024" fill="#FFFFFF"/>
+
+    <!-- Metallic Arc Gradient -->
+    <linearGradient id="silverGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#E2E8F0"/>
+      <stop offset="25%" stop-color="#94A3B8"/>
+      <stop offset="50%" stop-color="#FFFFFF"/>
+      <stop offset="75%" stop-color="#64748B"/>
+      <stop offset="100%" stop-color="#CBD5E1"/>
+    </linearGradient>
+
+    <!-- Cyan Metallic AK Main Gradient -->
+    <linearGradient id="tealGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00C2E0"/>
+      <stop offset="30%" stop-color="#008BB8"/>
+      <stop offset="65%" stop-color="#005B82"/>
+      <stop offset="100%" stop-color="#003852"/>
+    </linearGradient>
+
+    <!-- Teal Light Highlight -->
+    <linearGradient id="tealLight" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#00E5FF"/>
+      <stop offset="100%" stop-color="#008BB8"/>
+    </linearGradient>
+
+    <!-- Bevel Dark Edge -->
+    <linearGradient id="bevelDark" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#002235"/>
+      <stop offset="100%" stop-color="#00111C"/>
+    </linearGradient>
+
+    <!-- Drop Shadow Filter -->
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="12" stdDeviation="16" flood-color="#003B5C" flood-opacity="0.18"/>
+    </filter>
+  </defs>
+
+  <rect width="1024" height="1024" fill="#FFFFFF"/>
+
+  <g filter="url(#shadow)">
+    <!-- Outer Metallic Circular Ring Arc (Left to Top-Right) -->
+    <path d="M 200,480 A 320,320 0 1,1 810,360" fill="none" stroke="url(#silverGrad)" stroke-width="48" stroke-linecap="round"/>
+    <path d="M 200,480 A 320,320 0 1,1 810,360" fill="none" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round" opacity="0.8"/>
+    <path d="M 230,480 A 290,290 0 1,1 780,380" fill="none" stroke="url(#tealLight)" stroke-width="12" stroke-linecap="round" opacity="0.9"/>
+
+    <!-- Bottom Outer Ring Segment -->
+    <path d="M 830,420 A 320,320 0 0,1 790,620" fill="none" stroke="url(#silverGrad)" stroke-width="36" stroke-linecap="round"/>
+
+    <!-- Stylized "AK" 3D Beveled Logo Center -->
+    <g transform="translate(190, 220)">
+      <!-- Letter A Outer/Base -->
+      <path d="M 60,340 L 190,60 L 270,60 L 330,220 L 270,220 L 230,130 L 150,340 Z" fill="url(#bevelDark)"/>
+      <path d="M 70,335 L 195,70 L 260,70 L 320,215 L 275,215 L 235,135 L 155,335 Z" fill="url(#tealGrad)"/>
+
+      <!-- Crescent Swoosh through A -->
+      <path d="M 40,280 Q 220,180 380,110 Q 220,210 40,280 Z" fill="url(#silverGrad)"/>
+      <path d="M 40,280 Q 220,180 380,110 Q 220,205 40,280 Z" fill="url(#tealLight)" opacity="0.7"/>
+
+      <!-- Letter K Outer/Base -->
+      <path d="M 330,60 L 410,60 L 410,170 L 510,60 L 590,60 L 480,180 L 600,340 L 520,340 L 410,195 L 410,340 L 330,340 Z" fill="url(#bevelDark)"/>
+      <path d="M 340,70 L 400,70 L 400,175 L 498,70 L 575,70 L 470,185 L 585,330 L 510,330 L 400,185 L 400,330 L 340,330 Z" fill="url(#tealGrad)"/>
+
+      <!-- Glass/3D Face Highlights -->
+      <path d="M 195,70 L 225,70 L 175,220 L 155,335 L 135,335 Z" fill="#FFFFFF" opacity="0.25"/>
+      <path d="M 400,70 L 420,70 L 420,330 L 400,330 Z" fill="#FFFFFF" opacity="0.2"/>
+      <path d="M 498,70 L 520,70 L 430,180 Z" fill="#FFFFFF" opacity="0.3"/>
+    </g>
+
+    <!-- Stethoscope below AK -->
+    <g transform="translate(435, 600)">
+      <!-- Binaural tubes -->
+      <path d="M 25,0 L 25,50 C 25,100 125,100 125,50 L 125,0" fill="none" stroke="#475569" stroke-width="12" stroke-linecap="round"/>
+      <path d="M 25,0 L 25,50 C 25,100 125,100 125,50 L 125,0" fill="none" stroke="#E2E8F0" stroke-width="4" stroke-linecap="round"/>
+
+      <!-- Earpieces -->
+      <circle cx="25" cy="0" r="9" fill="#005B82"/>
+      <circle cx="125" cy="0" r="9" fill="#005B82"/>
+
+      <!-- Flexible extension tube & chestpiece -->
+      <path d="M 75,88 C 75,130 145,100 145,140" fill="none" stroke="#334155" stroke-width="12" stroke-linecap="round"/>
+      <circle cx="145" cy="140" r="26" fill="url(#silverGrad)" stroke="#003852" stroke-width="4"/>
+      <circle cx="145" cy="140" r="14" fill="url(#tealGrad)"/>
+    </g>
+
+    <!-- Arabic Text: عيادات العقاد التخصصية -->
+    <text x="512" y="860" text-anchor="middle" font-family="'Cairo', 'Amiri', 'Traditional Arabic', 'Arial', sans-serif" font-size="52" font-weight="900" fill="#004A77">
+      عيادات العقاد التخصصية
+    </text>
+  </g>
+</svg>

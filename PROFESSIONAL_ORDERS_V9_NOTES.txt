@@ -1,0 +1,8 @@
+V9 Professional Orders
+- Professional checkout before saving customer orders.
+- Automatic order number and date.
+- Discount, payment status, paid/remaining balance, and notes.
+- Order history shows payment state and financial summary.
+- Order details show subtotal, discount, final total, paid and remaining.
+- Saved orders can be shared as a PDF with order/customer/payment details.
+- Existing Firestore customer/order rules remain compatible.

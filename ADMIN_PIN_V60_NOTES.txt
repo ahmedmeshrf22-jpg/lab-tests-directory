@@ -1,0 +1,11 @@
+Tahalil Alakkad V60 - Admin PIN gate
+
+- Admin PIN selected by owner: 6 digits. Plaintext PIN is NOT stored in source.
+- The app validates a slow SHA-256 verifier and derives a strong Firebase password.
+- Dedicated Firebase Auth admin-gate identity: tahalil.admin.gate.v60@tahali.com
+- First successful PIN use bootstraps that secondary Firebase Auth identity.
+- Firestore rules authorize the V60 admin-gate email for manager-only server operations.
+- The primary staff/manager login stays unchanged.
+- Admin session locks on app background via existing V59 lifecycle behavior.
+- Device approval uses the same 6-digit admin PIN.
+- IMPORTANT: updated firestore.rules must be deployed once for server-side admin operations from staff accounts.

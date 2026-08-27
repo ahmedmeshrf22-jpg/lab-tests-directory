@@ -1,0 +1,6 @@
+V85 STABILITY STARTUP HOTFIX
+- Keeps V84 commercial features.
+- Primary manager opens immediately after Firebase Auth; staff device approval remains enforced.
+- App Check and Crashlytics initialization are best-effort and cannot block startup.
+- Splash reduced to 0.9s.
+- No package/signing identity changes.

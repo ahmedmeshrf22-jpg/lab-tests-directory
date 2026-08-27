@@ -1,0 +1,14 @@
+Tahalil Alakkad Android V119 Current Fixes
+=========================================
+1) Financial privacy boundary:
+   - lab_operator reads only /lab_orders sanitized mirrors.
+   - private customer/order/payment/customer_price data is denied to lab_operator by Firestore rules.
+   - embedded customer prices removed from APK assets; clinic prices come from Firestore overrides.
+2) Backup schema 2:
+   - includes result_file_meta/result_file_chunk docs plus lab_orders.
+   - restore accepts schema 1 and 2.
+3) Result integrity:
+   - SHA-256 written as both sha256 and sha256_hex for Android/Windows compatibility.
+   - upload_complete metadata added.
+4) Existing V118 protections preserved: strong PIN, FLAG_SECURE, overlay defense, TLS-only, backup disabled, App Check, no Supabase, no Firebase Storage.
+5) Cutover requires V119 data migration + strict Firestore rules activation after the V119 clients are ready.

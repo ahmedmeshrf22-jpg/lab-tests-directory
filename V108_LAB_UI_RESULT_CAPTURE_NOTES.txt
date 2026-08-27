@@ -1,0 +1,9 @@
+V108:
+- Added lab-user App Settings access via gear icon.
+- Kept clinic-side order-content editing and made the label explicit.
+- Lab result input now offers:
+  1) Take photo with camera
+  2) Pick one/multiple images or PDF
+  3) Scan paper using Google ML Kit document scanner, multi-page JPEG/PDF
+- Existing lab delete/cancel, accept, resend results, and two-sided notifications preserved.
+- Lab receipt still hides all financial values.

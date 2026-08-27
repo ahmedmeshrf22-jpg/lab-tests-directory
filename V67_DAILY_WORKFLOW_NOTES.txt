@@ -1,0 +1,29 @@
+Tahalil Alakkad — V67 Daily Workflow Final
+===========================================
+Baseline: V66 BUILD FIXED (successful release build)
+
+V67 changes:
+1) Home screen reduced to daily work only:
+   - Test price inquiry
+   - New test order
+   - Customer records
+   - QR / Image / PDF reader hub
+   - Available tests
+2) Settings gear remains fixed in the top header; no duplicate Settings card on home.
+3) All administration services moved behind one "Administration panel" entry.
+4) Administration PIN gate is required for UI admin actions even for the signed-in manager account.
+5) Administration panel contains reports, staff accounts, devices, alerts,
+   data integrity, system health, audit log, and admin settings.
+6) QR/Image/PDF home shortcut opens a compact chooser:
+   - Scan customer QR directly
+   - Read requested tests from image/PDF
+7) Quick Customer keeps V66 behavior: successful QR scan opens that customer file
+   and loads saved orders + activity.
+8) Price inquiry always shows identifying names and customer price, even if
+   optional display settings hide those fields elsewhere.
+9) V66 search aliases, QR flow, modern image MIME support, Firebase AI Logic,
+   PDF output, A5 printing, saved orders, and security hardening remain intact.
+
+Version:
+- versionCode: 67
+- versionName: 4.34-daily-workflow-v67

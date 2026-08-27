@@ -1,0 +1,9 @@
+V15 Manager Home Dashboard
+- versionCode 20 / versionName 3.1-manager-home-v15
+- Abdulrahman opens directly to a clean manager dashboard.
+- 6 primary actions only: New Order, Customers, Orders, Reports, Debts, Administration.
+- 3 compact daily stats: today's orders, today's collected, today's remaining.
+- Added Home button in top header when manager leaves dashboard.
+- Staff UI/permissions remain unchanged.
+- Reports/debts shortcuts open the existing manager-only reporting screen with the appropriate filter.
+- No Firestore Rules change is required from V14 Permissions Fix.

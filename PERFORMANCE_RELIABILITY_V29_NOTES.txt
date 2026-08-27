@@ -1,0 +1,18 @@
+V29 - PERFORMANCE & RELIABILITY
+
+1) Firestore persistent cache budget raised to 200 MB through one shared configuration point.
+2) Manager dashboard fast path no longer downloads every historical order:
+   - today's orders are queried by created_at_ms
+   - historical debt is accumulated in bounded 750-document pages to avoid one huge response
+   - old full-scan behavior remains as automatic fallback until indexes are deployed.
+3) Reports query only the requested date range and download it in 750-document pages.
+4) Audit log, customer activity, order history, and payment history are server-bounded and ordered.
+5) Duplicate refresh calls are suppressed while customer/report/dashboard loads are already running.
+6) firestore.indexes.json + firebase.json included for collection-group indexes.
+7) V28 Arabic/English + offline pending-sync behavior is preserved.
+8) No Firestore security-rule widening was added.
+
+Recommended one-time Firebase deployment for full fast-path performance:
+  firebase deploy --only firestore:indexes
+
+The app still works without that deployment because manager dashboard/reports fall back to the V28 queries if the optimized collection-group index is unavailable.

@@ -1,0 +1,35 @@
+V44 - STAFF VISUAL HOME
+
+Purpose
+- Staff-first daily UI. This update does NOT redesign the manager dashboard.
+- Normal staff now land on a visual home screen instead of being dropped directly into the order workspace.
+
+Staff home visual actions
+1. بحث عن تحليل: large Search + Lab Test pictogram.
+2. طلب جديد: large Order + Add pictogram.
+3. قراءة صورة / PDF: large PDF + Search pictogram and direct OCR file picker.
+4. QR العميل: large QR + Customer pictogram.
+5. سجلات العملاء: large Customers + Search pictogram.
+6. التحاليل المتاحة: large Lab Test + Check pictogram.
+
+Staff-only behavior
+- No manager panel, admin reports, user-management, or manager switch controls are exposed on the staff home.
+- Secondary staff settings stay under a collapsed المزيد section.
+- Existing focused workspaces remain unchanged and keep unrelated actions under المزيد.
+
+Visual improvements inside workspaces
+- OCR import is now a visual action card rather than a plain text button.
+- Customer QR camera and image/PDF actions are now two visual icon cards.
+
+Preserved
+- V43 staff accounts UI.
+- V42 recent customers, repeat order, duplicate protection, workflow status.
+- V41 focused workspaces.
+- V40 OCR image/PDF test reading.
+- V39 QR image/PDF/share handling.
+- V38 optional PDF/PNG outputs.
+- Existing app security settings.
+
+Version
+- versionCode 49
+- versionName 4.20-staff-visual-home-v44

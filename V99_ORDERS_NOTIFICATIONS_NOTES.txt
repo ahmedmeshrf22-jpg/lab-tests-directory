@@ -1,0 +1,10 @@
+V99 Orders + Notifications
+
+- متابعة الطلبات لآخر 30 يوم بدل اليوم فقط.
+- حالات واضحة: جديد > تم الإرسال > جاري التنفيذ > جاهز > تم التسليم.
+- شريط تقدم داخل كل طلب.
+- فتح/تعديل الطلب من شاشة المتابعة.
+- سجل status_history داخل Firestore عند كل تغيير حالة.
+- Firebase Cloud Messaging token registration.
+- إشعارات Push عند تغير حالة الطلب بعد نشر Cloud Function المرفقة.
+- Android 13+ notification permission.

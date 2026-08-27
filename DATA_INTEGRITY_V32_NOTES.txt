@@ -1,0 +1,11 @@
+V32 - Data Integrity & Conflict Protection
+
+- Manager Data Integrity screen inside Administration.
+- Scans customers for duplicate normalized phone ownership.
+- Scans up to 1500 orders for missing identifiers, duplicate order numbers, duplicate operation IDs, totals/payment inconsistencies.
+- Detects possible customer edit conflicts from recent audit activity by different users.
+- Online customer/order/payment edits perform a server freshness check and reject stale writes before overwriting newer data.
+- Every audit entry gets a unique operation_id; new orders and payments also store stable operation IDs.
+- Safe repair can recalculate order totals/payment status without deleting customer/order data.
+- Critical integrity findings feed the manager alert center after a scan.
+- Keeps V31 Smart Admin Alerts, V30 System Health, V29 performance, V28 language/offline sync and earlier security/navigation/UI fixes.

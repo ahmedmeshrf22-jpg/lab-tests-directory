@@ -1,0 +1,11 @@
+V28 - Language + Offline Sync
+- Added Arabic / English switch inside Settings for both manager and staff.
+- Layout direction changes RTL/LTR with selected language.
+- Main screens and PDF/report labels follow selected language.
+- Added Online / Offline / Pending Sync status bar.
+- Firestore offline persistence is used for customer/order/payment writes.
+- Customer creation/edit and payment collection were changed from transactions to offline-compatible batched writes.
+- Offline operations create an audit marker with user, device operation time, offline flag and server sync time.
+- Manager Audit Log shows when an action was performed offline and when it reached the server.
+- Pending operations sync automatically when network returns.
+- V27 dashboard label fixes and all previous security/device authorization features remain.

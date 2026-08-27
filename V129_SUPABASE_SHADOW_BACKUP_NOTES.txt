@@ -1,0 +1,15 @@
+Tahalil Alakkad V129 — Supabase Shadow Backup
+
+- Firebase remains the only authoritative backend for login, reads, writes, orders, results and notifications.
+- Supabase project: tahalil-alakkad-shadow-backup (Frankfurt / eu-central-1).
+- Android contains NO Supabase secret key and NO publishable key.
+- V129 creates NO additional Firestore backup listeners and NO broad backup queries.
+- Shadow hooks reuse snapshots already loaded by existing app flows and successful Firebase writes.
+- Shadow writes go only to the Supabase Edge Function URL over HTTPS.
+- The Edge Function validates the current Firebase ID token against Google signing keys and project tahalil-alakkad.
+- The Edge Function then reads the authoritative Firestore document itself and stores that server-fetched document.
+- Supabase public table shadow_entities has RLS + FORCE RLS, with no anon/authenticated grants or policies.
+- Failures are best-effort only and never fail or delay the corresponding Firebase workflow.
+- Result metadata/activity is shadowed; large base64 result chunks are deliberately NOT duplicated in V129 to protect quota.
+- No automatic failover and no secondary reads are enabled in V129.
+- V127 offline access, V126 draggable icons, results, notifications, Firebase and original signing are preserved.

@@ -1,0 +1,17 @@
+Tahalil Alakkad V69 — Batch Price Search
+========================================
+
+Changes on top of V68:
+1. HBsAg / HBs Ag / HBs-Ag resolve to the same HBs Ag catalogue test.
+   The compact-Latin exact matcher also supports similar spacing/punctuation variants
+   for other English medical abbreviations without relaxing short-abbreviation fuzzy rules.
+2. Explicit exact searches collapse to the exact requested test instead of showing
+   related substring results (for example Creatinine resolves directly to Creatinine).
+3. Multi-line price inquiry keeps every line as a separate requested test.
+4. Price inquiry shows a direct summary card with the number of resolved tests and
+   the combined customer-price total. No Add-to-List action is required in price inquiry.
+5. Unmatched tests remain visible as not found and are not included in the total.
+
+Version:
+- versionCode = 69
+- versionName = 4.36-batch-price-search-v69

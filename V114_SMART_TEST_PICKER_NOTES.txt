@@ -1,0 +1,13 @@
+Tahalil Alakkad V114 - Smart Test Picker
+
+- Orders Hub shortcut is now a real circular icon, not a rectangular action card.
+- One unified test-search field for test inquiry and new orders.
+- Tap the field with no text: the full catalogue drops down.
+- Filtering starts only after two characters; one character keeps the full list.
+- No automatic selection. User always taps the desired test.
+- Search covers Arabic, English, market name, search text, prefixes, substrings and existing typo-tolerant logic.
+- Natural-language phrases such as checking liver/kidney/sugar/thyroid/anemia return conservative related test suggestions.
+- Multiple tests can be added while staying in the same dropdown.
+- Selected tests are marked and cannot be duplicated.
+- Camera/prescription scan stays inside the same field as an icon, avoiding extra search boxes.
+- V113 Orders Hub / notifications / automatic completion after lab result remain preserved.

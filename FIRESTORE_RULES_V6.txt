@@ -1,0 +1,40 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isManager() {
+      return request.auth != null
+        && request.auth.uid == 'Wps5Y19pZSbeGooEzFfW5UFsshq2';
+    }
+
+    match /customer_price_overrides/{document=**} {
+      allow read: if signedIn();
+      allow write: if isManager();
+    }
+
+    match /lab2lab_prices/{document=**} {
+      allow read, write: if isManager();
+    }
+
+    // Customer files are available only to authenticated app users.
+    // Deletion is deliberately disabled to avoid accidental loss of records.
+    match /customers/{customerId} {
+      allow read, create, update: if signedIn();
+      allow delete: if false;
+
+      match /orders/{orderId} {
+        allow read, create: if signedIn();
+        allow update, delete: if false;
+      }
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

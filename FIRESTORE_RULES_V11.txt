@@ -1,0 +1,50 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isManager() {
+      return request.auth != null
+        && request.auth.uid == 'Wps5Y19pZSbeGooEzFfW5UFsshq2';
+    }
+
+    match /customer_price_overrides/{document=**} {
+      allow read: if signedIn();
+      allow write: if isManager();
+    }
+
+    match /lab2lab_prices/{document=**} {
+      allow read, write: if isManager();
+    }
+
+    match /customers/{customerId} {
+      allow read, create: if signedIn();
+
+      // Normal staff can edit normal profile fields only.
+      // Blacklist/archive status can only be changed by the manager.
+      allow update: if isManager() || (
+        signedIn()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'name', 'name_search', 'phone', 'phone_normalized', 'age', 'gender', 'notes',
+          'updated_at_ms', 'updated_at', 'updated_by_uid'
+        ])
+      );
+
+      // V11 uses safe archive instead of destructive deletion.
+      allow delete: if false;
+
+      match /orders/{orderId} {
+        allow read, create: if signedIn();
+        allow update, delete: if false;
+      }
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -1,0 +1,11 @@
+V36 - Dual PDF + Customer QR operational fix
+
+1. Removed the legacy single-PDF action from the selected-tests screen.
+2. The PDF action now enters the saved customer order flow.
+3. Every successful order save creates TWO PDFs:
+   - Customer receipt: patient data, patient phone/alternate phone/address, per-customer QR, test prices and totals.
+   - Lab request: patient name, age, gender, date and requested tests in English only, with no prices.
+4. Clinic logo is printed on both PDFs.
+5. Clinic WhatsApp 01102233167, phone 01107072134 and Faisal address are fixed in the bottom footer of both PDFs.
+6. Saved orders can be re-issued as the same two-PDF bundle.
+7. QR payload is unique per customer and contains the persistent customer id + file number.

@@ -1,0 +1,10 @@
+Tahalil Alakkad V127 — Offline Resilience
+
+- Keeps V126 draggable home icons unchanged.
+- Adds an Android-Keystore encrypted, device-bound record of the last server-verified enabled user + approved device.
+- During a temporary Firebase/network outage, the same previously approved device may continue for up to 72 hours using that protected record.
+- Normal Firebase authorization remains authoritative whenever the service is reachable.
+- Server profile disable, profile deletion, device revoke, or missing device clears the offline record when received from the server.
+- Firestore persistent cache and queued writes remain active, so cached operational data can be read and writes synchronize when connectivity returns.
+- Existing encrypted commercial backup/restore remains preserved.
+- No Cloudflare and no email-reset flow.

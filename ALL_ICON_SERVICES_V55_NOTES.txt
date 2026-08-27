@@ -1,0 +1,15 @@
+V55 - ALL ICON SERVICES
+
+Base: V45 Recovery 54 (working build toolchain preserved).
+
+UI-only changes:
+- Staff home: all daily services are visual icon cards.
+- Settings remains a fixed gear in the top header for staff and manager.
+- Manager home: all daily and administration services are direct icon cards.
+- Administration home: 2-column visual icon grid for Reports, Staff Accounts, Devices, Alerts, Data Integrity, System Health, and Audit Log.
+- Existing customer, QR, OCR, order, PDF/PNG, settings, and security logic preserved.
+- No database model, Firebase rules, business logic, or security behavior changed.
+
+Build:
+- versionCode 55
+- versionName 4.22-all-icon-services-v55

@@ -1,0 +1,81 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="256dp"
+    android:height="256dp"
+    android:viewportWidth="256"
+    android:viewportHeight="256">
+
+    <!-- soft 3D back plate -->
+    <path
+        android:fillColor="#B9EAF0"
+        android:fillAlpha="0.42"
+        android:pathData="M46,42 L201,42 C218,42 230,54 230,71 L230,190 C230,207 218,219 201,219 L46,219 C29,219 17,207 17,190 L17,71 C17,54 29,42 46,42 Z" />
+
+    <!-- dark lower-right extrusion -->
+    <path
+        android:fillColor="#0B5E72"
+        android:fillAlpha="0.42"
+        android:pathData="M52,55 L205,55 C217,55 224,63 224,75 L224,193 C224,204 216,212 205,212 L52,212 C41,212 33,204 33,193 L33,75 C33,63 41,55 52,55 Z" />
+
+    <!-- white image card -->
+    <path
+        android:fillColor="#F9FEFF"
+        android:pathData="M45,48 L198,48 C211,48 220,57 220,70 L220,184 C220,197 211,206 198,206 L45,206 C32,206 23,197 23,184 L23,70 C23,57 32,48 45,48 Z" />
+
+    <!-- cyan bevel -->
+    <path
+        android:fillColor="#20C7D6"
+        android:pathData="M45,48 L198,48 C211,48 220,57 220,70 L220,184 C220,197 211,206 198,206 L45,206 C32,206 23,197 23,184 L23,70 C23,57 32,48 45,48 Z M48,61 C40,61 36,65 36,73 L36,181 C36,189 40,193 48,193 L195,193 C203,193 207,189 207,181 L207,73 C207,65 203,61 195,61 Z" />
+
+    <!-- picture background -->
+    <path
+        android:fillColor="#DDF8FB"
+        android:pathData="M47,73 L196,73 C202,73 206,77 206,83 L206,175 C206,181 202,185 196,185 L47,185 C41,185 37,181 37,175 L37,83 C37,77 41,73 47,73 Z" />
+
+    <!-- sun with shadow -->
+    <path
+        android:fillColor="#0B6D82"
+        android:fillAlpha="0.30"
+        android:pathData="M164,91 A18,18 0,1 0,200 91 A18,18 0,1 0,164 91" />
+    <path
+        android:fillColor="#27D5DF"
+        android:pathData="M159,86 A18,18 0,1 0,195 86 A18,18 0,1 0,159 86" />
+
+    <!-- back mountain -->
+    <path
+        android:fillColor="#58D7E1"
+        android:pathData="M44,169 L92,112 C96,107 102,107 106,112 L139,151 L155,132 C159,127 165,127 169,132 L202,169 Z" />
+
+    <!-- front mountain 3D shadow -->
+    <path
+        android:fillColor="#075A72"
+        android:fillAlpha="0.40"
+        android:pathData="M52,178 L111,123 C115,119 121,119 125,123 L183,178 Z" />
+    <path
+        android:fillColor="#0B8EA5"
+        android:pathData="M45,171 L104,116 C108,112 114,112 118,116 L176,171 Z" />
+
+    <!-- highlight on mountain -->
+    <path
+        android:fillColor="#7DF3F6"
+        android:fillAlpha="0.82"
+        android:pathData="M61,165 L108,122 C111,119 114,119 117,122 L128,132 L104,124 Z" />
+
+    <!-- save/download badge shadow -->
+    <path
+        android:fillColor="#06394B"
+        android:fillAlpha="0.38"
+        android:pathData="M157,157 A43,43 0,1 0,243 157 A43,43 0,1 0,157 157" />
+
+    <!-- save/download badge -->
+    <path
+        android:fillColor="#0CBAC9"
+        android:pathData="M150,150 A43,43 0,1 0,236 150 A43,43 0,1 0,150 150" />
+
+    <!-- download arrow -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M187,122 L199,122 L199,151 L211,151 L193,171 L175,151 L187,151 Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M171,177 L215,177 L215,185 L171,185 Z" />
+</vector>

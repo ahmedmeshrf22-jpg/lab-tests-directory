@@ -1,0 +1,7 @@
+V104 LAB QUEUE LIVE
+- New clinic orders are written atomically to the normal customer order and a sanitized top-level lab_queue document.
+- lab_queue contains NO prices, totals, discounts, payment status, paid/remaining amounts.
+- Lab account reads lab_queue directly, avoiding collectionGroup/index/rules ambiguity.
+- Accept/result actions update both queue and original order atomically.
+- Clinic note edits are mirrored to lab_queue.
+- Requires deploying included Firestore/Storage rules once.

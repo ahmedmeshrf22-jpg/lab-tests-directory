@@ -1,0 +1,7 @@
+CUSTOMER HISTORY V7
+- Customer profile now shows visit count, total customer spend, and last visit.
+- Order history cards show date, test count, total and open on tap.
+- Full order details screen shows every test and its saved historical price.
+- Saving an order clears the selected tests after success.
+- Uses existing customers/{id}/orders Firestore structure; no new Firestore rule path is required.
+- versionCode 11

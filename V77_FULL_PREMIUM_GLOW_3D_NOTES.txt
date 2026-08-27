@@ -1,0 +1,26 @@
+Tahalil Alakkad V77 — Full Premium Glow 3D UI
+
+Version:
+- versionCode: 77
+- versionName: 4.44-full-premium-glow-3d-v77
+
+Visual system:
+- Main daily-service cards use a unified premium dark-glass 3D look.
+- Each core service has its own luminous accent: cyan, violet, green, blue, orange, gold, pink.
+- Strong glow, illuminated borders, deep navy glass surfaces, and bright 3D icon art.
+- Internal daily navigation remains swipeable right/left and now uses stronger premium glow.
+- Administration, Lab 2 Lab prices, and Settings at the bottom now use 3D image tiles instead of plain vector-only cards.
+- Secondary workspace navigation was upgraded from ordinary outlined buttons to illuminated icon cards.
+- Quick-image save/share and recognized-test actions received premium glow while retaining their existing behavior.
+- Test Guide remains hologram-style and its guide/save/share presentation is retained and enhanced.
+
+Functional behavior retained from V76/V75/V74:
+- Quick image without mandatory customer data.
+- Save images directly to the phone and share them.
+- Test Guide can be saved/shared as an image.
+- Change Admin PIN from protected administration settings.
+- Lab 2 Lab remains hidden from ordinary daily screens and behind the Admin PIN.
+- Image-only workflow remains in place; PDF is not reintroduced.
+- Existing customer, QR/image reading, payment, pricing, and order workflows are retained.
+
+This release intentionally changes presentation/navigation styling without changing the underlying data model or security model.

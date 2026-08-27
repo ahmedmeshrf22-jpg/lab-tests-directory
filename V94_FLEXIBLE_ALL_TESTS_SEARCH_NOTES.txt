@@ -1,0 +1,9 @@
+V94 — Flexible search across all 331 laboratory tests
+
+- Preserves every existing test name and every price exactly as-is.
+- Expands search_text for all 331 records using English, Arabic, market names, punctuation/spacing variants, and common order variants.
+- Adds established/common laboratory abbreviations and local shorthand where appropriate.
+- Random glucose now resolves from RBG, RBS, RG, Random Blood Glucose, Random Blood Sugar, Random Glucose, Glucose Random, and سكر عشوائي.
+- Adds exact order-independent multi-token matching (e.g. Random Glucose / Glucose Random).
+- Short medical abbreviations remain exact/direct, not fuzzy-expanded, to reduce false matches.
+- No customer price, Lab-to-Lab price, base test name, permissions, image import, admin service, customer flow, QR, or other V93 feature was removed or changed.

@@ -1,0 +1,19 @@
+V12 - USER SETTINGS + PRIVATE CUSTOMER STATUS
+
+1) Regular users now have a Settings button.
+2) Regular-user settings are limited to personal options:
+   - App lock on/off
+   - Unlock with phone biometric/device credential OR a custom 4-6 digit app PIN
+   - Change app PIN
+   - Auto-lock: immediately / 1 min / 5 min / 15 min
+   - Dark mode
+   - Font size: small / medium / large
+   - Show English / Arabic / market test names
+3) Personal settings are stored per signed-in Firebase account on the device.
+4) Manager keeps full manager settings and manager dashboard.
+5) Blacklist and archived/deleted customer tabs are completely hidden from non-manager UI.
+6) Non-manager customer list is always limited to active customers only.
+7) Manager-only blacklist/archive/restore controls remain unchanged.
+8) App PIN is not stored as plain text; a salted SHA-256 verifier is stored locally.
+9) versionCode = 16.
+10) Existing Firestore rules remain compatible; no rule change is required for this UI release.

@@ -1,0 +1,7 @@
+V13 CUSTOMER SEARCH FIX
+
+- Manager customer search now searches active + blacklist + archived customers whenever a query is entered.
+- Status tabs still filter normally when the search box is empty.
+- Duplicate phone warning now shows customer name, file number and status for manager.
+- Non-manager users do not receive hidden blacklist/archive details.
+- versionCode = 17.

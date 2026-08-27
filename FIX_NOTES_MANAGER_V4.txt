@@ -1,0 +1,6 @@
+Manager Lab2Lab fix v4
+- Manager recognized by exact Firebase email OR the UID prefix visible for Abdulrahman account.
+- 331 Lab2Lab prices load synchronously before manager UI renders.
+- Other accounts remain non-manager and Lab2Lab map is cleared.
+- PDF uses the same manager flag and price map.
+- versionCode 4 / versionName 1.3.

@@ -1,0 +1,8 @@
+V109
+- Lab shares request as image or PDF at every stage, without prices.
+- Lab edits operational request details and the clinic is notified.
+- Lab delete/cancel is retained in audit history.
+- Acceptance, edits, cancellation and ready results notify clinic listeners.
+- Clinic edits notify lab.
+- Camera, image/PDF upload, paper scanner and lab settings from V108 are preserved.
+- Test-list changes remain clinic-controlled to reduce accidental medical-order changes.

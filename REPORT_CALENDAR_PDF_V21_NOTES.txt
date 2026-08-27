@@ -1,0 +1,11 @@
+V21 - Report Calendar + Arabic PDF
+
+- Custom report dates are selected from a calendar instead of manual typing.
+- Selected dates are written immediately into From/To fields.
+- Current report period is always shown on the reports screen.
+- Today / 7 days / 30 days presets also populate the visible period.
+- Added Arabic report PDF with clinic logo, selected period, filters, summary metrics, and order details.
+- PDF uses the exact filtered report currently shown on screen.
+- Device authorization V20 remains included.
+- versionCode 26
+- versionName 3.7-report-calendar-pdf-v21

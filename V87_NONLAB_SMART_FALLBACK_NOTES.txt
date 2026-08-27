@@ -1,0 +1,12 @@
+V87 — Non-laboratory smart fallback
+
+- Any search term not found in the laboratory catalogue is never given a fake lab price.
+- Known non-laboratory items are classified locally/offline: X-ray, CT, MRI, ultrasound, Doppler, ECG, Echo, endoscopy, biopsy, and likely medication/dose items.
+- PXR Urinary Tract is specifically recognized as a plain X-ray of the urinary tract / KUB.
+- Each unmatched item shows its likely category, a short medical explanation, and a confidence-safe message.
+- Unknown items stay explicitly "unclassified" instead of being guessed.
+- External web search is available from the unmatched item card.
+- Before opening the browser the app warns clearly that the user is leaving Tahalil Alakkad for an external website and offers Continue / Cancel.
+- Image/PDF smart reading now keeps explicitly requested non-laboratory investigations so recognizable items can also appear as unmatched medical items in the normal search UI.
+- applicationId and signing identity are unchanged.
+- versionCode 87.

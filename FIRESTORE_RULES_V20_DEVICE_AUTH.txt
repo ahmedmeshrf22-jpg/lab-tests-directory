@@ -1,0 +1,185 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isManager() {
+      return signedIn()
+        && request.auth.uid == 'Wps5Y19pZSbeGooEzFfW5UFsshq2';
+    }
+
+    function profileExists() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function activeUser() {
+      return signedIn()
+        && (
+          isManager()
+          || !profileExists()
+          || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.enabled == true
+        );
+    }
+
+    function customerIsActive(customerId) {
+      let customer = get(/databases/$(database)/documents/customers/$(customerId)).data;
+      return customer.is_blacklisted != true && customer.is_archived != true;
+    }
+
+    match /users/{uid} {
+      allow read: if isManager() || (signedIn() && request.auth.uid == uid);
+
+      // Backward-compatible self profile creation. A user can only bootstrap a
+      // normal enabled staff profile for their own Firebase UID.
+      allow create: if isManager()
+        || (signedIn()
+          && request.auth.uid == uid
+          && request.resource.data.role == 'staff'
+          && request.resource.data.enabled == true
+          && request.resource.data.can_view_sales_reports == false);
+
+      // Administrative access changes are manager-only. A user can refresh only
+      // harmless own metadata; roles and permissions cannot be self-elevated.
+      allow update: if isManager()
+        || (signedIn()
+          && request.auth.uid == uid
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'email',
+            'display_name',
+            'last_seen_at_ms',
+            'last_seen_at'
+          ]));
+
+      allow delete: if false;
+
+      // Device authorization. A staff user can only create a pending request
+      // for their own UID and read their own device record. Abdulrahman is the
+      // only account allowed to approve/reject/revoke devices.
+      match /devices/{deviceId} {
+        allow read: if isManager() || (signedIn() && request.auth.uid == uid);
+        allow create: if signedIn()
+          && request.auth.uid == uid
+          && request.resource.data.uid == uid
+          && request.resource.data.status == 'pending';
+        allow update: if isManager();
+        allow delete: if false;
+      }
+    }
+
+    // Required for Abdulrahman's collectionGroup("devices") management screen.
+    match /{path=**}/devices/{deviceId} {
+      allow read: if isManager();
+    }
+
+    match /customer_price_overrides/{document=**} {
+      allow read: if activeUser();
+      allow write: if isManager();
+    }
+
+    match /lab2lab_prices/{document=**} {
+      allow read, write: if isManager();
+    }
+
+    // Used transactionally to keep primary and alternate mobile numbers unique.
+    match /phone_registry/{phoneKey} {
+      allow read, create, update, delete: if activeUser();
+    }
+
+    match /customers/{customerId} {
+      allow read: if activeUser();
+      allow create: if activeUser();
+
+      // Staff can maintain the operational customer profile, but cannot change
+      // blacklist/archive controls. Those stay manager-only.
+      allow update: if isManager()
+        || (activeUser()
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'name',
+            'name_search',
+            'phone',
+            'phone_normalized',
+            'alternate_phone',
+            'alternate_phone_normalized',
+            'age',
+            'birth_date',
+            'gender',
+            'address',
+            'address_search',
+            'notes',
+            'important_alert',
+            'tags',
+            'tags_search',
+            'default_discount_percent',
+            'updated_at_ms',
+            'updated_at',
+            'updated_by_uid',
+            'updated_by_email'
+          ]));
+
+      allow delete: if false;
+
+      match /activity/{activityId} {
+        allow read: if activeUser();
+        allow create: if activeUser()
+          && request.resource.data.actor_uid == request.auth.uid;
+        allow update, delete: if false;
+      }
+
+      match /orders/{orderId} {
+        allow read: if activeUser();
+        allow create: if activeUser() && customerIsActive(customerId);
+
+        // Normal users may correct financial/operational information while the
+        // immutable identity, creator and test snapshot remain protected.
+        allow update: if isManager()
+          || (activeUser()
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'discount_amount',
+              'discount_percent',
+              'total_customer_price',
+              'payment_status',
+              'paid_amount',
+              'remaining_amount',
+              'notes',
+              'updated_at_ms',
+              'updated_at',
+              'updated_by_uid',
+              'updated_by_email',
+              'edit_count'
+            ]));
+
+        allow delete: if false;
+
+        match /payments/{paymentId} {
+          allow read: if activeUser();
+          allow create: if activeUser()
+            && request.resource.data.created_by_uid == request.auth.uid;
+          allow update, delete: if false;
+        }
+      }
+    }
+
+    // Global collectionGroup("orders") access is reserved for Abdulrahman.
+    // Staff can still read/list orders inside a specific customer file through
+    // /customers/{customerId}/orders/{orderId} above.
+    match /{path=**}/orders/{orderId} {
+      allow read: if isManager();
+    }
+
+    match /audit_logs/{logId} {
+      allow read: if isManager();
+      allow create: if activeUser()
+        && request.resource.data.actor_uid == request.auth.uid;
+      allow update, delete: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

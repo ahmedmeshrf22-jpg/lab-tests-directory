@@ -1,0 +1,8 @@
+V16 Back Navigation
+- Android system Back now follows the app screen hierarchy.
+- Customer details -> customer list -> previous main/dashboard.
+- Operations subpage -> operations home -> manager home.
+- Checkout/edit/order details/settings close one level at a time.
+- Manager search/work screen -> manager dashboard.
+- Root dashboard is retained instead of accidental navigation outside the app.
+- No Firestore rules changes.

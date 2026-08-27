@@ -1,0 +1,8 @@
+V78 — Icon Label Visibility Fix
+
+- Fixes all premium icon cards whose two-line names could clip the second line.
+- Main 3D service cards now reserve a dedicated two-line title area.
+- Bottom Admin / Prices + Lab 2 Lab / Settings cards have extra vertical space.
+- Inner swipe mini 3D cards are taller and wider with a dedicated two-line label area.
+- Arabic and English labels both support two visible lines without ellipsis.
+- All V77 premium glow, swipe navigation, security, images, customer workflows and test guide features are retained.

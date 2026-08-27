@@ -1,0 +1,15 @@
+Tahalil Alakkad V60 - Login approval fix
+
+Requested behavior:
+- Login no longer waits for device/admin approval.
+- Daily service icons and unified UI are unchanged.
+- The real manager account opens administration directly with no extra PIN.
+- Staff sees the same administration icons but must enter the existing 6-digit admin PIN to open them.
+- Device authorization code/data is retained for existing device-management history; it no longer gates login.
+
+Files changed:
+- app/src/main/java/com/example/MainActivity.kt
+- app/src/main/java/com/example/ui/LabTestsViewModel.kt
+- app/src/main/java/com/example/ui/LabTestsScreen.kt
+- app/src/main/java/com/example/ui/CustomerSystemDialog.kt
+- app/src/main/java/com/example/ui/OperationsV14Dialog.kt

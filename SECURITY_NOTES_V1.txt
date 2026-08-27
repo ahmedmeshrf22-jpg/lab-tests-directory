@@ -1,0 +1,13 @@
+SECURE V1 hardening applied:
+- FLAG_SECURE blocks screenshots/screen recording/non-secure displays.
+- Window preview disabled.
+- R8 minification + resource shrinking enabled for release.
+- Release explicitly non-debuggable.
+- Cleartext HTTP disabled; system CA trust only.
+- Cloud backup and device-transfer rules exclude app data.
+- FileProvider narrowed to cache/pdf only.
+- Release logging/stack traces reduced.
+- Firebase App Check Play Integrity client installed before Firebase Auth.
+
+IMPORTANT: App Check enforcement is intentionally NOT controlled by the APK.
+Register the release signing SHA-256 and enable App Check enforcement in Firebase Console after validating requests.

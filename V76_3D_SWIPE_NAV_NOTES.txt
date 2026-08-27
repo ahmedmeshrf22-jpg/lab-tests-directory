@@ -1,0 +1,12 @@
+V76 — 3D Swipe Navigation
+
+- Replaced the plain daily-service text/button strip inside workspaces with miniature glowing 3D service tiles.
+- The internal service launcher is now a horizontal swipe carousel.
+- Active workspace is visually emphasized with stronger glow, border and scale.
+- Entering Catalog, Quick Image, New Order, Customer Records or QR/Image automatically scrolls the mini carousel to the active service.
+- Uses the same existing 3D artwork as the home dashboard for visual continuity.
+- All V75 quick-image, customer, guide-image, admin PIN and Lab2Lab protections are retained.
+- No PDF workflow was reintroduced.
+
+Version: 4.43-3d-swipe-nav-v76
+versionCode: 76

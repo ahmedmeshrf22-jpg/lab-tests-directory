@@ -1,0 +1,11 @@
+V56 - 3D ICON UI
+
+Base: V55 All Icon Services.
+Only UI/icon presentation changed.
+- Applied the approved glossy 3D teal/blue icon style to staff and manager home service cards.
+- Added raster icon assets cropped from the approved concept sheets.
+- Manager administration grid: reports, staff accounts, devices, alerts, data integrity, system health, audit log, switch user, settings.
+- Staff grid: search, new order, image/PDF, customer QR, customer records, available tests, settings.
+- Settings gear remains fixed in the top header.
+- No changes to Firebase, data models, permissions, security, order logic, QR, OCR, PDF generation, or customer workflows.
+- versionCode 56 / versionName 4.23-3d-icon-ui-v56.

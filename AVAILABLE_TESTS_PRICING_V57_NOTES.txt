@@ -1,0 +1,11 @@
+V57 - Available Tests Pricing
+
+Based on V56 3D Icon UI.
+
+Changes only in Available Tests workspace:
+- Search result cards now show customer price directly.
+- Manager additionally sees Lab 2 Lab price.
+- Manager gets Edit Prices action on each result.
+- Existing ManagerPriceEditorDialog/saveManagerPrices flow is reused.
+- Non-manager staff cannot edit prices.
+- No Firebase schema, customer/order/QR/PDF/security logic changed.

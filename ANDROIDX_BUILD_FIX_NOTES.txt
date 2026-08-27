@@ -1,0 +1,4 @@
+ANDROIDX BUILD FIX
+- Added android.useAndroidX=true to gradle.properties.
+- Required for AGP 8.x because the app and Firebase dependency graph use AndroidX.
+- No application source files changed.

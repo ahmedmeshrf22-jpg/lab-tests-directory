@@ -1,0 +1,9 @@
+SECURE V1 - Search UI Refresh
+- Modern clinic-branded header using current AK logo.
+- Cleaner search card with concise guidance.
+- Modernized result cards and clearer Arabic/English naming hierarchy.
+- Manager prices shown side-by-side: Customer and Lab 2 Lab.
+- Cleaner result count and empty state.
+- No changes to search logic, authentication, security, PDF generation, or pricing data.
+- versionCode: 6
+- versionName: 1.5-secure-ui

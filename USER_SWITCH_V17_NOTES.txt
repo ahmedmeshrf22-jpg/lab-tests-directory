@@ -1,0 +1,13 @@
+USER SWITCH V17
+================
+Version code: 22
+Version name: 3.3-user-switch-v17
+
+Manager-only user switching:
+- Abdulrahman can choose any enabled non-manager user from the manager home dashboard.
+- Firebase Auth session is NOT replaced and no user password is exposed or required.
+- The app runs with the selected user's effective app permissions and hides manager-only UI/data.
+- Lab2Lab state is cleared while acting as another user.
+- A persistent banner states which user's permissions are active and provides one-tap return to Abdulrahman.
+- Switch/return events are recorded in Audit Log under Abdulrahman's real authenticated account.
+- Existing Firestore rules remain unchanged because requests are still authenticated as the manager.

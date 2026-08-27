@@ -1,0 +1,20 @@
+Project3 crash-fix notes
+========================
+1) Rebuilt corrupted binary image resources:
+   - app/src/main/res/drawable/ic_clinic_logo.png
+   - all legacy ic_launcher.webp / ic_launcher_round.webp density variants
+   The original files contained binary corruption and could not be decoded as images.
+
+2) Hardened biometric/device-credential handling in MainActivity.kt:
+   - Android 11+ uses BIOMETRIC_STRONG | DEVICE_CREDENTIAL.
+   - Android 10 and lower uses the compatible BIOMETRIC_WEAK | DEVICE_CREDENTIAL path.
+   - The entire prompt construction/authentication path is exception-protected.
+   - Device security is also checked through KeyguardManager on Android 10 and lower.
+
+3) Validated:
+   - google-services.json Android package matches applicationId com.aistudio.labtestsdirectory.egypt
+   - lab_tests_android.json parses successfully (331 tests)
+   - all Android PNG/WebP resources decode successfully
+   - project XML and JSON files parse successfully
+
+Note: A full Android APK build was not run in this environment because the Android SDK/Gradle wrapper is not included in the uploaded project/runtime.

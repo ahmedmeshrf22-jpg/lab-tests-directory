@@ -1,0 +1,18 @@
+V90 — Four Core Home + Preserve All Existing Services
+
+- Home shows only four primary service cards by default:
+  1) Test inquiry
+  2) New order
+  3) Customers
+  4) Test guide
+- No administration or existing service logic was removed.
+- Added one compact collapsed entry: Other services & administration.
+- Expanding it restores access to:
+  - Today worklist / lab operations
+  - Prescription / QR reader
+  - Administration (PIN protected)
+  - Lab 2 Lab prices (PIN protected)
+  - General settings
+  - Lock administration action when unlocked
+- Image/PDF inquiry total fix: recognized OCR lab tests now show their customer-price total directly without adding to an order/list and without relying on single-candidate grouped search resolution.
+- applicationId and existing Firebase/signing compatibility remain unchanged.

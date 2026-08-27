@@ -1,0 +1,7 @@
+V27 Dashboard Card Labels
+- Fixes clipped/half-visible text underneath dashboard icons.
+- Manager action cards no longer use a cramped fixed 116dp height.
+- Cards now have a 148dp minimum height and content-driven vertical layout.
+- Explicit line heights added to title/subtitle so Arabic labels render fully.
+- Dashboard title/subtitle can use up to two lines.
+- Preserves V26 text field fixes, V24 manager UI cleanup, V23 Android back behavior, PDF reports, and device authorization.

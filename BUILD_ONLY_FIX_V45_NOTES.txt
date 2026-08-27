@@ -1,0 +1,11 @@
+V45 BUILD-ONLY FIX
+
+No app UI, feature, data, security, or runtime logic was changed.
+Only build configuration was normalized for Codemagic:
+- AGP 8.10.0
+- Kotlin 2.2.10 + explicit kotlin-android plugin
+- KSP 2.3.6
+- compileSdk 36 / targetSdk 36
+- Build Tools 35.0.0
+- Java/Kotlin JVM target both 11
+- configuration cache off, parallel off, workers=2 for CI stability

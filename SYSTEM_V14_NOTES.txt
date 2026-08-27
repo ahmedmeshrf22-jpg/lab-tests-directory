@@ -1,0 +1,29 @@
+Tahalil Alakkad SYSTEM V14
+==========================
+Version code: 18
+Version name: 3.0-system-v14
+
+Core changes:
+- Full customer profile editing for staff with primary/alternate phones, DOB, address, tags, alert and default discount.
+- Search all active + blacklisted customers for every user; archived customers remain manager-only.
+- Blacklisted customers are visible but cannot receive new orders until manager unblocks them.
+- Phone uniqueness registry prevents duplicate primary/alternate mobile numbers.
+- Customer timeline and audit trail.
+- Order financial corrections with audit metadata, payment collection history and manager-only voiding.
+- Operations dashboard with reports; manager additionally gets audit log, user management and Lab2Lab/profit metrics.
+- User profiles/roles/permissions, enable/disable account and remote application-PIN reset.
+- Existing per-user security/settings retained.
+- Firestore rules upgraded for UID/role enforcement and Lab2Lab isolation.
+
+IMPORTANT BEFORE USING V14:
+Publish FIRESTORE_RULES_V14.txt (or firestore.rules) in Firebase Console -> Firestore Database -> Rules.
+
+Deployment order:
+1) Upload this ZIP + codemagic.yaml and build.
+2) Before testing V14 database writes, publish firestore.rules in Firebase Console.
+3) Install APK as Update over the current app (same applicationId/signing).
+
+Compatibility:
+- Existing V6-V13 customers remain readable.
+- Legacy phone numbers are checked in-memory before the new phone registry transaction,
+  so old customers cannot be duplicated just because they predate V14 normalized fields.

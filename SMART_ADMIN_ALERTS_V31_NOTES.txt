@@ -1,0 +1,8 @@
+V31 - Smart Admin Alerts
+
+- Adds manager-only Alert Center inside Administration.
+- Filters: New / Important / All.
+- Local read/unread state; no Firestore rules change required.
+- Alert sources: offline/pending sync, Firebase reachability/latency, pending device requests, offline-synced operations, important admin actions, unusually high user activity, and outstanding debt.
+- Uses existing V30 health, audit, device and manager summary data.
+- Preserves V30 System Health, V29 performance, V28 Arabic/English + offline sync, and prior security/navigation fixes.

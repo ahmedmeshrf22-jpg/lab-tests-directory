@@ -1,0 +1,12 @@
+V100 Lab Operator + Results
+
+- New restricted role: lab_operator (المعمل).
+- Lab user sees orders only; no catalog, prices, customers, reports, or settings UI.
+- Lab queue: طلبات جديدة / جاري التنفيذ / تم إرسالها.
+- Accept order -> processing.
+- Upload one or more images/PDFs -> stored in Firebase Storage -> order becomes ready.
+- Clinic receives push notification when lab accepts and when result is ready.
+- Lab users receive push notification when a clinic sends a new order or edits a sent/processing order.
+- Clinic order details show result files with Open buttons.
+- Firestore rules restrict lab updates to workflow/result fields only.
+- Storage rules restrict result uploads to enabled lab_operator accounts, images/PDF only, max 20MB/file.

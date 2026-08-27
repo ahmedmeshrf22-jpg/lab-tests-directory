@@ -1,0 +1,8 @@
+V88 — Instant batch/image total
+
+- Shows the customer-price total immediately when multiple tests are pasted/searched on separate lines.
+- Shows the total of tests recognized from an imported image/PDF before adding anything to the selected/order list.
+- The total uses current customer price overrides when available, otherwise the catalogue customer price.
+- Unmatched/non-laboratory items are excluded from the laboratory total and the UI says so explicitly.
+- Preserves V87 non-lab smart fallback, external-search warning, package name, Firebase project, and signing identity.
+- versionCode 88.

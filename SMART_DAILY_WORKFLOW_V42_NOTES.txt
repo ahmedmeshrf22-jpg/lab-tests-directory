@@ -1,0 +1,12 @@
+SMART DAILY WORKFLOW V42
+
+Version: 4.18-smart-daily-v42 (versionCode 47)
+
+Daily workflow improvements layered on top of V41 Focused Workspace:
+- Recent Customers: shows up to 5 recently updated non-archived customer files for one-tap access.
+- Repeat Last Order: reloads the previous order tests into the active order workspace for the same customer.
+- Duplicate Customer Protection: keeps phone uniqueness and adds a strong profile guard (exact normalized name + DOB, or exact name + age + gender + address).
+- Operational Order Status: New -> Sent to Lab -> Processing -> Results Ready -> Delivered. This is separate from payment status.
+- Order workflow status is stored in Firestore as workflow_status and logged in audit/customer activity.
+- Existing debt warning in the customer file remains visible and unchanged.
+- Preserves V41 focused workspaces, V40 OCR from image/PDF, V39 QR import/share, and V38 optional PDF/PNG outputs.

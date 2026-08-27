@@ -1,0 +1,16 @@
+V71 — Linked Daily Services + Required Paid Amount
+
+1) Payment rule
+- Partial or Unpaid always shows a required "Paid amount" field.
+- Unpaid defaults to 0 and only accepts 0; if any money was paid, user must choose Partial.
+- Partial requires an amount > 0 and < final total.
+- Paid auto-fills the full final total.
+- Save is disabled while the required paid amount is invalid.
+- Applied to both new-order checkout and order financial edit.
+
+2) Linked daily-service icons
+- Added a shared quick navigation strip connecting all daily services except Administration:
+  Price inquiry / New order / Customers / QR-Image-PDF / Available tests.
+- Visible inside workspaces, Customer Files, and QR/Image/PDF hub.
+- User can jump directly between daily services without going back to Home.
+- Administration remains isolated and unchanged.
