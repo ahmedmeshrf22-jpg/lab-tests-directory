@@ -1349,6 +1349,7 @@ class LabTestsViewModel(application: Application) : AndroidViewModel(application
                         "updated_at" to FieldValue.serverTimestamp()
                     )
                     ref.set(data)
+                        .addOnSuccessListener { ShadowBackupReplicator.mirrorPath(ref.path, now) }
                         .addOnFailureListener {
                             deviceRequestInFlight = false
                             if (!restoreOfflineApprovedAccess(email, uid)) {
@@ -1361,6 +1362,7 @@ class LabTestsViewModel(application: Application) : AndroidViewModel(application
             }
 
             deviceRequestInFlight = false
+            ShadowBackupReplicator.mirrorSnapshot(snapshot)
             val status = snapshot.getString("status") ?: "pending"
             _deviceAccessStatus.value = status
             if (status == "approved" && _accountEnabled.value == true) {
@@ -1431,6 +1433,7 @@ class LabTestsViewModel(application: Application) : AndroidViewModel(application
                         ),
                         SetOptions.merge()
                     ).addOnSuccessListener {
+                        ShadowBackupReplicator.mirrorPath(ref.path, now)
                         lockAdmin()
                         attachDeviceAuthorization(authenticatedEmail, authenticatedUid)
                         onResult(true, tr("تم اعتماد الجهاز", "Device approved"))
@@ -1454,6 +1457,7 @@ class LabTestsViewModel(application: Application) : AndroidViewModel(application
         privilegedFirestore().collectionGroup(DEVICES_SUBCOLLECTION)
             .get(Source.SERVER)
             .addOnSuccessListener { snapshot ->
+                snapshot.documents.forEach { ShadowBackupReplicator.mirrorSnapshot(it) }
                 val list = snapshot.documents.mapNotNull { doc ->
                     val uid = doc.reference.parent.parent?.id ?: return@mapNotNull null
                     AuthorizedDevice(
@@ -1524,6 +1528,8 @@ class LabTestsViewModel(application: Application) : AndroidViewModel(application
                         SetOptions.merge()
                     )
                 }.addOnSuccessListener {
+                    snapshot.documents.forEach { ShadowBackupReplicator.mirrorPath(it.reference.path, now) }
+                    ShadowBackupReplicator.mirrorPath(devicesRef.document(device.id).path, now)
                     logAudit(
                         action = "device_approved",
                         entityType = "device",
@@ -1563,6 +1569,7 @@ class LabTestsViewModel(application: Application) : AndroidViewModel(application
                 SetOptions.merge()
             )
             .addOnSuccessListener {
+                ShadowBackupReplicator.mirrorPath("users/${device.uid}/devices/${device.id}", now)
                 logAudit(
                     action = "device_$safeStatus",
                     entityType = "device",
@@ -2023,7 +2030,7 @@ class LabTestsViewModel(application: Application) : AndroidViewModel(application
             onResult(false, tr("لازم الإنترنت يكون متصل لعمل نسخة احتياطية كاملة", "Internet is required for a complete backup"), null)
             return
         }
-        CommercialBackupManager.createEncryptedBackup(
+        CommercialBackupManager.createEncryptedBackupV134(
             db = privilegedFirestore(),
             settings = settingsStore.settings.value,
             password = password
@@ -2346,6 +2353,7 @@ class LabTestsViewModel(application: Application) : AndroidViewModel(application
         }
         privilegedFirestore().collection(USERS_COLLECTION).get(Source.SERVER)
             .addOnSuccessListener { snapshot ->
+                snapshot.documents.forEach { ShadowBackupReplicator.mirrorSnapshot(it) }
                 val parsed = snapshot.documents
                     .filter { it.getString("credential_replaced_by_uid").isNullOrBlank() }
                     .map { parseUserProfile(it) }
@@ -2433,6 +2441,7 @@ class LabTestsViewModel(application: Application) : AndroidViewModel(application
                 )
                 privilegedFirestore().collection(USERS_COLLECTION).document(newUid).set(data)
                     .addOnSuccessListener {
+                        ShadowBackupReplicator.mirrorPath("users/$newUid", now)
                         secondaryAuth.signOut()
                         logAudit(
                             action = "user_create",
@@ -2494,6 +2503,7 @@ class LabTestsViewModel(application: Application) : AndroidViewModel(application
         )
         privilegedFirestore().collection(USERS_COLLECTION).document(profile.uid).set(data, SetOptions.merge())
             .addOnSuccessListener {
+                ShadowBackupReplicator.mirrorPath("users/${profile.uid}", now)
                 logAudit(
                     action = "user_access_update",
                     entityType = "user",
@@ -2615,6 +2625,11 @@ class LabTestsViewModel(application: Application) : AndroidViewModel(application
                                         batch.set(newUserRef.collection(DEVICES_SUBCOLLECTION).document(deviceDoc.id), copied)
                                     }
                                 }.addOnSuccessListener {
+                                    ShadowBackupReplicator.mirrorPath(newUserRef.path, now)
+                                    ShadowBackupReplicator.mirrorPath(userRef.path, now)
+                                    deviceSnapshot.documents.forEach { deviceDoc ->
+                                        ShadowBackupReplicator.mirrorPath(newUserRef.collection(DEVICES_SUBCOLLECTION).document(deviceDoc.id).path, now)
+                                    }
                                     secondaryAuth.signOut()
                                     logAudit(
                                         action = "user_credentials_rotate",
@@ -2678,6 +2693,7 @@ class LabTestsViewModel(application: Application) : AndroidViewModel(application
                 SetOptions.merge()
             )
             .addOnSuccessListener {
+                ShadowBackupReplicator.mirrorPath("users/${profile.uid}", now)
                 logAudit(
                     action = "pin_reset_request",
                     entityType = "user",
@@ -5319,6 +5335,7 @@ class LabTestsViewModel(application: Application) : AndroidViewModel(application
             .limit(AUDIT_LOG_LIMIT)
             .get(Source.SERVER)
             .addOnSuccessListener { snapshot ->
+                snapshot.documents.forEach { ShadowBackupReplicator.mirrorSnapshot(it) }
                 _auditLogs.value = snapshot.documents.map { doc ->
                     AuditLogEntry(
                         id = doc.id,
@@ -5376,7 +5393,9 @@ class LabTestsViewModel(application: Application) : AndroidViewModel(application
                 "was_offline" to true,
                 "synced_at" to FieldValue.serverTimestamp()
             )
-        )
+        ).addOnSuccessListener {
+            ShadowBackupReplicator.mirrorPath(auditRef.path, now)
+        }
     }
 
     private fun logAudit(
@@ -5410,7 +5429,9 @@ class LabTestsViewModel(application: Application) : AndroidViewModel(application
                 "was_offline" to false,
                 "synced_at" to FieldValue.serverTimestamp()
             )
-        )
+        ).addOnSuccessListener {
+            ShadowBackupReplicator.mirrorPath(auditRef.path, now)
+        }
     }
 
     // ------------------------- SEARCH / SELECTION -------------------------

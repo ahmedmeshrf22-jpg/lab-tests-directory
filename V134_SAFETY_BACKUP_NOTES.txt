@@ -1,0 +1,9 @@
+Tahalil Alakkad V134 Safety
+
+- Builds directly from verified V133 LTS source base.
+- No UI/layout changes.
+- Encrypted commercial backup schema v3 now archives users, user devices, and immutable audit logs.
+- Security archive is manual-recovery-only by design: the Android client does not recreate Firebase Auth users or rewrite immutable audit history.
+- Shadow backup hooks now mirror user profiles, device authorization records, and audit log documents already touched by normal app flows.
+- Firebase remains authoritative; Supabase remains standby-only.
+- Existing package ID, offline vault, notifications, result files, recovery probe and signing identity remain unchanged.

@@ -1,8 +1,11 @@
 package com.example.util
 
+import android.os.Handler
+import android.os.Looper
 import android.util.Base64
 import com.example.BuildConfig
 import com.example.settings.AppSettings
+import com.google.android.gms.tasks.Tasks
 import com.google.firebase.Timestamp
 import com.google.firebase.firestore.Blob
 import com.google.firebase.firestore.DocumentReference
@@ -13,6 +16,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.nio.charset.StandardCharsets
 import java.security.SecureRandom
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 import javax.crypto.Cipher
 import javax.crypto.SecretKeyFactory
@@ -28,7 +32,7 @@ import javax.crypto.spec.SecretKeySpec
  */
 object CommercialBackupManager {
     private const val HEADER = "TAHALIL_BACKUP_V1"
-    private const val SCHEMA_VERSION = 2
+    private const val SCHEMA_VERSION = 3
     private const val PBKDF2_ROUNDS = 180_000
     private const val MAX_ENCRYPTED_BYTES = 160 * 1024 * 1024
     private const val WRITE_BATCH_SIZE = 350
@@ -148,6 +152,148 @@ object CommercialBackupManager {
                 }
             }
             .addOnFailureListener { onResult(Result.failure(it)) }
+    }
+
+    /**
+     * V134 safety export.
+     * Adds a recovery archive for user profiles, approved/pending device records and immutable audit logs.
+     * Firebase Auth accounts are intentionally NOT recreated from the app; those records are preserved
+     * for controlled disaster recovery only. Core operational restore behavior remains unchanged.
+     */
+    fun createEncryptedBackupV134(
+        db: FirebaseFirestore,
+        settings: AppSettings,
+        password: String,
+        onResult: (Result<ExportResult>) -> Unit
+    ) {
+        if (!validBackupPassword(password)) {
+            onResult(Result.failure(IllegalArgumentException("كلمة مرور النسخة الاحتياطية لازم تكون 10 أحرف على الأقل")))
+            return
+        }
+        val main = Handler(Looper.getMainLooper())
+        Thread({
+            val result = runCatching {
+                val customersSnapshot = Tasks.await(db.collection("customers").get(), 45, TimeUnit.SECONDS)
+                val customerDocs = customersSnapshot.documents.map { backupDoc(it.id, it.data.orEmpty()) }
+
+                val orders = mutableListOf<OrderBackup>()
+                customersSnapshot.documents.forEach { customerDoc ->
+                    val orderSnapshot = Tasks.await(customerDoc.reference.collection("orders").get(), 45, TimeUnit.SECONDS)
+                    orderSnapshot.documents.forEach { orderDoc ->
+                        orders += OrderBackup(
+                            customerId = customerDoc.id,
+                            orderId = orderDoc.id,
+                            json = JSONObject().apply {
+                                put("customer_id", customerDoc.id)
+                                put("id", orderDoc.id)
+                                put("data", jsonObjectFromMap(orderDoc.data.orEmpty()))
+                            }
+                        )
+                    }
+                }
+
+                val payments = mutableListOf<PaymentBackup>()
+                orders.forEach { order ->
+                    val paymentSnapshot = Tasks.await(
+                        db.collection("customers").document(order.customerId)
+                            .collection("orders").document(order.orderId)
+                            .collection("payments").get(),
+                        45, TimeUnit.SECONDS
+                    )
+                    paymentSnapshot.documents.forEach { paymentDoc ->
+                        payments += PaymentBackup(
+                            customerId = order.customerId,
+                            orderId = order.orderId,
+                            json = JSONObject().apply {
+                                put("customer_id", order.customerId)
+                                put("order_id", order.orderId)
+                                put("id", paymentDoc.id)
+                                put("data", jsonObjectFromMap(paymentDoc.data.orEmpty()))
+                            }
+                        )
+                    }
+                }
+
+                val resultFiles = mutableListOf<ResultActivityBackup>()
+                customersSnapshot.documents.forEach { customerDoc ->
+                    listOf("result_file_meta", "result_file_chunk").forEach { type ->
+                        val activitySnapshot = Tasks.await(
+                            customerDoc.reference.collection("activity").whereEqualTo("type", type).get(),
+                            45, TimeUnit.SECONDS
+                        )
+                        activitySnapshot.documents.forEach { doc ->
+                            resultFiles += ResultActivityBackup(
+                                customerId = customerDoc.id,
+                                id = doc.id,
+                                json = JSONObject().apply {
+                                    put("customer_id", customerDoc.id)
+                                    put("id", doc.id)
+                                    put("data", jsonObjectFromMap(doc.data.orEmpty()))
+                                }
+                            )
+                        }
+                    }
+                }
+
+                fun simple(name: String): List<JSONObject> {
+                    val snap = Tasks.await(db.collection(name).get(), 45, TimeUnit.SECONDS)
+                    return snap.documents.map { backupDoc(it.id, it.data.orEmpty()) }
+                }
+
+                val labOrders = simple("lab_orders")
+                val customerPrices = simple("customer_price_overrides")
+                val labPrices = simple("lab2lab_prices")
+                val phoneRegistry = simple("phone_registry")
+                val users = simple("users")
+                val auditLogs = simple("audit_logs")
+
+                val userDevices = mutableListOf<JSONObject>()
+                users.forEach { user ->
+                    val uid = safeDocId(user.getString("id"))
+                    val snap = Tasks.await(
+                        db.collection("users").document(uid).collection("devices").get(),
+                        45, TimeUnit.SECONDS
+                    )
+                    snap.documents.forEach { deviceDoc ->
+                        userDevices += JSONObject().apply {
+                            put("user_id", uid)
+                            put("id", deviceDoc.id)
+                            put("data", jsonObjectFromMap(deviceDoc.data.orEmpty()))
+                        }
+                    }
+                }
+
+                val root = JSONObject().apply {
+                    put("schema_version", SCHEMA_VERSION)
+                    put("application_id", BuildConfig.APPLICATION_ID)
+                    put("app_version_code", BuildConfig.VERSION_CODE)
+                    put("app_version_name", BuildConfig.VERSION_NAME)
+                    put("created_at_ms", System.currentTimeMillis())
+                    put("settings", settingsToJson(settings))
+                    put("customers", JSONArray(customerDocs))
+                    put("orders", JSONArray(orders.map { it.json }))
+                    put("payments", JSONArray(payments.map { it.json }))
+                    put("result_file_activity", JSONArray(resultFiles.map { it.json }))
+                    put("lab_orders", JSONArray(labOrders))
+                    put("customer_price_overrides", JSONArray(customerPrices))
+                    put("lab2lab_prices", JSONArray(labPrices))
+                    put("phone_registry", JSONArray(phoneRegistry))
+                    put("users", JSONArray(users))
+                    put("user_devices", JSONArray(userDevices))
+                    put("audit_logs", JSONArray(auditLogs))
+                    put("security_archive_restore_mode", "manual_only")
+                }
+                val encrypted = encrypt(root.toString().toByteArray(StandardCharsets.UTF_8), password)
+                ExportResult(
+                    encrypted = encrypted,
+                    customers = customerDocs.size,
+                    orders = orders.size,
+                    payments = payments.size,
+                    resultDocuments = resultFiles.size
+                )
+            }
+            main.post { onResult(result) }
+        }, "tahalil-v134-safety-backup").apply { isDaemon = true }.start()
     }
 
     fun restoreEncryptedBackup(

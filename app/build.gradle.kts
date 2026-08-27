@@ -20,8 +20,8 @@ android {
     applicationId = "com.aistudio.labtestsdirectory.egypt"
     minSdk = 24
     targetSdk = 36
-    versionCode = 133
-    versionName = "5.53-login-focus-3d-v133"
+    versionCode = 134
+    versionName = "5.54-safety-backup-v134"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
