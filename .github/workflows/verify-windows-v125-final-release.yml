@@ -1,0 +1,166 @@
+name: Verify Windows V125 FINAL Release
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-windows-v125:
+    name: Verify Portable + Setup + Tray
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Download exact V125 release files
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          New-Item -ItemType Directory -Force verify-v125 | Out-Null
+          gh release download v125-windows `
+            --repo "$env:GITHUB_REPOSITORY" `
+            --dir verify-v125 `
+            --pattern 'Tahalil-Alakkad-V125-Windows-Portable.exe' `
+            --pattern 'Tahalil-Alakkad-V125-Windows-Portable.exe.sha256' `
+            --pattern 'Tahalil-Alakkad-V125-Windows-Setup.exe' `
+            --pattern 'Tahalil-Alakkad-V125-Windows-Setup.exe.sha256'
+          if ($LASTEXITCODE -ne 0) { throw 'Could not download V125 release files' }
+
+      - name: Verify SHA256 checksums
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Set-Location verify-v125
+          foreach ($name in @(
+            'Tahalil-Alakkad-V125-Windows-Portable.exe',
+            'Tahalil-Alakkad-V125-Windows-Setup.exe'
+          )) {
+            if (!(Test-Path $name)) { throw "Missing $name" }
+            if (!(Test-Path "$name.sha256")) { throw "Missing $name.sha256" }
+            if ((Get-Item $name).Length -lt 100MB) { throw "$name is unexpectedly small" }
+
+            $expected = ((Get-Content "$name.sha256" -Raw).Trim() -split '\s+')[0].ToLowerInvariant()
+            $actual = (Get-FileHash $name -Algorithm SHA256).Hash.ToLowerInvariant()
+            if ($expected -ne $actual) { throw "SHA256 mismatch for $name" }
+            Write-Host "HASH OK: $name"
+          }
+
+      - name: Portable startup smoke test
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $exe = (Resolve-Path 'verify-v125/Tahalil-Alakkad-V125-Windows-Portable.exe').Path
+          $env:TAHALIL_SMOKE_TEST = '1'
+          Remove-Item Env:TAHALIL_TRAY_SMOKE_TEST -ErrorAction SilentlyContinue
+          $p = Start-Process -FilePath $exe -PassThru
+          if (!$p.WaitForExit(45000)) {
+            Stop-Process -Id $p.Id -Force
+            throw 'Portable startup smoke test timed out'
+          }
+          if ($p.ExitCode -ne 0) { throw "Portable startup failed with exit code $($p.ExitCode)" }
+          Remove-Item Env:TAHALIL_SMOKE_TEST -ErrorAction SilentlyContinue
+          Write-Host 'PORTABLE STARTUP OK'
+
+      - name: Portable System Tray smoke test
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $exe = (Resolve-Path 'verify-v125/Tahalil-Alakkad-V125-Windows-Portable.exe').Path
+          Remove-Item Env:TAHALIL_SMOKE_TEST -ErrorAction SilentlyContinue
+          $env:TAHALIL_TRAY_SMOKE_TEST = '1'
+          $p = Start-Process -FilePath $exe -PassThru
+          if (!$p.WaitForExit(45000)) {
+            Stop-Process -Id $p.Id -Force
+            throw 'Portable System Tray smoke test timed out'
+          }
+          if ($p.ExitCode -ne 0) { throw "Portable Tray test failed with exit code $($p.ExitCode)" }
+          Remove-Item Env:TAHALIL_TRAY_SMOKE_TEST -ErrorAction SilentlyContinue
+          Write-Host 'PORTABLE SYSTEM TRAY OK'
+
+      - name: Install Setup silently
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $setup = (Resolve-Path 'verify-v125/Tahalil-Alakkad-V125-Windows-Setup.exe').Path
+          $p = Start-Process -FilePath $setup -ArgumentList '/S' -PassThru
+          if (!$p.WaitForExit(120000)) {
+            Stop-Process -Id $p.Id -Force
+            throw 'Setup installation timed out'
+          }
+          if ($p.ExitCode -ne 0) { throw "Setup installer failed with exit code $($p.ExitCode)" }
+          Write-Host 'SETUP INSTALL OK'
+
+      - name: Locate installed application
+        id: installed
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $roots = @(
+            (Join-Path $env:LOCALAPPDATA 'Programs'),
+            $env:ProgramFiles,
+            ${env:ProgramFiles(x86)}
+          ) | Where-Object { $_ -and (Test-Path $_) }
+
+          $matches = foreach ($r in $roots) {
+            Get-ChildItem $r -Recurse -File -Filter '*.exe' -ErrorAction SilentlyContinue |
+              Where-Object {
+                $_.Name -eq 'Tahalil Alakkad System.exe' -or
+                ($_.Name -match 'Tahalil.*Alakkad.*System' -and $_.Name -notmatch 'Uninstall')
+              }
+          }
+
+          $exe = $matches | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+          if (!$exe) { throw 'Installed Tahalil Alakkad executable was not found' }
+
+          "exe=$($exe.FullName)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          Write-Host "INSTALLED EXE: $($exe.FullName)"
+
+      - name: Installed application startup smoke test
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $exe = '${{ steps.installed.outputs.exe }}'
+          if (!(Test-Path $exe)) { throw 'Installed application path is invalid' }
+
+          $env:TAHALIL_SMOKE_TEST = '1'
+          Remove-Item Env:TAHALIL_TRAY_SMOKE_TEST -ErrorAction SilentlyContinue
+          $p = Start-Process -FilePath $exe -PassThru
+          if (!$p.WaitForExit(45000)) {
+            Stop-Process -Id $p.Id -Force
+            throw 'Installed application startup test timed out'
+          }
+          if ($p.ExitCode -ne 0) { throw "Installed application startup failed with exit code $($p.ExitCode)" }
+          Remove-Item Env:TAHALIL_SMOKE_TEST -ErrorAction SilentlyContinue
+          Write-Host 'INSTALLED APP STARTUP OK'
+
+      - name: Installed application System Tray smoke test
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $exe = '${{ steps.installed.outputs.exe }}'
+          Remove-Item Env:TAHALIL_SMOKE_TEST -ErrorAction SilentlyContinue
+          $env:TAHALIL_TRAY_SMOKE_TEST = '1'
+          $p = Start-Process -FilePath $exe -PassThru
+          if (!$p.WaitForExit(45000)) {
+            Stop-Process -Id $p.Id -Force
+            throw 'Installed application System Tray test timed out'
+          }
+          if ($p.ExitCode -ne 0) { throw "Installed application Tray test failed with exit code $($p.ExitCode)" }
+          Remove-Item Env:TAHALIL_TRAY_SMOKE_TEST -ErrorAction SilentlyContinue
+          Write-Host 'INSTALLED APP SYSTEM TRAY OK'
+
+      - name: Final verification result
+        shell: pwsh
+        run: |
+          Write-Host '=============================================='
+          Write-Host 'WINDOWS V125 FINAL RELEASE VERIFICATION PASSED'
+          Write-Host 'Portable hash: OK'
+          Write-Host 'Portable startup: OK'
+          Write-Host 'Portable System Tray: OK'
+          Write-Host 'Setup installation: OK'
+          Write-Host 'Installed app startup: OK'
+          Write-Host 'Installed app System Tray: OK'
+          Write-Host '=============================================='
