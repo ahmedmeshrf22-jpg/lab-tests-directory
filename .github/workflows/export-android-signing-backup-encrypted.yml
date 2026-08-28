@@ -1,0 +1,91 @@
+name: Export Android Signing Backup Encrypted
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  export-signing-backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Validate required secrets
+        shell: bash
+        env:
+          SIGNING_BUNDLE_B64: ${{ secrets.TAHALIL_SIGNING_BUNDLE_B64 }}
+          BACKUP_PASSWORD: ${{ secrets.TAHALIL_BACKUP_EXPORT_PASSWORD }}
+        run: |
+          set -euo pipefail
+          test -n "${SIGNING_BUNDLE_B64:-}" || { echo "::error::Missing TAHALIL_SIGNING_BUNDLE_B64"; exit 1; }
+          test -n "${BACKUP_PASSWORD:-}" || { echo "::error::Missing TAHALIL_BACKUP_EXPORT_PASSWORD"; exit 1; }
+          if [ "${#BACKUP_PASSWORD}" -lt 12 ]; then
+            echo "::error::TAHALIL_BACKUP_EXPORT_PASSWORD must be at least 12 characters."
+            exit 1
+          fi
+          echo "::add-mask::$BACKUP_PASSWORD"
+
+      - name: Rebuild signing bundle and encrypt it
+        shell: bash
+        env:
+          SIGNING_BUNDLE_B64: ${{ secrets.TAHALIL_SIGNING_BUNDLE_B64 }}
+          BACKUP_PASSWORD: ${{ secrets.TAHALIL_BACKUP_EXPORT_PASSWORD }}
+        run: |
+          set -euo pipefail
+          umask 077
+
+          RAW="$RUNNER_TEMP/tahalil-android-signing-bundle.bin"
+          OUT="Tahalil-Alakkad-Android-Signing-Backup.7z"
+
+          printf '%s' "$SIGNING_BUNDLE_B64" \
+            | tr -d '\r\n ' \
+            | base64 --decode > "$RAW"
+
+          test -s "$RAW"
+
+          if ! command -v 7z >/dev/null 2>&1; then
+            sudo apt-get update -qq
+            sudo apt-get install -y p7zip-full >/dev/null
+          fi
+
+          7z a -t7z -mx=9 -mhe=on -p"$BACKUP_PASSWORD" "$OUT" "$RAW" >/dev/null
+          test -s "$OUT"
+
+          rm -f "$RAW"
+
+          SHA="$(sha256sum "$OUT" | awk '{print $1}')"
+          {
+            echo "Tahalil Alakkad Android Signing Backup"
+            echo "Created UTC: $(date -u +'%Y-%m-%d %H:%M:%S')"
+            echo "Encryption: 7z AES-256 + encrypted headers"
+            echo "SHA256: $SHA"
+            echo
+            echo "IMPORTANT:"
+            echo "- Keep this .7z file and its password in two separate safe places."
+            echo "- Do not upload the decrypted signing bundle anywhere."
+            echo "- This backup is for recovering the Android signing identity only."
+          } > SIGNING-BACKUP-README.txt
+
+          echo "BACKUP_SHA256=$SHA" >> "$GITHUB_ENV"
+
+      - name: Publish encrypted backup as a draft release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TAG="signing-backup-$(date -u +'%Y%m%d-%H%M%S')"
+
+          gh release create "$TAG" \
+            Tahalil-Alakkad-Android-Signing-Backup.7z \
+            SIGNING-BACKUP-README.txt \
+            --repo "$GITHUB_REPOSITORY" \
+            --target main \
+            --title "Android Signing Backup — Encrypted" \
+            --notes "Encrypted emergency backup of the Android signing bundle. Keep the separate backup password safe. Do not publish this draft release." \
+            --draft
+
+          echo "Encrypted signing backup created successfully."
+          echo "SHA256: $BACKUP_SHA256"
