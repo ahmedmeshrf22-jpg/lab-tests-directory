@@ -1,0 +1,8 @@
+V137 Auto Backup
+- Daily local encrypted backup scheduled for 04:00 device local time.
+- Exact Alarm is used when Android grants Alarms & reminders access; JobScheduler fallback stays near 04:00 otherwise.
+- Automatic files are saved to Download/Tahalil Alakkad/Backups as .tahbak.
+- The password from the next successful manual backup is encrypted with Android Keystore and reused for automatic backups.
+- Backup start/completion/failure notifications added.
+- Restore start/completion/failure notifications added.
+- Firebase Rules and data schema are unchanged.

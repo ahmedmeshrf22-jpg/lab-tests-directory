@@ -10,6 +10,7 @@ class LabOrderBootReceiver : BroadcastReceiver() {
             intent?.action == Intent.ACTION_MY_PACKAGE_REPLACED
         ) {
             LabOrderBackgroundScheduler.schedule(context)
+            AutoBackupScheduler.schedule(context)
         }
     }
 }

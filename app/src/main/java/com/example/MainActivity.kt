@@ -45,6 +45,8 @@ import com.example.ui.theme.LabTestsTheme
 import com.example.notifications.OrderNotificationManager
 import com.example.notifications.LabOrderBackgroundScheduler
 import com.example.notifications.OrderRealtimeNotificationService
+import com.example.notifications.BackupNotificationManager
+import com.example.notifications.AutoBackupScheduler
 import com.example.update.ForcedUpdateGate
 import com.example.resilience.ShadowBackupReplicator
 import com.google.firebase.FirebaseApp
@@ -65,6 +67,8 @@ class MainActivity : FragmentActivity() {
         super.onCreate(savedInstanceState)
         FirestoreResultFileStore.cleanupStaleResultCache(this)
         OrderNotificationManager.ensureChannel(this)
+        BackupNotificationManager.ensureChannel(this)
+        AutoBackupScheduler.schedule(this)
         if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
             requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 9901)
         }

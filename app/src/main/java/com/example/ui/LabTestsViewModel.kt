@@ -35,6 +35,9 @@ import com.example.settings.OfflineAccessVault
 import com.example.resilience.ShadowBackupReplicator
 import com.example.settings.tr
 import com.example.util.CommercialBackupManager
+import com.example.util.AutoBackupCredentialStore
+import com.example.notifications.AutoBackupScheduler
+import com.example.notifications.BackupNotificationManager
 import com.example.util.NonLabMedicalLookup
 import com.google.firebase.FirebaseApp
 import com.google.firebase.auth.FirebaseAuth
@@ -2037,6 +2040,9 @@ class LabTestsViewModel(application: Application) : AndroidViewModel(application
         ) { result ->
             result.fold(
                 onSuccess = { backup ->
+                    val appContext = getApplication<Application>()
+                    AutoBackupCredentialStore.savePassword(appContext, password)
+                    AutoBackupScheduler.schedule(appContext)
                     logAudit(
                         "backup_export", "system", "backup", "إنشاء نسخة احتياطية",
                         "${backup.customers} عميل • ${backup.orders} طلب • ${backup.payments} دفعة"
@@ -2044,8 +2050,8 @@ class LabTestsViewModel(application: Application) : AndroidViewModel(application
                     onResult(
                         true,
                         tr(
-                            "تم تجهيز النسخة: ${backup.customers} عميل • ${backup.orders} طلب",
-                            "Backup ready: ${backup.customers} customers • ${backup.orders} orders"
+                            "تم تجهيز النسخة: ${backup.customers} عميل • ${backup.orders} طلب • النسخ التلقائي الساعة 4:00 ص مفعّل",
+                            "Backup ready: ${backup.customers} customers • ${backup.orders} orders • automatic 4:00 AM backup enabled"
                         ),
                         backup.encrypted
                     )
@@ -2072,6 +2078,8 @@ class LabTestsViewModel(application: Application) : AndroidViewModel(application
             onResult(false, tr("لازم الإنترنت يكون متصل قبل الاسترجاع", "Internet is required before restore"))
             return
         }
+        val restoreContext = getApplication<Application>()
+        BackupNotificationManager.notifyRestoreStarted(restoreContext)
         CommercialBackupManager.restoreEncryptedBackup(
             db = privilegedFirestore(),
             encryptedBytes = encryptedBytes,
@@ -2125,11 +2133,14 @@ class LabTestsViewModel(application: Application) : AndroidViewModel(application
                             "Restore completed: ${restored.documentsWritten} documents • ${restored.customers} customers • ${restored.orders} orders"
                         )
                     }
+                    BackupNotificationManager.notifyRestoreCompleted(restoreContext, restoreMessage)
                     onResult(true, restoreMessage)
                 },
                 onFailure = { error ->
                     FirebaseCrashlytics.getInstance().recordException(error)
-                    onResult(false, error.message ?: tr("تعذر استرجاع النسخة", "Unable to restore backup"))
+                    val restoreError = error.message ?: tr("تعذر استرجاع النسخة", "Unable to restore backup")
+                    BackupNotificationManager.notifyRestoreFailed(restoreContext, restoreError)
+                    onResult(false, restoreError)
                 }
             )
         }
