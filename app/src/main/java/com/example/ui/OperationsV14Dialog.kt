@@ -107,6 +107,7 @@ import com.example.data.model.permissionsForRole
 import com.example.settings.LocalAppSettings
 import com.example.settings.appText
 import com.example.settings.tr
+import com.example.notifications.AutoBackupScheduler
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -1861,6 +1862,7 @@ private fun BackupRestoreScreen(viewModel: LabTestsViewModel) {
                     ?: error("تعذر فتح الملف للحفظ")
             }
             success = writeResult.isSuccess
+            if (writeResult.isSuccess) AutoBackupScheduler.requestExactAlarmAccessOnce(context)
             message = if (writeResult.isSuccess) {
                 tr("تم حفظ النسخة الاحتياطية المشفرة على الموبايل", "Encrypted backup saved to the phone")
             } else {
