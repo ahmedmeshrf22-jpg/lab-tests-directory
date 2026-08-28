@@ -1,0 +1,101 @@
+name: Repair V139 Final Source Base
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  repair-v139-base:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout exact V139 release source
+        uses: actions/checkout@v4
+        with:
+          ref: v139
+          fetch-depth: 0
+
+      - name: Verify V139 tag source
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 <<'PY'
+          from pathlib import Path
+
+          grad = Path("app/build.gradle.kts").read_text()
+          src = Path("app/src/main/java")
+          allkt = "\n".join(p.read_text(errors="ignore") for p in src.rglob("*.kt"))
+
+          checks = {
+              "V139 version": 'versionCode = 139' in grad and '5.59-final-resilience-v139' in grad,
+              "same package": 'applicationId = "com.aistudio.labtestsdirectory.egypt"' in grad,
+              "Firebase preserved": "FirebaseFirestore" in allkt and "FirebaseAuth" in allkt,
+              "offline vault preserved": "OfflineAccessVault" in allkt,
+              "notifications preserved": "class OrderRealtimeNotificationService" in allkt,
+              "no Cloudflare": "cloudflare" not in allkt.lower() and "workers.dev" not in allkt.lower(),
+              "no Supabase secret": all(x not in allkt for x in [
+                  "SUPABASE_SERVICE_ROLE_KEY",
+                  "SUPABASE_SECRET_KEYS",
+                  "sb_secret_",
+                  "BEGIN PRIVATE KEY"
+              ]),
+          }
+
+          for k,v in checks.items():
+              print(("OK   " if v else "FAIL ") + k)
+
+          bad = [k for k,v in checks.items() if not v]
+          if bad:
+              raise SystemExit("V139 TAG VERIFY FAILED: " + ", ".join(bad))
+
+          print("V139 TAG SOURCE VERIFIED")
+          PY
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Gradle 8.11.1
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+
+      - name: Compile-check exact V139 source
+        shell: bash
+        run: |
+          set -euo pipefail
+          gradle --no-daemon --no-configuration-cache --no-parallel --max-workers=2 :app:compileReleaseKotlin
+
+      - name: Create missing immutable V139 source branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          BRANCH="v139-final-resilience-base"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          V139_SHA="$(git rev-parse HEAD)"
+          echo "V139_SHA=$V139_SHA"
+
+          if git ls-remote --exit-code --heads origin "$BRANCH" >/dev/null 2>&1; then
+            REMOTE_SHA="$(git ls-remote --heads origin "$BRANCH" | awk '{print $1}')"
+            if [ "$REMOTE_SHA" != "$V139_SHA" ]; then
+              echo "::error::$BRANCH already exists but points to a different commit."
+              exit 1
+            fi
+            echo "$BRANCH already exists and is correct."
+          else
+            git branch "$BRANCH" "$V139_SHA"
+            git push origin "$BRANCH"
+            echo "Created $BRANCH at exact V139 release commit."
+          fi
+
+      - name: Final status
+        shell: bash
+        run: |
+          echo "V139 final source base repaired and verified."
