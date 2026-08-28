@@ -7,11 +7,13 @@ import com.example.BuildConfig
 import com.example.settings.AppSettings
 import com.google.android.gms.tasks.Tasks
 import com.google.firebase.Timestamp
+import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.Blob
 import com.google.firebase.firestore.DocumentReference
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.GeoPoint
 import com.google.firebase.firestore.QuerySnapshot
+import com.google.firebase.firestore.Source
 import org.json.JSONArray
 import org.json.JSONObject
 import java.nio.charset.StandardCharsets
@@ -296,6 +298,12 @@ object CommercialBackupManager {
         }, "tahalil-v134-safety-backup").apply { isDaemon = true }.start()
     }
 
+    /**
+     * V135 permission-safe restore.
+     * Existing Firestore documents are NEVER overwritten. The restore only creates documents
+     * that are currently missing, in dependency order (customers -> orders -> payments -> rest).
+     * This avoids immutable-payment/update-rule failures and preserves newer live data.
+     */
     fun restoreEncryptedBackup(
         db: FirebaseFirestore,
         encryptedBytes: ByteArray,
@@ -326,19 +334,43 @@ object CommercialBackupManager {
             return
         }
 
-        val writes = mutableListOf<Pair<DocumentReference, Map<String, Any?>>>()
-        var customerCount = 0
-        var orderCount = 0
-        var paymentCount = 0
-        var resultDocumentCount = 0
+        val authUser = FirebaseAuth.getInstance().currentUser
+        val restoreUid = authUser?.uid.orEmpty()
+        val restoreEmail = authUser?.email.orEmpty()
+        if (restoreUid.isBlank()) {
+            onResult(Result.failure(IllegalStateException("يجب تسجيل الدخول بحساب المدير قبل الاسترجاع")))
+            return
+        }
+
+        data class RestoreWrite(
+            val ref: DocumentReference,
+            val data: Map<String, Any?>,
+            val kind: String
+        )
+
+        fun createSafeData(kind: String, original: Map<String, Any?>): Map<String, Any?> {
+            if (kind !in setOf("customer", "order", "payment", "lab_order")) return original
+            return original.toMutableMap().apply {
+                // Firestore create rules bind newly restored operational records to the manager
+                // performing the recovery. Historical immutable data is otherwise preserved.
+                put("created_by_uid", restoreUid)
+                if (restoreEmail.isNotBlank()) put("created_by_email", restoreEmail)
+            }
+        }
+
+        val customerWrites = mutableListOf<RestoreWrite>()
+        val orderWrites = mutableListOf<RestoreWrite>()
+        val paymentWrites = mutableListOf<RestoreWrite>()
+        val resultWrites = mutableListOf<RestoreWrite>()
+        val otherWrites = mutableListOf<RestoreWrite>()
 
         runCatching {
             val customers = parsed.optJSONArray("customers") ?: JSONArray()
             for (i in 0 until customers.length()) {
                 val obj = customers.getJSONObject(i)
                 val id = safeDocId(obj.getString("id"))
-                writes += db.collection("customers").document(id) to jsonObjectToFirestoreMap(obj.getJSONObject("data"))
-                customerCount++
+                val data = jsonObjectToFirestoreMap(obj.getJSONObject("data"))
+                customerWrites += RestoreWrite(db.collection("customers").document(id), createSafeData("customer", data), "customer")
             }
 
             val orders = parsed.optJSONArray("orders") ?: JSONArray()
@@ -346,9 +378,11 @@ object CommercialBackupManager {
                 val obj = orders.getJSONObject(i)
                 val customerId = safeDocId(obj.getString("customer_id"))
                 val id = safeDocId(obj.getString("id"))
-                writes += db.collection("customers").document(customerId).collection("orders").document(id) to
-                    jsonObjectToFirestoreMap(obj.getJSONObject("data"))
-                orderCount++
+                val data = jsonObjectToFirestoreMap(obj.getJSONObject("data"))
+                orderWrites += RestoreWrite(
+                    db.collection("customers").document(customerId).collection("orders").document(id),
+                    createSafeData("order", data), "order"
+                )
             }
 
             val payments = parsed.optJSONArray("payments") ?: JSONArray()
@@ -357,10 +391,13 @@ object CommercialBackupManager {
                 val customerId = safeDocId(obj.getString("customer_id"))
                 val orderId = safeDocId(obj.getString("order_id"))
                 val id = safeDocId(obj.getString("id"))
-                writes += db.collection("customers").document(customerId)
-                    .collection("orders").document(orderId)
-                    .collection("payments").document(id) to jsonObjectToFirestoreMap(obj.getJSONObject("data"))
-                paymentCount++
+                val data = jsonObjectToFirestoreMap(obj.getJSONObject("data"))
+                paymentWrites += RestoreWrite(
+                    db.collection("customers").document(customerId)
+                        .collection("orders").document(orderId)
+                        .collection("payments").document(id),
+                    createSafeData("payment", data), "payment"
+                )
             }
 
             val resultDocs = parsed.optJSONArray("result_file_activity") ?: JSONArray()
@@ -368,41 +405,89 @@ object CommercialBackupManager {
                 val obj = resultDocs.getJSONObject(i)
                 val customerId = safeDocId(obj.getString("customer_id"))
                 val id = safeDocId(obj.getString("id"))
-                writes += db.collection("customers").document(customerId).collection("activity").document(id) to
-                    jsonObjectToFirestoreMap(obj.getJSONObject("data"))
-                resultDocumentCount++
+                resultWrites += RestoreWrite(
+                    db.collection("customers").document(customerId).collection("activity").document(id),
+                    jsonObjectToFirestoreMap(obj.getJSONObject("data")), "result"
+                )
             }
 
-            addSimpleRestoreWrites(parsed, "lab_orders", db.collection("lab_orders"), writes)
-            addSimpleRestoreWrites(parsed, "customer_price_overrides", db.collection("customer_price_overrides"), writes)
-            addSimpleRestoreWrites(parsed, "lab2lab_prices", db.collection("lab2lab_prices"), writes)
-            addSimpleRestoreWrites(parsed, "phone_registry", db.collection("phone_registry"), writes)
+            fun addSimple(key: String, collection: String, kind: String = "simple") {
+                val array = parsed.optJSONArray(key) ?: return
+                for (i in 0 until array.length()) {
+                    val obj = array.getJSONObject(i)
+                    val id = safeDocId(obj.getString("id"))
+                    val data = jsonObjectToFirestoreMap(obj.getJSONObject("data"))
+                    otherWrites += RestoreWrite(
+                        db.collection(collection).document(id),
+                        createSafeData(kind, data), kind
+                    )
+                }
+            }
+            addSimple("lab_orders", "lab_orders", "lab_order")
+            addSimple("customer_price_overrides", "customer_price_overrides")
+            addSimple("lab2lab_prices", "lab2lab_prices")
+            addSimple("phone_registry", "phone_registry")
         }.onFailure {
             onResult(Result.failure(IllegalArgumentException("محتوى النسخة الاحتياطية تالف أو غير مكتمل")))
             return
         }
 
         val settings = parsed.optJSONObject("settings")?.let(::settingsFromJson)
-        commitInChunks(db, writes, 0) { result ->
-            result.fold(
-                onSuccess = {
-                    onResult(
-                        Result.success(
-                            RestoreResult(
-                                settings = settings,
-                                brandLogoBytes = extractBrandLogo(parsed.optJSONObject("settings")),
-                                documentsWritten = writes.size,
-                                customers = customerCount,
-                                orders = orderCount,
-                                payments = paymentCount,
-                                resultDocuments = resultDocumentCount
-                            )
-                        )
-                    )
-                },
-                onFailure = { onResult(Result.failure(it)) }
-            )
-        }
+        val main = Handler(Looper.getMainLooper())
+
+        Thread({
+            val result = runCatching {
+                var documentsWritten = 0
+                var customersWritten = 0
+                var ordersWritten = 0
+                var paymentsWritten = 0
+                var resultDocumentsWritten = 0
+
+                fun restoreMissingPhase(writes: List<RestoreWrite>): Int {
+                    if (writes.isEmpty()) return 0
+                    val missing = ArrayList<RestoreWrite>()
+                    writes.forEach { write ->
+                        val snapshot = Tasks.await(write.ref.get(Source.SERVER), 30, TimeUnit.SECONDS)
+                        if (!snapshot.exists()) missing += write
+                    }
+                    if (missing.isEmpty()) return 0
+                    var start = 0
+                    while (start < missing.size) {
+                        val end = (start + WRITE_BATCH_SIZE).coerceAtMost(missing.size)
+                        val batch = db.batch()
+                        for (i in start until end) {
+                            val write = missing[i]
+                            batch.set(write.ref, write.data)
+                        }
+                        Tasks.await(batch.commit(), 45, TimeUnit.SECONDS)
+                        start = end
+                    }
+                    return missing.size
+                }
+
+                // Dependency order matters for Firestore create rules.
+                customersWritten = restoreMissingPhase(customerWrites)
+                documentsWritten += customersWritten
+                ordersWritten = restoreMissingPhase(orderWrites)
+                documentsWritten += ordersWritten
+                paymentsWritten = restoreMissingPhase(paymentWrites)
+                documentsWritten += paymentsWritten
+                resultDocumentsWritten = restoreMissingPhase(resultWrites)
+                documentsWritten += resultDocumentsWritten
+                documentsWritten += restoreMissingPhase(otherWrites)
+
+                RestoreResult(
+                    settings = settings,
+                    brandLogoBytes = extractBrandLogo(parsed.optJSONObject("settings")),
+                    documentsWritten = documentsWritten,
+                    customers = customersWritten,
+                    orders = ordersWritten,
+                    payments = paymentsWritten,
+                    resultDocuments = resultDocumentsWritten
+                )
+            }
+            main.post { onResult(result) }
+        }, "tahalil-v135-safe-missing-only-restore").apply { isDaemon = true }.start()
     }
 
     private data class OrderBackup(val customerId: String, val orderId: String, val json: JSONObject)

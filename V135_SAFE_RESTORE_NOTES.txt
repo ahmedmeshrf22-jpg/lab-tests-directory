@@ -1,0 +1,6 @@
+V135 Safe Restore Fix
+- Restore is missing-only: existing Firestore documents are never overwritten.
+- Dependency order: customers -> orders -> payments -> result activity -> remaining operational collections.
+- Avoids immutable payment update permission failures.
+- Newly recreated operational records are bound to the authenticated manager for Firestore create-rule compatibility.
+- No UI changes. V134 safety backup schema and all existing features are preserved.
