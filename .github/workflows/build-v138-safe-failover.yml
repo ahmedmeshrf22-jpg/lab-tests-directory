@@ -1,0 +1,304 @@
+name: Build Tahalil Alakkad V138 Safe Failover
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: tahalil-v138-safe-failover
+  cancel-in-progress: false
+
+jobs:
+  build-v138:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout V137 Auto Backup base
+        uses: actions/checkout@v4
+        with:
+          ref: v137-auto-backup-fix-base
+          fetch-depth: 1
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Gradle 8.11.1
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+
+      - name: Apply V138 safe failover patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > /tmp/v138.patch.gz.b64 <<'PATCH64'
+          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
+          PATCH64
+          tr -d '\r\n ' < /tmp/v138.patch.gz.b64 | base64 --decode | gzip -dc > /tmp/v138.patch
+          patch -p1 < /tmp/v138.patch
+          echo "V138 safe failover patch applied over V137"
+
+      - name: Audit V138 safety and continuity
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 <<'PYAUDIT'
+          from pathlib import Path
+          import subprocess
+
+          src=Path('app/src/main/java')
+          grad=Path('app/build.gradle.kts').read_text()
+          vm=(src/'com/example/ui/LabTestsViewModel.kt').read_text()
+          fail=(src/'com/example/resilience/EmergencyFailoverClient.kt').read_text()
+          scheduler=(src/'com/example/notifications/AutoBackupScheduler.kt').read_text()
+          backup=(src/'com/example/util/CommercialBackupManager.kt').read_text()
+          allkt='\n'.join(p.read_text(errors='ignore') for p in src.rglob('*.kt'))
+
+          tracked=subprocess.check_output(['git','diff','--name-only'], text=True).splitlines()
+          untracked=subprocess.check_output(['git','ls-files','--others','--exclude-standard'], text=True).splitlines()
+          changed={x.strip() for x in tracked+untracked if x.strip()}
+          allowed={
+              'app/build.gradle.kts',
+              'app/src/main/java/com/example/resilience/EmergencyFailoverClient.kt',
+              'app/src/main/java/com/example/ui/LabTestsViewModel.kt',
+              'V138_SAFE_FAILOVER_NOTES.txt',
+          }
+
+          checks={
+              'V138 version':'versionCode = 138' in grad and '5.58-safe-failover-v138' in grad,
+              'same package':'applicationId = "com.aistudio.labtestsdirectory.egypt"' in grad,
+              'only V138 scope changed':changed == allowed,
+              'failover endpoint present':'tahalil-failover-read' in fail,
+              'firebase auth token required':'getIdToken(false)' in fail and 'Authorization' in fail,
+              'approved device proof sent':'X-Tahalil-Device' in fail and 'ANDROID_ID' in fail,
+              'no Supabase key in APK':all(x not in allkt for x in ['SUPABASE_SERVICE_ROLE_KEY','SUPABASE_SECRET_KEYS','sb_secret_','BEGIN PRIVATE KEY']),
+              'read only failover client':'requestMethod = "GET"' in fail and 'doOutput = true' not in fail and 'requestMethod = "POST"' not in fail,
+              'customer fallback':'entityType = "customer"' in vm and 'parseCustomerShadow' in vm,
+              'orders fallback':'entityType = "order"' in vm and 'parseOrderShadow' in vm,
+              'price fallback':'entityType = "customer_price"' in vm and 'entityType = "lab2lab_price"' in vm,
+              'lab fallback':'entityType = "lab_order"' in vm,
+              'emergency message':'وضع الطوارئ' in vm,
+              'Firebase remains authoritative':'FirebaseFirestore' in allkt and 'FirestorePerformance.get()' in vm,
+              'existing Firestore offline sync preserved':'waitForPendingWrites()' in vm and 'PendingSyncStore' in vm,
+              'V137 daily 4am backup preserved':'FOUR_AM_HOUR = 4' in scheduler and 'Tahalil Alakkad/Backups' in allkt,
+              'V137 backup notifications preserved':'notifyBackupStarted' in allkt and 'notifyBackupCompleted' in allkt,
+              'V136 restore feedback preserved':'تم الاسترجاع ✓' in allkt,
+              'V135 safe restore preserved':'if (!snapshot.exists()) missing += write' in backup,
+              'shadow mirror preserved':'tahalil-shadow-mirror' in allkt,
+              'recovery probe preserved':'tahalil-recovery-probe' in allkt,
+              'offline vault preserved':'OfflineAccessVault' in allkt,
+              'results preserved':'saveResultToDownloads' in allkt and 'requestResultRevision' in allkt,
+              'order notifications preserved':'class OrderRealtimeNotificationService' in allkt,
+              'no Firebase rules edits':not any('firestore.rules' in x.lower() for x in changed),
+              'no Cloudflare':'cloudflare' not in allkt.lower() and 'workers.dev' not in allkt.lower(),
+          }
+
+          for k,v in checks.items():
+              print(('OK   ' if v else 'FAIL ')+k)
+          bad=[k for k,v in checks.items() if not v]
+          if bad:
+              raise SystemExit('V138 AUDIT FAILED: '+', '.join(bad))
+          print('ALL V138 SAFE FAILOVER CHECKS PASSED')
+          PYAUDIT
+
+      - name: Publish immutable V138 source branch
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          BRANCH="v138-safe-failover-base"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$BRANCH"
+          git add app/build.gradle.kts             app/src/main/java/com/example/resilience/EmergencyFailoverClient.kt             app/src/main/java/com/example/ui/LabTestsViewModel.kt             V138_SAFE_FAILOVER_NOTES.txt
+          git commit -m "V138 safe authenticated Supabase read failover"
+
+          COMMIT_SHA="$(git rev-parse HEAD)"
+          if git ls-remote --exit-code --heads origin "$BRANCH" >/dev/null 2>&1; then
+            git fetch -q origin "$BRANCH"
+            LOCAL_TREE="$(git rev-parse HEAD^{tree})"
+            REMOTE_TREE="$(git rev-parse FETCH_HEAD^{tree})"
+            if [ "$LOCAL_TREE" != "$REMOTE_TREE" ]; then
+              echo "::error::Existing $BRANCH differs; refusing to overwrite it."
+              exit 1
+            fi
+            COMMIT_SHA="$(git rev-parse FETCH_HEAD)"
+          else
+            git push origin "HEAD:refs/heads/$BRANCH"
+          fi
+          echo "V138_COMMIT_SHA=$COMMIT_SHA" >> "$GITHUB_ENV"
+
+      - name: Restore original Android signing identity
+        shell: bash
+        env:
+          SIGNING_BUNDLE_B64: ${{ secrets.TAHALIL_SIGNING_BUNDLE_B64 }}
+        run: |
+          set -euo pipefail
+          test -n "${SIGNING_BUNDLE_B64:-}"
+          SIGN_DIR="$RUNNER_TEMP/tahalil_v138_signing"
+          rm -rf "$SIGN_DIR" && mkdir -p "$SIGN_DIR/files"
+          printf '%s' "$SIGNING_BUNDLE_B64" | tr -d '\r\n ' | base64 --decode > "$SIGN_DIR/bundle.bin"
+
+          if unzip -t "$SIGN_DIR/bundle.bin" >/dev/null 2>&1; then
+            unzip -q "$SIGN_DIR/bundle.bin" -d "$SIGN_DIR/files"
+          else
+            cp "$SIGN_DIR/bundle.bin" "$SIGN_DIR/files/original.keystore"
+          fi
+
+          KEYSTORE="$(find "$SIGN_DIR/files" -type f \( -iname '*.jks' -o -iname '*.keystore' \) -print -quit)"
+          test -n "$KEYSTORE"
+
+          STORE_PASSWORD=""
+          KEY_ALIAS=""
+          KEY_PASSWORD=""
+
+          while IFS= read -r META; do
+            [ -f "$META" ] || continue
+            [ -n "$STORE_PASSWORD" ] || STORE_PASSWORD="$(sed -nE 's/^[[:space:]]*(STORE_PASSWORD|KEYSTORE_PASSWORD|storePassword|store_password)[[:space:]]*[:=][[:space:]]*"?([^"#]+)"?[[:space:]]*$/\2/p' "$META" | head -1 | xargs || true)"
+            [ -n "$KEY_ALIAS" ] || KEY_ALIAS="$(sed -nE 's/^[[:space:]]*(KEY_ALIAS|keyAlias|key_alias)[[:space:]]*[:=][[:space:]]*"?([^"#]+)"?[[:space:]]*$/\2/p' "$META" | head -1 | xargs || true)"
+            [ -n "$KEY_PASSWORD" ] || KEY_PASSWORD="$(sed -nE 's/^[[:space:]]*(KEY_PASSWORD|keyPassword|key_password)[[:space:]]*[:=][[:space:]]*"?([^"#]+)"?[[:space:]]*$/\2/p' "$META" | head -1 | xargs || true)"
+          done < <(find "$SIGN_DIR/files" -type f \( -iname '*.properties' -o -iname '*.env' -o -iname '*.txt' \) -print)
+
+          if [ -z "$STORE_PASSWORD" ] && keytool -list -keystore "$KEYSTORE" -storepass android >/dev/null 2>&1; then
+            STORE_PASSWORD=android
+          fi
+
+          test -n "$STORE_PASSWORD"
+          [ -n "$KEY_ALIAS" ] || KEY_ALIAS="$(keytool -list -v -keystore "$KEYSTORE" -storepass "$STORE_PASSWORD" 2>/dev/null | sed -n 's/^Alias name: //p' | head -1)"
+          test -n "$KEY_ALIAS"
+          [ -n "$KEY_PASSWORD" ] || KEY_PASSWORD="$STORE_PASSWORD"
+
+          keytool -list -keystore "$KEYSTORE" -storepass "$STORE_PASSWORD" -alias "$KEY_ALIAS" >/dev/null
+
+          echo "::add-mask::$STORE_PASSWORD"
+          echo "::add-mask::$KEY_ALIAS"
+          echo "::add-mask::$KEY_PASSWORD"
+
+          {
+            echo "KEYSTORE_PATH=$KEYSTORE"
+            echo "STORE_PASSWORD=$STORE_PASSWORD"
+            echo "KEY_ALIAS=$KEY_ALIAS"
+            echo "KEY_PASSWORD=$KEY_PASSWORD"
+          } >> "$GITHUB_ENV"
+
+      - name: Build signed Android V138
+        shell: bash
+        run: |
+          set -euo pipefail
+          gradle --no-daemon --no-configuration-cache --no-parallel --max-workers=2 :app:assembleRelease
+
+      - name: Verify APK signature and package
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="$(find app/build/outputs/apk/release -type f -name '*.apk' -print -quit)"
+          test -n "$APK" && test -s "$APK"
+
+          APKSIGNER="$ANDROID_HOME/build-tools/35.0.0/apksigner"
+          "$APKSIGNER" verify --verbose --print-certs "$APK"
+
+          cp "$APK" Tahalil-Alakkad-V138-Safe-Failover-Android-SIGNED.apk
+          sha256sum Tahalil-Alakkad-V138-Safe-Failover-Android-SIGNED.apk             > Tahalil-Alakkad-V138-Safe-Failover-Android-SIGNED.apk.sha256
+
+      - name: Publish V138 release directly
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if gh release view v138 >/dev/null 2>&1; then
+            echo "::error::Release v138 already exists. Refusing to overwrite it."
+            exit 1
+          fi
+
+          gh release create v138             Tahalil-Alakkad-V138-Safe-Failover-Android-SIGNED.apk             Tahalil-Alakkad-V138-Safe-Failover-Android-SIGNED.apk.sha256             --target "$V138_COMMIT_SHA"             --title "تحاليل العقاد V138 — Safe Failover"             --notes "V138 adds authenticated emergency read continuity from the Supabase shadow backup after Firebase/server/cache read failure for customers, orders, price data, and lab orders. Firebase remains authoritative, existing Firestore offline pending-write sync remains unchanged, V137 daily 04:00 backup remains intact, no Supabase secret is shipped in the APK, and Firebase Rules are unchanged."
+
+      - name: Final status
+        shell: bash
+        run: |
+          echo "V138 Safe Failover built, signed, source-pinned and released."
