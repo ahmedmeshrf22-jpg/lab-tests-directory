@@ -1,0 +1,302 @@
+name: Build Tahalil Alakkad V137 Auto Backup
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: tahalil-v137-auto-backup
+  cancel-in-progress: false
+
+jobs:
+  build-v137:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout V136 Restore Feedback base
+        uses: actions/checkout@v4
+        with:
+          ref: v136-restore-feedback-base
+          fetch-depth: 1
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Gradle 8.11.1
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+
+      - name: Apply V137 daily auto backup patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > /tmp/v137.patch.gz.b64 <<'PATCH64'
+          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
+          PATCH64
+          tr -d '\r\n ' < /tmp/v137.patch.gz.b64 | base64 --decode | gzip -dc > /tmp/v137.patch
+          patch -p1 < /tmp/v137.patch
+          echo "V137 auto backup patch applied over V136"
+
+      - name: Audit V137 auto backup and restore notifications
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 <<'PYAUDIT'
+          from pathlib import Path
+          import subprocess, re
+          src=Path('app/src/main/java')
+          grad=Path('app/build.gradle.kts').read_text()
+          manifest=Path('app/src/main/AndroidManifest.xml').read_text()
+          main=(src/'com/example/MainActivity.kt').read_text()
+          vm=(src/'com/example/ui/LabTestsViewModel.kt').read_text()
+          ops=(src/'com/example/ui/OperationsV14Dialog.kt').read_text()
+          boot=(src/'com/example/notifications/LabOrderBootReceiver.kt').read_text()
+          scheduler=(src/'com/example/notifications/AutoBackupScheduler.kt').read_text()
+          notify=(src/'com/example/notifications/BackupNotificationManager.kt').read_text()
+          creds=(src/'com/example/util/AutoBackupCredentialStore.kt').read_text()
+          storage=(src/'com/example/util/AutoBackupStorage.kt').read_text()
+          backup=(src/'com/example/util/CommercialBackupManager.kt').read_text()
+          allkt='\n'.join(p.read_text(errors='ignore') for p in src.rglob('*.kt'))
+          tracked=subprocess.check_output(['git','diff','--name-only'], text=True).splitlines()
+          untracked=subprocess.check_output(['git','ls-files','--others','--exclude-standard'], text=True).splitlines()
+          changed={x.strip() for x in tracked+untracked if x.strip()}
+          allowed={
+              'app/build.gradle.kts',
+              'app/src/main/AndroidManifest.xml',
+              'app/src/main/java/com/example/MainActivity.kt',
+              'app/src/main/java/com/example/notifications/LabOrderBootReceiver.kt',
+              'app/src/main/java/com/example/notifications/AutoBackupScheduler.kt',
+              'app/src/main/java/com/example/notifications/BackupNotificationManager.kt',
+              'app/src/main/java/com/example/ui/LabTestsViewModel.kt',
+              'app/src/main/java/com/example/ui/OperationsV14Dialog.kt',
+              'app/src/main/java/com/example/util/AutoBackupCredentialStore.kt',
+              'app/src/main/java/com/example/util/AutoBackupStorage.kt',
+              'V137_AUTO_BACKUP_NOTES.txt',
+          }
+          checks={
+              'V137 version':'versionCode = 137' in grad and '5.57-auto-backup-v137' in grad,
+              'same package':'applicationId = "com.aistudio.labtestsdirectory.egypt"' in grad,
+              'only V137 scope changed':changed == allowed,
+              'daily 4am schedule':'FOUR_AM_HOUR = 4' in scheduler and 'set(Calendar.MINUTE, 0)' in scheduler and 'Calendar.DAY_OF_YEAR' in scheduler,
+              'exact alarm with safe fallback':'setExactAndAllowWhileIdle' in scheduler and 'setAndAllowWhileIdle' in scheduler and 'canScheduleExactAlarms()' in scheduler,
+              'exact alarm access declared and requested':'android.permission.SCHEDULE_EXACT_ALARM' in manifest and 'ACTION_REQUEST_SCHEDULE_EXACT_ALARM' in scheduler,
+              'network-aware background job':'AutoBackupJobService' in scheduler and 'JobInfo.NETWORK_TYPE_ANY' in scheduler,
+              'manager-only automatic backup':'LabTestsViewModel.isManagerAccount' in scheduler,
+              'background App Check':'PlayIntegrityAppCheckProviderFactory' in scheduler,
+              'phone-local backup folder':'MediaStore.Downloads.EXTERNAL_CONTENT_URI' in storage and 'Tahalil Alakkad/Backups' in storage and '.tahbak' in storage,
+              'auto password protected by Keystore':'AndroidKeyStore' in creds and 'AES/GCM/NoPadding' in creds and 'savePassword' in vm,
+              'backup start notification':'notifyBackupStarted' in scheduler and 'جاري إنشاء النسخة الاحتياطية' in notify,
+              'backup completion notification':'notifyBackupCompleted' in scheduler and 'تم حفظ النسخة الاحتياطية ✓' in notify,
+              'backup failure notification':'notifyBackupFailed' in scheduler,
+              'restore start notification':'notifyRestoreStarted' in vm and 'جاري استعادة نسخة احتياطية' in notify,
+              'restore success notification':'notifyRestoreCompleted' in vm and 'تم استعادة النسخة الاحتياطية ✓' in notify,
+              'restore failure notification':'notifyRestoreFailed' in vm,
+              'schedule survives reboot/update':'AutoBackupScheduler.schedule(context)' in boot and 'AutoBackupScheduler.schedule(this)' in main,
+              'manual backup enables automatic':'AutoBackupCredentialStore.savePassword' in vm and 'النسخ التلقائي الساعة 4:00 ص مفعّل' in vm,
+              'exact access prompt after file save':'requestExactAlarmAccessOnce(context)' in ops,
+              'V136 restore popup preserved':'showRestoreDone' in ops and 'تم الاسترجاع ✓' in ops,
+              'V135 missing-only restore preserved':'if (!snapshot.exists()) missing += write' in backup and 'write.ref.get(Source.SERVER)' in backup,
+              'no Firebase rules edits':not any('firestore.rules' in x.lower() for x in changed),
+              'Firebase preserved':'FirebaseFirestore' in allkt and 'FirebaseAuth' in allkt,
+              'Supabase preserved':'tahalil-shadow-mirror' in allkt and 'tahalil-recovery-probe' in allkt,
+              'offline preserved':'OfflineAccessVault' in allkt,
+              'results preserved':'saveResultToDownloads' in allkt and 'requestResultRevision' in allkt,
+              'order notifications preserved':'class OrderRealtimeNotificationService' in allkt,
+              'credential reset preserved':'resetUserLoginCredentials' in allkt and 'sendPasswordResetEmail' not in allkt,
+              'no Cloudflare':'cloudflare' not in allkt.lower() and 'workers.dev' not in allkt.lower(),
+              'no Supabase secret':all(x not in allkt for x in ['SUPABASE_SERVICE_ROLE_KEY','SUPABASE_SECRET_KEYS','sb_secret_','BEGIN PRIVATE KEY']),
+          }
+          for k,v in checks.items(): print(('OK   ' if v else 'FAIL ')+k)
+          bad=[k for k,v in checks.items() if not v]
+          if bad: raise SystemExit('V137 AUDIT FAILED: '+', '.join(bad))
+          print('ALL V137 AUTO BACKUP CHECKS PASSED')
+          PYAUDIT
+
+      - name: Publish immutable V137 source branch
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          BRANCH="v137-auto-backup-base"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$BRANCH"
+          git add app/build.gradle.kts app/src/main/AndroidManifest.xml app/src/main/java/com/example/MainActivity.kt app/src/main/java/com/example/notifications/LabOrderBootReceiver.kt app/src/main/java/com/example/notifications/AutoBackupScheduler.kt app/src/main/java/com/example/notifications/BackupNotificationManager.kt app/src/main/java/com/example/ui/LabTestsViewModel.kt app/src/main/java/com/example/ui/OperationsV14Dialog.kt app/src/main/java/com/example/util/AutoBackupCredentialStore.kt app/src/main/java/com/example/util/AutoBackupStorage.kt V137_AUTO_BACKUP_NOTES.txt
+          git commit -m "V137 daily 4AM local backup and restore notifications"
+          COMMIT_SHA="$(git rev-parse HEAD)"
+          if git ls-remote --exit-code --heads origin "$BRANCH" >/dev/null 2>&1; then
+            git fetch -q origin "$BRANCH"
+            LOCAL_TREE="$(git rev-parse HEAD^{tree})"
+            REMOTE_TREE="$(git rev-parse FETCH_HEAD^{tree})"
+            if [ "$LOCAL_TREE" != "$REMOTE_TREE" ]; then
+              echo "::error::Existing $BRANCH differs; refusing to overwrite it."
+              exit 1
+            fi
+            COMMIT_SHA="$(git rev-parse FETCH_HEAD)"
+          else
+            git push origin "HEAD:refs/heads/$BRANCH"
+          fi
+          echo "V137_COMMIT_SHA=$COMMIT_SHA" >> "$GITHUB_ENV"
+
+      - name: Restore original Android signing identity
+        shell: bash
+        env:
+          SIGNING_BUNDLE_B64: ${{ secrets.TAHALIL_SIGNING_BUNDLE_B64 }}
+        run: |
+          set -euo pipefail
+          test -n "${SIGNING_BUNDLE_B64:-}"
+          SIGN_DIR="$RUNNER_TEMP/tahalil_v137_signing"
+          rm -rf "$SIGN_DIR" && mkdir -p "$SIGN_DIR/files"
+          printf '%s' "$SIGNING_BUNDLE_B64" | tr -d '\r\n ' | base64 --decode > "$SIGN_DIR/bundle.bin"
+          if unzip -t "$SIGN_DIR/bundle.bin" >/dev/null 2>&1; then
+            unzip -q "$SIGN_DIR/bundle.bin" -d "$SIGN_DIR/files"
+          else
+            cp "$SIGN_DIR/bundle.bin" "$SIGN_DIR/files/original.keystore"
+          fi
+          KEYSTORE="$(find "$SIGN_DIR/files" -type f \( -iname '*.jks' -o -iname '*.keystore' \) -print -quit)"
+          test -n "$KEYSTORE"
+          STORE_PASSWORD=""; KEY_ALIAS=""; KEY_PASSWORD=""
+          while IFS= read -r META; do
+            [ -f "$META" ] || continue
+            [ -n "$STORE_PASSWORD" ] || STORE_PASSWORD="$(sed -nE 's/^[[:space:]]*(STORE_PASSWORD|KEYSTORE_PASSWORD|storePassword|store_password)[[:space:]]*[:=][[:space:]]*"?([^"#]+)"?[[:space:]]*$/\2/p' "$META" | head -1 | xargs || true)"
+            [ -n "$KEY_ALIAS" ] || KEY_ALIAS="$(sed -nE 's/^[[:space:]]*(KEY_ALIAS|keyAlias|key_alias)[[:space:]]*[:=][[:space:]]*"?([^"#]+)"?[[:space:]]*$/\2/p' "$META" | head -1 | xargs || true)"
+            [ -n "$KEY_PASSWORD" ] || KEY_PASSWORD="$(sed -nE 's/^[[:space:]]*(KEY_PASSWORD|keyPassword|key_password)[[:space:]]*[:=][[:space:]]*"?([^"#]+)"?[[:space:]]*$/\2/p' "$META" | head -1 | xargs || true)"
+          done < <(find "$SIGN_DIR/files" -type f \( -iname '*.properties' -o -iname '*.env' -o -iname '*.txt' \) -print)
+          if [ -z "$STORE_PASSWORD" ] && keytool -list -keystore "$KEYSTORE" -storepass android >/dev/null 2>&1; then STORE_PASSWORD=android; fi
+          test -n "$STORE_PASSWORD"
+          [ -n "$KEY_ALIAS" ] || KEY_ALIAS="$(keytool -list -v -keystore "$KEYSTORE" -storepass "$STORE_PASSWORD" 2>/dev/null | sed -n 's/^Alias name: //p' | head -1)"
+          test -n "$KEY_ALIAS"
+          [ -n "$KEY_PASSWORD" ] || KEY_PASSWORD="$STORE_PASSWORD"
+          keytool -list -keystore "$KEYSTORE" -storepass "$STORE_PASSWORD" -alias "$KEY_ALIAS" >/dev/null
+          echo "::add-mask::$STORE_PASSWORD"
+          echo "::add-mask::$KEY_ALIAS"
+          echo "::add-mask::$KEY_PASSWORD"
+          {
+            echo "KEYSTORE_PATH=$KEYSTORE"
+            echo "STORE_PASSWORD=$STORE_PASSWORD"
+            echo "KEY_ALIAS=$KEY_ALIAS"
+            echo "KEY_PASSWORD=$KEY_PASSWORD"
+          } >> "$GITHUB_ENV"
+
+      - name: Build signed Android V137
+        shell: bash
+        run: |
+          set -euo pipefail
+          gradle --no-daemon --no-configuration-cache --no-parallel --max-workers=2 :app:assembleRelease
+
+      - name: Verify APK signature and package
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="$(find app/build/outputs/apk/release -type f -name '*.apk' -print -quit)"
+          test -n "$APK" && test -s "$APK"
+          APKSIGNER="$ANDROID_HOME/build-tools/35.0.0/apksigner"
+          "$APKSIGNER" verify --verbose --print-certs "$APK"
+          cp "$APK" Tahalil-Alakkad-V137-Auto-Backup-Android-SIGNED.apk
+          sha256sum Tahalil-Alakkad-V137-Auto-Backup-Android-SIGNED.apk > Tahalil-Alakkad-V137-Auto-Backup-Android-SIGNED.apk.sha256
+
+      - name: Publish V137 release directly
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if gh release view v137 >/dev/null 2>&1; then
+            echo "::error::Release v137 already exists. Refusing to overwrite it."
+            exit 1
+          fi
+          gh release create v137 \
+            Tahalil-Alakkad-V137-Auto-Backup-Android-SIGNED.apk \
+            Tahalil-Alakkad-V137-Auto-Backup-Android-SIGNED.apk.sha256 \
+            --target "$V137_COMMIT_SHA" \
+            --title "تحاليل العقاد V137 — Auto Backup" \
+            --notes "V137 adds a daily encrypted local backup scheduled for 04:00, phone storage under Download/Tahalil Alakkad/Backups, backup start/completion/failure notifications, restore start/completion/failure notifications, reboot/update rescheduling, Android Keystore protection for the automatic-backup password, and exact-alarm support with safe fallback. Firebase Rules are unchanged."
+
+      - name: Final status
+        shell: bash
+        run: |
+          echo "V137 Auto Backup built, signed, source-pinned and released."
