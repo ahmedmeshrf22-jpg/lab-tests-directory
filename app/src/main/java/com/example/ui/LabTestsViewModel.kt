@@ -33,6 +33,7 @@ import com.example.settings.FirestorePerformance
 import com.example.settings.PendingSyncStore
 import com.example.settings.OfflineAccessVault
 import com.example.resilience.ShadowBackupReplicator
+import com.example.resilience.EmergencyFailoverClient
 import com.example.settings.tr
 import com.example.util.CommercialBackupManager
 import com.example.util.AutoBackupCredentialStore
@@ -1871,6 +1872,27 @@ class LabTestsViewModel(application: Application) : AndroidViewModel(application
                     managerPricesLoaded = true
                 }
             }
+            .addOnFailureListener {
+                EmergencyFailoverClient.fetch(
+                    getApplication<Application>(),
+                    entityType = "lab2lab_price",
+                    prefix = "lab2lab_prices/"
+                ) { result ->
+                    if (!hasAdminAccess() || !result.ok) return@fetch
+                    val prices = mutableMapOf<Int, String>()
+                    result.documents.forEach { doc ->
+                        val f = doc.fields
+                        val id = documentTestId(doc.id, shadowLong(f, "id").toInt().takeIf { it > 0 }) ?: return@forEach
+                        val value = f["lab_to_lab_price"] ?: f["lab2lab_price"] ?: f["labToLabPrice"] ?: f["price"] ?: return@forEach
+                        formatFirestorePrice(value)?.takeIf { it.isNotBlank() }?.let { prices[id] = it }
+                    }
+                    if (prices.isNotEmpty()) {
+                        _lab2LabPrices.value = _lab2LabPrices.value + prices
+                        managerPricesLoaded = true
+                        noteEmergencyRead()
+                    }
+                }
+            }
     }
 
     private fun loadCustomerPriceOverrides() {
@@ -1896,16 +1918,45 @@ class LabTestsViewModel(application: Application) : AndroidViewModel(application
             customerOverridesLoaded = true
         }
 
+        fun applyFailover() {
+            EmergencyFailoverClient.fetch(
+                getApplication<Application>(),
+                entityType = "customer_price",
+                prefix = "customer_price_overrides/"
+            ) { result ->
+                if (!result.ok) return@fetch
+                val prices = mutableMapOf<Int, String>()
+                result.documents.forEach { doc ->
+                    val f = doc.fields
+                    val id = documentTestId(doc.id, shadowLong(f, "id").toInt().takeIf { it > 0 }) ?: return@forEach
+                    val value = f["customer_price"] ?: f["customerPrice"] ?: f["price"] ?: return@forEach
+                    formatFirestorePrice(value)?.takeIf { it.isNotBlank() }?.let { prices[id] = it }
+                }
+                if (prices.isNotEmpty()) {
+                    _customerPriceOverrides.value = prices
+                    customerOverridesLoaded = true
+                    noteEmergencyRead()
+                }
+            }
+        }
+
         val ref = firestore.collection(CUSTOMER_OVERRIDES_COLLECTION)
         if (_isOnline.value) {
             ref.get(Source.SERVER)
                 .addOnSuccessListener(::applySnapshot)
                 .addOnFailureListener {
-                    // Server-first, then persistent cache so counter pricing remains usable during outages.
-                    ref.get(Source.CACHE).addOnSuccessListener(::applySnapshot)
+                    ref.get(Source.CACHE)
+                        .addOnSuccessListener { cached ->
+                            if (cached.documents.isNotEmpty()) applySnapshot(cached) else applyFailover()
+                        }
+                        .addOnFailureListener { applyFailover() }
                 }
         } else {
-            ref.get(Source.CACHE).addOnSuccessListener(::applySnapshot)
+            ref.get(Source.CACHE)
+                .addOnSuccessListener { cached ->
+                    if (cached.documents.isNotEmpty()) applySnapshot(cached) else applyFailover()
+                }
+                .addOnFailureListener { applyFailover() }
         }
     }
 
@@ -2767,15 +2818,42 @@ class LabTestsViewModel(application: Application) : AndroidViewModel(application
             onResult?.invoke(true, tr("تم تحديث متابعة الطلبات", "Order tracking refreshed") + suffix)
         }
 
+        fun applyFailover() {
+            EmergencyFailoverClient.fetch(
+                getApplication<Application>(),
+                entityType = "order",
+                prefix = "customers/"
+            ) { result ->
+                val shadow = if (result.ok) {
+                    result.documents.mapNotNull { parseOrderShadow(it) }
+                        .filter { it.createdAtMillis >= startTrackingWindow }
+                        .filterNot { it.isVoided }
+                        .distinctBy { it.id }
+                        .sortedByDescending { it.createdAtMillis }
+                } else emptyList()
+                if (shadow.isNotEmpty()) {
+                    _dailyOrders.value = shadow
+                    _dailyOrdersLoading.value = false
+                    noteEmergencyRead()
+                    onResult?.invoke(true, tr("وضع الطوارئ • تم تحميل متابعة الطلبات من النسخة الاحتياطية", "Emergency mode • order tracking loaded from backup"))
+                } else {
+                    _dailyOrdersLoading.value = false
+                    onResult?.invoke(false, tr("تعذر تحميل متابعة الطلبات", "Unable to load order tracking"))
+                }
+            }
+        }
+
         query.get(if (_isOnline.value) Source.SERVER else Source.CACHE)
-            .addOnSuccessListener { apply(it, !_isOnline.value) }
+            .addOnSuccessListener { snapshot ->
+                if (snapshot.documents.isNotEmpty() || _isOnline.value) apply(snapshot, !_isOnline.value)
+                else applyFailover()
+            }
             .addOnFailureListener {
                 query.get(Source.CACHE)
-                    .addOnSuccessListener { cached -> apply(cached, true) }
-                    .addOnFailureListener {
-                        _dailyOrdersLoading.value = false
-                        onResult?.invoke(false, tr("تعذر تحميل متابعة الطلبات", "Unable to load order tracking"))
+                    .addOnSuccessListener { cached ->
+                        if (cached.documents.isNotEmpty()) apply(cached, true) else applyFailover()
                     }
+                    .addOnFailureListener { applyFailover() }
             }
     }
 
@@ -2817,15 +2895,45 @@ class LabTestsViewModel(application: Application) : AndroidViewModel(application
             )
         }
 
+        fun applyFailover() {
+            EmergencyFailoverClient.fetch(
+                getApplication<Application>(),
+                entityType = "order",
+                prefix = "customers/"
+            ) { result ->
+                val shadow = if (result.ok) {
+                    result.documents.mapNotNull { parseOrderShadow(it) }
+                        .filter { it.createdAtMillis in safeStart..safeEnd }
+                        .distinctBy { it.id }
+                        .sortedByDescending { it.updatedAtMillis.takeIf { value -> value > 0L } ?: it.createdAtMillis }
+                } else emptyList()
+                if (result.ok) {
+                    _orderArchive.value = shadow
+                    _orderArchiveLoading.value = false
+                    noteEmergencyRead()
+                    onResult?.invoke(
+                        true,
+                        if (shadow.isEmpty()) tr("لا توجد طلبات في الفترة المحددة", "No orders in the selected period")
+                        else tr("وضع الطوارئ • تم تحميل سجل الطلبات من النسخة الاحتياطية", "Emergency mode • order history loaded from backup")
+                    )
+                } else {
+                    _orderArchiveLoading.value = false
+                    onResult?.invoke(false, tr("تعذر تحميل سجل الطلبات", "Unable to load order history"))
+                }
+            }
+        }
+
         query.get(if (_isOnline.value) Source.SERVER else Source.CACHE)
-            .addOnSuccessListener { apply(it, !_isOnline.value) }
+            .addOnSuccessListener { snapshot ->
+                if (snapshot.documents.isNotEmpty() || _isOnline.value) apply(snapshot, !_isOnline.value)
+                else applyFailover()
+            }
             .addOnFailureListener {
                 query.get(Source.CACHE)
-                    .addOnSuccessListener { cached -> apply(cached, true) }
-                    .addOnFailureListener { error ->
-                        _orderArchiveLoading.value = false
-                        onResult?.invoke(false, error.localizedMessage ?: tr("تعذر تحميل سجل الطلبات", "Unable to load order history"))
+                    .addOnSuccessListener { cached ->
+                        if (cached.documents.isNotEmpty()) apply(cached, true) else applyFailover()
                     }
+                    .addOnFailureListener { applyFailover() }
             }
     }
 
@@ -2850,7 +2958,20 @@ class LabTestsViewModel(application: Application) : AndroidViewModel(application
                 }
             }
             .addOnFailureListener {
-                onResult(null, tr("تعذر تحميل بيانات العميل", "Unable to load customer data"))
+                EmergencyFailoverClient.fetch(
+                    getApplication<Application>(),
+                    entityType = "customer",
+                    prefix = "customers/"
+                ) { result ->
+                    val customer = result.documents.firstOrNull { it.id == customerId }?.let(::parseCustomerShadow)
+                    if (customer != null) {
+                        _customers.value = listOf(customer) + _customers.value.filterNot { it.id == customer.id }
+                        noteEmergencyRead()
+                        onResult(customer, tr("وضع الطوارئ • تم فتح ملف العميل من النسخة الاحتياطية", "Emergency mode • customer opened from backup"))
+                    } else {
+                        onResult(null, tr("تعذر تحميل بيانات العميل", "Unable to load customer data"))
+                    }
+                }
             }
     }
 
@@ -2878,23 +2999,61 @@ class LabTestsViewModel(application: Application) : AndroidViewModel(application
             )
         }
 
+        fun applyFailover(fallbackMessageOnFailure: String? = null) {
+            EmergencyFailoverClient.fetch(
+                getApplication<Application>(),
+                entityType = "customer",
+                prefix = "customers/"
+            ) { result ->
+                val shadowCustomers = if (result.ok) {
+                    result.documents.mapNotNull(::parseCustomerShadow)
+                        .sortedByDescending { it.updatedAtMillis.takeIf { value -> value > 0 } ?: it.createdAtMillis }
+                } else emptyList()
+                if (shadowCustomers.isNotEmpty()) {
+                    _customers.value = shadowCustomers
+                    _customersLoading.value = false
+                    noteEmergencyRead()
+                    onResult?.invoke(
+                        true,
+                        tr("وضع الطوارئ • تم تحميل العملاء من النسخة الاحتياطية", "Emergency mode • customers loaded from backup")
+                    )
+                } else {
+                    _customersLoading.value = false
+                    onResult?.invoke(
+                        false,
+                        fallbackMessageOnFailure ?: tr(
+                            "تعذر تحميل العملاء من السيرفر أو النسخة المحلية أو النظام الاحتياطي",
+                            "Unable to load customers from server, local cache, or backup"
+                        )
+                    )
+                }
+            }
+        }
+
         if (_isOnline.value) {
             query.get(Source.SERVER)
                 .addOnSuccessListener { applySnapshot(it, false) }
                 .addOnFailureListener {
                     query.get(Source.CACHE)
-                        .addOnSuccessListener { cached -> applySnapshot(cached, true) }
+                        .addOnSuccessListener { cached ->
+                            if (cached.documents.isNotEmpty()) {
+                                applySnapshot(cached, true)
+                            } else {
+                                applyFailover()
+                            }
+                        }
                         .addOnFailureListener {
-                            _customersLoading.value = false
-                            onResult?.invoke(false, tr("تعذر تحميل العملاء من السيرفر أو النسخة المحلية", "Unable to load customers from server or local cache"))
+                            applyFailover()
                         }
                 }
         } else {
             query.get(Source.CACHE)
-                .addOnSuccessListener { applySnapshot(it, true) }
+                .addOnSuccessListener { cached ->
+                    if (cached.documents.isNotEmpty()) applySnapshot(cached, true)
+                    else applyFailover(tr("لا توجد نسخة محلية أو احتياطية متاحة للعملاء", "No local or backup customer data is available"))
+                }
                 .addOnFailureListener {
-                    _customersLoading.value = false
-                    onResult?.invoke(false, tr("لا توجد نسخة محلية متاحة للعملاء", "No local customer cache is available"))
+                    applyFailover(tr("لا توجد نسخة محلية أو احتياطية متاحة للعملاء", "No local or backup customer data is available"))
                 }
         }
     }
@@ -3026,6 +3185,138 @@ class LabTestsViewModel(application: Application) : AndroidViewModel(application
             blacklistedAtMillis = doc.getLong("blacklisted_at_ms") ?: 0L,
             isArchived = doc.getBoolean("is_archived") ?: false,
             archivedAtMillis = doc.getLong("archived_at_ms") ?: 0L
+        )
+    }
+
+
+    private fun shadowString(fields: Map<String, Any?>, key: String): String =
+        fields[key]?.toString().orEmpty()
+
+    private fun shadowLong(fields: Map<String, Any?>, key: String): Long = when (val v = fields[key]) {
+        is Number -> v.toLong()
+        is String -> v.toLongOrNull() ?: 0L
+        else -> 0L
+    }
+
+    private fun shadowDouble(fields: Map<String, Any?>, key: String): Double = when (val v = fields[key]) {
+        is Number -> v.toDouble()
+        is String -> v.toDoubleOrNull() ?: 0.0
+        else -> 0.0
+    }
+
+    private fun shadowBoolean(fields: Map<String, Any?>, key: String): Boolean = when (val v = fields[key]) {
+        is Boolean -> v
+        is String -> v.equals("true", ignoreCase = true)
+        else -> false
+    }
+
+    private fun parseCustomerShadow(doc: EmergencyFailoverClient.ShadowDocument): Customer? {
+        val f = doc.fields
+        val name = shadowString(f, "name").trim()
+        if (name.isBlank()) return null
+        val tags = (f["tags"] as? List<*>)?.mapNotNull { it?.toString()?.trim()?.takeIf(String::isNotBlank) } ?: emptyList()
+        return Customer(
+            id = doc.id,
+            fileNumber = shadowString(f, "file_number"),
+            name = name,
+            phone = shadowString(f, "phone"),
+            alternatePhone = shadowString(f, "alternate_phone"),
+            age = shadowString(f, "age"),
+            birthDate = shadowString(f, "birth_date"),
+            gender = shadowString(f, "gender"),
+            address = shadowString(f, "address"),
+            notes = shadowString(f, "notes"),
+            importantAlert = shadowString(f, "important_alert"),
+            tags = tags,
+            defaultDiscountPercent = shadowDouble(f, "default_discount_percent").coerceIn(0.0, 100.0),
+            createdAtMillis = shadowLong(f, "created_at_ms"),
+            updatedAtMillis = shadowLong(f, "updated_at_ms").takeIf { it > 0L } ?: doc.updatedAtMillis,
+            createdByUid = shadowString(f, "created_by_uid"),
+            updatedByUid = shadowString(f, "updated_by_uid"),
+            isBlacklisted = shadowBoolean(f, "is_blacklisted"),
+            blacklistReason = shadowString(f, "blacklist_reason"),
+            blacklistedAtMillis = shadowLong(f, "blacklisted_at_ms"),
+            isArchived = shadowBoolean(f, "is_archived"),
+            archivedAtMillis = shadowLong(f, "archived_at_ms")
+        )
+    }
+
+    private fun parseOrderShadow(
+        doc: EmergencyFailoverClient.ShadowDocument,
+        fallbackCustomerId: String = ""
+    ): CustomerOrder? {
+        val f = doc.fields
+        val rawItems = f["items"] as? List<*> ?: emptyList<Any>()
+        val items = rawItems.mapNotNull { raw ->
+            val map = raw as? Map<*, *> ?: return@mapNotNull null
+            val testId = when (val v = map["test_id"]) {
+                is Number -> v.toInt()
+                is String -> v.toIntOrNull()
+                else -> null
+            } ?: return@mapNotNull null
+            CustomerOrderItem(
+                testId = testId,
+                englishName = map["english_name"]?.toString().orEmpty(),
+                arabicName = map["arabic_name"]?.toString().orEmpty(),
+                marketName = map["market_name"]?.toString().orEmpty(),
+                customerPrice = when (val v = map["customer_price"]) {
+                    is Number -> v.toDouble()
+                    is String -> v.toDoubleOrNull() ?: 0.0
+                    else -> 0.0
+                }
+            )
+        }
+        val finalTotal = shadowDouble(f, "total_customer_price")
+        val subtotalRaw = shadowDouble(f, "subtotal_customer_price")
+        val subtotal = subtotalRaw.takeIf { it > 0.0 } ?: finalTotal
+        val discountRaw = shadowDouble(f, "discount_amount")
+        val discount = discountRaw.takeIf { it > 0.0 } ?: (subtotal - finalTotal).coerceAtLeast(0.0)
+        val status = shadowString(f, "payment_status").ifBlank { "unpaid" }
+        val paidRaw = shadowDouble(f, "paid_amount")
+        val paid = paidRaw.takeIf { it > 0.0 } ?: if (status == "paid") finalTotal else 0.0
+        val remaining = if (f.containsKey("remaining_amount")) {
+            shadowDouble(f, "remaining_amount").coerceAtLeast(0.0)
+        } else {
+            (finalTotal - paid).coerceAtLeast(0.0)
+        }
+        return CustomerOrder(
+            id = doc.id,
+            orderNumber = shadowString(f, "order_number"),
+            customerId = shadowString(f, "customer_id").ifBlank { fallbackCustomerId },
+            customerFileNumber = shadowString(f, "customer_file_number"),
+            customerName = shadowString(f, "customer_name"),
+            customerPhone = shadowString(f, "customer_phone"),
+            customerAge = shadowString(f, "customer_age"),
+            customerGender = shadowString(f, "customer_gender"),
+            items = items,
+            subtotalCustomerPrice = subtotal,
+            discountAmount = discount,
+            discountPercent = shadowDouble(f, "discount_percent").takeIf { it > 0.0 }
+                ?: if (subtotal > 0.0) (discount / subtotal) * 100.0 else 0.0,
+            totalCustomerPrice = finalTotal,
+            paymentStatus = status,
+            workflowStatus = shadowString(f, "workflow_status").ifBlank { "new" },
+            paidAmount = paid.coerceAtMost(finalTotal.coerceAtLeast(paid)),
+            remainingAmount = remaining,
+            notes = shadowString(f, "notes"),
+            createdAtMillis = shadowLong(f, "created_at_ms"),
+            createdByUid = shadowString(f, "created_by_uid"),
+            createdByEmail = shadowString(f, "created_by_email"),
+            updatedAtMillis = shadowLong(f, "updated_at_ms").takeIf { it > 0L } ?: doc.updatedAtMillis,
+            updatedByUid = shadowString(f, "updated_by_uid"),
+            editCount = shadowLong(f, "edit_count").toInt(),
+            isVoided = shadowBoolean(f, "is_voided"),
+            voidReason = shadowString(f, "void_reason"),
+            resultUrls = (f["result_urls"] as? List<*>)?.mapNotNull { it?.toString() } ?: emptyList(),
+            resultNames = (f["result_names"] as? List<*>)?.mapNotNull { it?.toString() } ?: emptyList(),
+            resultSentAtMillis = shadowLong(f, "result_sent_at_ms")
+        )
+    }
+
+    private fun noteEmergencyRead() {
+        _systemMessage.value = tr(
+            "وضع الطوارئ: تم تحميل البيانات من النظام الاحتياطي",
+            "Emergency mode: data loaded from the backup system"
         )
     }
 
@@ -3599,17 +3890,35 @@ class LabTestsViewModel(application: Application) : AndroidViewModel(application
 
         customerOrdersListener = query.addSnapshotListener { snapshot, error ->
             if (error != null) {
-                if (!_isOnline.value) {
-                    query.get(Source.CACHE)
-                        .addOnSuccessListener { cached ->
-                            _customerOrders.value = cached.documents.mapNotNull { parseOrder(it, customerId) }
+                fun loadShadowOrders() {
+                    EmergencyFailoverClient.fetch(
+                        getApplication<Application>(),
+                        entityType = "order",
+                        prefix = "customers/$customerId/orders/"
+                    ) { result ->
+                        val shadow = if (result.ok) {
+                            result.documents.mapNotNull { parseOrderShadow(it, customerId) }
                                 .sortedByDescending { it.createdAtMillis }
-                            _customerOrdersLoading.value = false
+                        } else emptyList()
+                        if (shadow.isNotEmpty()) {
+                            _customerOrders.value = shadow
+                            noteEmergencyRead()
                         }
-                        .addOnFailureListener { _customerOrdersLoading.value = false }
-                } else {
-                    _customerOrdersLoading.value = false
+                        _customerOrdersLoading.value = false
+                    }
                 }
+                query.get(Source.CACHE)
+                    .addOnSuccessListener { cached ->
+                        val local = cached.documents.mapNotNull { parseOrder(it, customerId) }
+                            .sortedByDescending { it.createdAtMillis }
+                        if (local.isNotEmpty()) {
+                            _customerOrders.value = local
+                            _customerOrdersLoading.value = false
+                        } else {
+                            loadShadowOrders()
+                        }
+                    }
+                    .addOnFailureListener { loadShadowOrders() }
                 return@addSnapshotListener
             }
             if (snapshot != null) {
@@ -4103,6 +4412,29 @@ class LabTestsViewModel(application: Application) : AndroidViewModel(application
             onResult?.invoke(true, if (_labOrders.value.isEmpty()) "لا توجد طلبات للمعمل" else "تم تحديث الطلبات")
         }
 
+        fun applyFailover() {
+            EmergencyFailoverClient.fetch(
+                getApplication<Application>(),
+                entityType = "lab_order",
+                prefix = "lab_orders/"
+            ) { result ->
+                val shadow = if (result.ok) {
+                    result.documents.mapNotNull { parseOrderShadow(it) }
+                        .sortedByDescending { it.updatedAtMillis.takeIf { value -> value > 0L } ?: it.createdAtMillis }
+                        .take(REALTIME_ORDER_LIMIT.toInt())
+                } else emptyList()
+                if (result.ok) {
+                    _labOrders.value = shadow
+                    _labOrdersLoading.value = false
+                    noteEmergencyRead()
+                    onResult?.invoke(true, if (shadow.isEmpty()) "لا توجد طلبات احتياطية للمعمل" else "وضع الطوارئ • تم تحميل طلبات المعمل من النسخة الاحتياطية")
+                } else {
+                    _labOrdersLoading.value = false
+                    onResult?.invoke(false, "تعذر تحميل طلبات المعمل")
+                }
+            }
+        }
+
         firestore.collection(LAB_ORDERS_COLLECTION)
             .orderBy("updated_at_ms", Query.Direction.DESCENDING)
             .limit(REALTIME_ORDER_LIMIT)
@@ -4111,12 +4443,11 @@ class LabTestsViewModel(application: Application) : AndroidViewModel(application
             .addOnFailureListener {
                 firestore.collection(LAB_ORDERS_COLLECTION)
                     .limit(REALTIME_ORDER_LIMIT)
-                    .get(Source.SERVER)
-                    .addOnSuccessListener(::apply)
-                    .addOnFailureListener { error ->
-                        _labOrdersLoading.value = false
-                        onResult?.invoke(false, error.localizedMessage ?: "تعذر تحميل طلبات المعمل")
+                    .get(Source.CACHE)
+                    .addOnSuccessListener { cached ->
+                        if (cached.documents.isNotEmpty()) apply(cached) else applyFailover()
                     }
+                    .addOnFailureListener { applyFailover() }
             }
     }
 
@@ -4140,8 +4471,7 @@ class LabTestsViewModel(application: Application) : AndroidViewModel(application
                 .limit(REALTIME_ORDER_LIMIT)
                 .addSnapshotListener { snapshot, error ->
                     if (error != null || snapshot == null) {
-                        _labOrdersLoading.value = false
-                        onResult?.invoke(false, error?.localizedMessage ?: "تعذر متابعة طلبات المعمل")
+                        loadLabOrders(onResult)
                         return@addSnapshotListener
                     }
                     applyLabRealtimeSnapshot(snapshot)

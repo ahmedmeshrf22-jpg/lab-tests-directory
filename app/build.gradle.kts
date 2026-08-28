@@ -20,8 +20,8 @@ android {
     applicationId = "com.aistudio.labtestsdirectory.egypt"
     minSdk = 24
     targetSdk = 36
-    versionCode = 137
-    versionName = "5.57-auto-backup-v137"
+    versionCode = 138
+    versionName = "5.58-safe-failover-v138"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
