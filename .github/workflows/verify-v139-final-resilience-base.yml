@@ -1,0 +1,92 @@
+name: Verify Tahalil Alakkad V139 Final Base
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-v139:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout existing V139 final base
+        uses: actions/checkout@v4
+        with:
+          ref: v139-final-resilience-base
+          fetch-depth: 1
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Gradle 8.11.1
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+
+      - name: Verify V139 final source
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 <<'PY'
+          from pathlib import Path
+
+          src = Path("app/src/main/java")
+          grad = Path("app/build.gradle.kts").read_text()
+          main = (src/"com/example/MainActivity.kt").read_text()
+          vm = (src/"com/example/ui/LabTestsViewModel.kt").read_text()
+          fail = (src/"com/example/resilience/EmergencyFailoverClient.kt").read_text()
+          result = (src/"com/example/resilience/ResultFailoverClient.kt").read_text()
+          reconcile = (src/"com/example/resilience/ShadowReconciliationClient.kt").read_text()
+          store = (src/"com/example/backend/FirestoreResultFileStore.kt").read_text()
+          scheduler = (src/"com/example/notifications/AutoBackupScheduler.kt").read_text()
+          backup = (src/"com/example/util/CommercialBackupManager.kt").read_text()
+          allkt = "\n".join(p.read_text(errors="ignore") for p in src.rglob("*.kt"))
+
+          checks = {
+              "V139 version": 'versionCode = 139' in grad and '5.59-final-resilience-v139' in grad,
+              "same package": 'applicationId = "com.aistudio.labtestsdirectory.egypt"' in grad,
+              "Firebase authoritative": "FirebaseFirestore" in allkt and "FirebaseAuth" in allkt,
+              "V138 DB failover preserved": "tahalil-failover-read" in fail and 'entityType = "customer"' in vm and 'entityType = "order"' in vm,
+              "result failover present": "tahalil-result-failover" in result,
+              "result failover authenticated": "getIdToken(false)" in result and "X-Tahalil-Device" in result,
+              "result integrity": "X-Tahalil-SHA256" in result and "MAX_FILE_BYTES = 6 * 1024 * 1024" in result,
+              "Firebase result first": "PrimaryV139" in store and "ResultFailoverClient.open" in store and '!storedRef.startsWith("fsr:")' in store,
+              "Firestore result integrity preserved": "sha256_hex" in store and "MessageDigest.isEqual" in store and "Base64.decode" in store,
+              "full reconciliation": "tahalil-shadow-reconcile" in reconcile and "SUCCESS_INTERVAL_MS = 24L" in reconcile,
+              "reconciliation hooked": "ShadowBackupReplicator.start" in main and "ShadowReconciliationClient.runIfDue" in main,
+              "V137 4am backup": "FOUR_AM_HOUR = 4" in scheduler and "Tahalil Alakkad/Backups" in allkt,
+              "restore safety": 'if (!snapshot.exists()) missing += write' in backup,
+              "offline vault": "OfflineAccessVault" in allkt,
+              "pending writes": "waitForPendingWrites()" in vm and "PendingSyncStore" in vm,
+              "result functions": "saveResultToDownloads" in allkt and "requestResultRevision" in allkt,
+              "notifications": "class OrderRealtimeNotificationService" in allkt,
+              "no Supabase secret": all(x not in allkt for x in ["SUPABASE_SERVICE_ROLE_KEY","SUPABASE_SECRET_KEYS","sb_secret_","BEGIN PRIVATE KEY"]),
+              "no Cloudflare": "cloudflare" not in allkt.lower() and "workers.dev" not in allkt.lower(),
+          }
+
+          for k,v in checks.items():
+              print(("OK   " if v else "FAIL ") + k)
+
+          bad = [k for k,v in checks.items() if not v]
+          if bad:
+              raise SystemExit("V139 VERIFY FAILED: " + ", ".join(bad))
+
+          print("ALL EXISTING V139 FINAL BASE CHECKS PASSED")
+          PY
+
+      - name: Compile-check existing V139
+        shell: bash
+        run: |
+          set -euo pipefail
+          gradle --no-daemon --no-configuration-cache --no-parallel --max-workers=2 :app:compileReleaseKotlin
+
+      - name: Final status
+        shell: bash
+        run: |
+          echo "Existing V139 Final Resilience base is verified and compile-clean."
