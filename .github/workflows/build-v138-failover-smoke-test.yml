@@ -1,0 +1,199 @@
+name: Build V138 Failover Smoke Test
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: tahalil-v138-failover-smoke-test
+  cancel-in-progress: false
+
+jobs:
+  smoke-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+
+    steps:
+      - name: Checkout verified V138
+        uses: actions/checkout@v4
+        with:
+          ref: v138-safe-failover-base
+          fetch-depth: 1
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Gradle 8.11.1
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+
+      - name: Force customer screen to Supabase failover TEST ONLY
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 <<'PY'
+          from pathlib import Path
+
+          vm = Path("app/src/main/java/com/example/ui/LabTestsViewModel.kt")
+          s = vm.read_text()
+
+          marker = 'fun applyFailover(fallbackMessageOnFailure: String? = null)'
+          pos = s.find(marker)
+          if pos < 0:
+              raise SystemExit("V138 customer failover helper not found")
+
+          gate = '\n        if (_isOnline.value) {'
+          gate_pos = s.find(gate, pos)
+          if gate_pos < 0:
+              raise SystemExit("Customer Firebase gate not found after failover helper")
+
+          inject = (
+              '\n        // V138 FAILOVER SMOKE TEST ONLY: force the real customer UI to read Supabase.\n'
+              '        applyFailover(tr("فشل اختبار التحويل الاحتياطي", "Failover smoke test failed"))\n'
+              '        return\n'
+          )
+          s = s[:gate_pos] + inject + s[gate_pos:]
+          vm.write_text(s)
+
+          grad = Path("app/build.gradle.kts")
+          g = grad.read_text()
+          old = 'versionName = "5.58-safe-failover-v138"'
+          new = 'versionName = "5.58-safe-failover-v138-SMOKE-TEST"'
+          if old not in g:
+              raise SystemExit("V138 versionName not found")
+          g = g.replace(old, new, 1)
+          grad.write_text(g)
+
+          Path("V138_FAILOVER_SMOKE_TEST_ONLY.txt").write_text(
+              "TEMPORARY TEST BUILD ONLY.\n"
+              "The Customers screen is forced to read from tahalil-failover-read / Supabase.\n"
+              "Do not publish as production. Reinstall official V138 after the test.\n"
+          )
+          print("Temporary forced-failover patch applied")
+          PY
+
+      - name: Audit TEST scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 <<'PY'
+          from pathlib import Path
+          import subprocess
+
+          grad = Path("app/build.gradle.kts").read_text()
+          vm = Path("app/src/main/java/com/example/ui/LabTestsViewModel.kt").read_text()
+          allkt = "\n".join(p.read_text(errors="ignore") for p in Path("app/src/main/java").rglob("*.kt"))
+
+          changed = set(subprocess.check_output(["git","diff","--name-only"], text=True).splitlines())
+          changed |= set(subprocess.check_output(["git","ls-files","--others","--exclude-standard"], text=True).splitlines())
+          allowed = {
+              "app/build.gradle.kts",
+              "app/src/main/java/com/example/ui/LabTestsViewModel.kt",
+              "V138_FAILOVER_SMOKE_TEST_ONLY.txt",
+          }
+
+          checks = {
+              "same versionCode 138": 'versionCode = 138' in grad,
+              "clearly test versionName": 'SMOKE-TEST' in grad,
+              "same production package": 'applicationId = "com.aistudio.labtestsdirectory.egypt"' in grad,
+              "only test scope changed": changed == allowed,
+              "forced customer failover": "V138 FAILOVER SMOKE TEST ONLY" in vm and "applyFailover(tr(" in vm,
+              "real Supabase failover client preserved": "tahalil-failover-read" in allkt,
+              "Firebase still present": "FirebaseFirestore" in allkt and "FirebaseAuth" in allkt,
+              "no Supabase secret in APK": all(x not in allkt for x in [
+                  "SUPABASE_SERVICE_ROLE_KEY","SUPABASE_SECRET_KEYS","sb_secret_","BEGIN PRIVATE KEY"
+              ]),
+              "V137 backup preserved": "AutoBackupScheduler" in allkt and "notifyBackupCompleted" in allkt,
+              "no Cloudflare": "cloudflare" not in allkt.lower() and "workers.dev" not in allkt.lower(),
+          }
+          for k,v in checks.items():
+              print(("OK   " if v else "FAIL ")+k)
+          bad = [k for k,v in checks.items() if not v]
+          if bad:
+              raise SystemExit("SMOKE TEST AUDIT FAILED: "+", ".join(bad))
+          print("ALL V138 FAILOVER SMOKE TEST CHECKS PASSED")
+          PY
+
+      - name: Restore original Android signing identity
+        shell: bash
+        env:
+          SIGNING_BUNDLE_B64: ${{ secrets.TAHALIL_SIGNING_BUNDLE_B64 }}
+        run: |
+          set -euo pipefail
+          test -n "${SIGNING_BUNDLE_B64:-}"
+          SIGN_DIR="$RUNNER_TEMP/tahalil_v138_smoke_signing"
+          rm -rf "$SIGN_DIR" && mkdir -p "$SIGN_DIR/files"
+          printf '%s' "$SIGNING_BUNDLE_B64" | tr -d '\r\n ' | base64 --decode > "$SIGN_DIR/bundle.bin"
+
+          if unzip -t "$SIGN_DIR/bundle.bin" >/dev/null 2>&1; then
+            unzip -q "$SIGN_DIR/bundle.bin" -d "$SIGN_DIR/files"
+          else
+            cp "$SIGN_DIR/bundle.bin" "$SIGN_DIR/files/original.keystore"
+          fi
+
+          KEYSTORE="$(find "$SIGN_DIR/files" -type f \( -iname '*.jks' -o -iname '*.keystore' \) -print -quit)"
+          test -n "$KEYSTORE"
+
+          STORE_PASSWORD=""
+          KEY_ALIAS=""
+          KEY_PASSWORD=""
+
+          while IFS= read -r META; do
+            [ -f "$META" ] || continue
+            [ -n "$STORE_PASSWORD" ] || STORE_PASSWORD="$(sed -nE 's/^[[:space:]]*(STORE_PASSWORD|KEYSTORE_PASSWORD|storePassword|store_password)[[:space:]]*[:=][[:space:]]*"?([^"#]+)"?[[:space:]]*$/\2/p' "$META" | head -1 | xargs || true)"
+            [ -n "$KEY_ALIAS" ] || KEY_ALIAS="$(sed -nE 's/^[[:space:]]*(KEY_ALIAS|keyAlias|key_alias)[[:space:]]*[:=][[:space:]]*"?([^"#]+)"?[[:space:]]*$/\2/p' "$META" | head -1 | xargs || true)"
+            [ -n "$KEY_PASSWORD" ] || KEY_PASSWORD="$(sed -nE 's/^[[:space:]]*(KEY_PASSWORD|keyPassword|key_password)[[:space:]]*[:=][[:space:]]*"?([^"#]+)"?[[:space:]]*$/\2/p' "$META" | head -1 | xargs || true)"
+          done < <(find "$SIGN_DIR/files" -type f \( -iname '*.properties' -o -iname '*.env' -o -iname '*.txt' \) -print)
+
+          if [ -z "$STORE_PASSWORD" ] && keytool -list -keystore "$KEYSTORE" -storepass android >/dev/null 2>&1; then
+            STORE_PASSWORD=android
+          fi
+
+          test -n "$STORE_PASSWORD"
+          [ -n "$KEY_ALIAS" ] || KEY_ALIAS="$(keytool -list -v -keystore "$KEYSTORE" -storepass "$STORE_PASSWORD" 2>/dev/null | sed -n 's/^Alias name: //p' | head -1)"
+          test -n "$KEY_ALIAS"
+          [ -n "$KEY_PASSWORD" ] || KEY_PASSWORD="$STORE_PASSWORD"
+
+          keytool -list -keystore "$KEYSTORE" -storepass "$STORE_PASSWORD" -alias "$KEY_ALIAS" >/dev/null
+
+          echo "::add-mask::$STORE_PASSWORD"
+          echo "::add-mask::$KEY_ALIAS"
+          echo "::add-mask::$KEY_PASSWORD"
+          {
+            echo "KEYSTORE_PATH=$KEYSTORE"
+            echo "STORE_PASSWORD=$STORE_PASSWORD"
+            echo "KEY_ALIAS=$KEY_ALIAS"
+            echo "KEY_PASSWORD=$KEY_PASSWORD"
+          } >> "$GITHUB_ENV"
+
+      - name: Build signed smoke-test APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          gradle --no-daemon --no-configuration-cache --no-parallel --max-workers=2 :app:assembleRelease
+          APK="$(find app/build/outputs/apk/release -type f -name '*.apk' -print -quit)"
+          test -n "$APK" && test -s "$APK"
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs "$APK"
+          cp "$APK" Tahalil-Alakkad-V138-FAILOVER-SMOKE-TEST-SIGNED.apk
+
+      - name: Create or replace private draft test release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if gh release view v138-failover-smoke-test >/dev/null 2>&1; then
+            gh release delete v138-failover-smoke-test --yes --cleanup-tag
+          fi
+
+          gh release create v138-failover-smoke-test \
+            Tahalil-Alakkad-V138-FAILOVER-SMOKE-TEST-SIGNED.apk \
+            --draft \
+            --title "V138 Failover Smoke Test — TEMPORARY" \
+            --notes "TEMPORARY TEST ONLY. Customers screen is forced to read from Supabase failover. Install over V138, open Customers, verify the list appears with the emergency-mode message, then reinstall official V138."
