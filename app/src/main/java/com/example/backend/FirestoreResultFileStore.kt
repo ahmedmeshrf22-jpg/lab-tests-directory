@@ -1,5 +1,7 @@
 package com.example.backend
 
+import com.example.resilience.ResultFailoverClient
+
 import android.content.ClipData
 import android.content.ContentValues
 import android.content.Context
@@ -154,6 +156,22 @@ object FirestoreResultFileStore {
     }
 
     fun openResult(context: Context, storedRef: String, onResult: (Boolean, String) -> Unit) {
+        openResultPrimaryV139(
+            context,
+            storedRef,
+            { ok, message ->
+            if (ok || !storedRef.startsWith("fsr:")) {
+                onResult(ok, message)
+            } else {
+                ResultFailoverClient.open(context, storedRef) { fallbackOk, fallbackMessage ->
+                    if (fallbackOk) onResult(true, fallbackMessage) else onResult(false, message)
+                }
+            }
+        }
+        )
+    }
+
+    fun openResultPrimaryV139(context: Context, storedRef: String, onResult: (Boolean, String) -> Unit) {
         if (!storedRef.startsWith("fsr:")) {
             openExternal(context, storedRef, null, onResult)
             return

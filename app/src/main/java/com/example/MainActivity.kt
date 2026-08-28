@@ -1,5 +1,7 @@
 package com.example
 
+import com.example.resilience.ShadowReconciliationClient
+
 import android.Manifest
 
 import android.app.KeyguardManager
@@ -163,6 +165,7 @@ class MainActivity : FragmentActivity() {
                                 context = this@MainActivity,
                                 normalizedRole = normalizeUserRole(effectiveUserProfile?.role.orEmpty())
                             )
+                            ShadowReconciliationClient.runIfDue(this@MainActivity)
                         } else {
                             ShadowBackupReplicator.stop()
                         }

@@ -20,8 +20,8 @@ android {
     applicationId = "com.aistudio.labtestsdirectory.egypt"
     minSdk = 24
     targetSdk = 36
-    versionCode = 138
-    versionName = "5.58-safe-failover-v138"
+    versionCode = 139
+    versionName = "5.59-final-resilience-v139"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
