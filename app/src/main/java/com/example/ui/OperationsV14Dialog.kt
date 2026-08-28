@@ -1847,6 +1847,8 @@ private fun BackupRestoreScreen(viewModel: LabTestsViewModel) {
     var success by remember { mutableStateOf(true) }
     var busy by remember { mutableStateOf(false) }
     var showRestoreConfirm by remember { mutableStateOf(false) }
+    var showRestoreDone by remember { mutableStateOf(false) }
+    var restoreDoneMessage by remember { mutableStateOf("") }
 
     val createBackupFile = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/octet-stream")
@@ -1900,8 +1902,8 @@ private fun BackupRestoreScreen(viewModel: LabTestsViewModel) {
             text = {
                 Text(
                     appText(
-                        "الاسترجاع آمن وبيعمل Merge/Update للبيانات الموجودة، ومش بيعمل حذف جماعي. استمر فقط لو الملف موثوق.",
-                        "Restore is merge/upsert only and does not mass-delete existing data. Continue only with a trusted backup."
+                        "الاسترجاع الآمن يفحص النسخة ويرجع البيانات المفقودة فقط، ولا يكتب فوق البيانات الموجودة ولا يحذفها. استمر فقط لو الملف موثوق.",
+                        "Safe restore checks the backup and restores missing data only. It never overwrites or deletes existing data. Continue only with a trusted backup."
                     )
                 )
             },
@@ -1919,12 +1921,28 @@ private fun BackupRestoreScreen(viewModel: LabTestsViewModel) {
                             selectedRestoreBytes = null
                             selectedRestoreName = ""
                             restorePassword = ""
+                            restoreDoneMessage = msg
+                            showRestoreDone = true
                         }
                     }
                 }) { Icon(Icons.Default.Restore, contentDescription = null) }
             },
             dismissButton = {
                 LabeledIconAction(label = appText("إلغاء", "Cancel"), onClick = { showRestoreConfirm = false }) { Icon(Icons.Default.Close, contentDescription = null) }
+            }
+        )
+    }
+
+    if (showRestoreDone) {
+        AlertDialog(
+            onDismissRequest = { showRestoreDone = false },
+            title = { Text(appText("تم الاسترجاع ✓", "Restore Complete ✓"), fontWeight = FontWeight.ExtraBold) },
+            text = { Text(restoreDoneMessage) },
+            confirmButton = {
+                LabeledIconAction(
+                    label = appText("تم", "Done"),
+                    onClick = { showRestoreDone = false }
+                ) { Icon(Icons.Default.CheckCircle, contentDescription = null) }
             }
         )
     }

@@ -1,0 +1,6 @@
+V136 Restore Feedback Fix
+- No Firebase Rules changes.
+- No backup/restore data logic changes from V135.
+- Successful restore now always shows a visible confirmation dialog.
+- If nothing is missing, the dialog explicitly says the backup was checked and no missing data needed restoring.
+- Restore explanation now correctly says missing-only, not merge/update.

@@ -2114,13 +2114,18 @@ class LabTestsViewModel(application: Application) : AndroidViewModel(application
                     )
                     loadCustomers()
                     refreshPrices { _, _ -> }
-                    onResult(
-                        true,
+                    val restoreMessage = if (restored.documentsWritten == 0) {
                         tr(
-                            "تم الاسترجاع بأمان: ${restored.customers} عميل • ${restored.orders} طلب",
-                            "Safe restore completed: ${restored.customers} customers • ${restored.orders} orders"
+                            "تم فحص النسخة والاسترجاع بنجاح — لا توجد بيانات مفقودة للاسترجاع.",
+                            "Backup checked and restore completed successfully — no missing data needed restoring."
                         )
-                    )
+                    } else {
+                        tr(
+                            "تم الاسترجاع بنجاح: ${restored.documentsWritten} مستند • ${restored.customers} عميل • ${restored.orders} طلب",
+                            "Restore completed: ${restored.documentsWritten} documents • ${restored.customers} customers • ${restored.orders} orders"
+                        )
+                    }
+                    onResult(true, restoreMessage)
                 },
                 onFailure = { error ->
                     FirebaseCrashlytics.getInstance().recordException(error)
