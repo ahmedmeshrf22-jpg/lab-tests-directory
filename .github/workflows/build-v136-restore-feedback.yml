@@ -1,0 +1,221 @@
+name: Build Tahalil Alakkad V136 Restore Feedback
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: tahalil-v136-restore-feedback
+  cancel-in-progress: false
+
+jobs:
+  build-v136:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Checkout V135 Safe Restore base
+        uses: actions/checkout@v4
+        with:
+          ref: v135-safe-restore-base
+          fetch-depth: 1
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Gradle 8.11.1
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+
+      - name: Apply V136 restore feedback patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > /tmp/v136.patch.gz.b64 <<'PATCH64'
+          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
+          PATCH64
+          tr -d '\r\n ' < /tmp/v136.patch.gz.b64 | base64 --decode | gzip -dc > /tmp/v136.patch
+          patch -p1 < /tmp/v136.patch
+          echo "V136 restore feedback patch applied over V135"
+
+      - name: Audit V136 scope and restore feedback
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 <<'PYAUDIT'
+          from pathlib import Path
+          import subprocess
+          src=Path('app/src/main/java')
+          grad=Path('app/build.gradle.kts').read_text()
+          vm=(src/'com/example/ui/LabTestsViewModel.kt').read_text()
+          ui=(src/'com/example/ui/OperationsV14Dialog.kt').read_text()
+          backup=(src/'com/example/util/CommercialBackupManager.kt').read_text()
+          allkt='\n'.join(p.read_text(errors='ignore') for p in src.rglob('*.kt'))
+          changed=set(subprocess.check_output(['git','diff','--name-only'], text=True).splitlines())
+          changed |= set(subprocess.check_output(['git','ls-files','--others','--exclude-standard'], text=True).splitlines())
+          allowed={
+              'app/build.gradle.kts',
+              'app/src/main/java/com/example/ui/LabTestsViewModel.kt',
+              'app/src/main/java/com/example/ui/OperationsV14Dialog.kt',
+              'V136_RESTORE_FEEDBACK_NOTES.txt',
+          }
+          checks={
+              'V136 version':'versionCode = 136' in grad and '5.56-restore-feedback-v136' in grad,
+              'same package':'applicationId = "com.aistudio.labtestsdirectory.egypt"' in grad,
+              'feedback-only scope':changed == allowed,
+              'visible completion popup':'showRestoreDone' in ui and 'تم الاسترجاع ✓' in ui and 'restoreDoneMessage = msg' in ui,
+              'zero-missing success message':'لا توجد بيانات مفقودة للاسترجاع' in vm,
+              'missing-only explanation':'يرجع البيانات المفقودة فقط' in ui,
+              'V135 missing-only logic preserved':'if (!snapshot.exists()) missing += write' in backup and 'write.ref.get(Source.SERVER)' in backup,
+              'no Firebase rules edits':not any('firestore.rules' in x.lower() for x in changed),
+              'Firebase preserved':'FirebaseFirestore' in allkt and 'FirebaseAuth' in allkt,
+              'Supabase preserved':'tahalil-shadow-mirror' in allkt and 'tahalil-recovery-probe' in allkt,
+              'offline preserved':'OfflineAccessVault' in allkt,
+              'results preserved':'saveResultToDownloads' in allkt and 'requestResultRevision' in allkt,
+              'notifications preserved':'class OrderRealtimeNotificationService' in allkt,
+              'credential reset preserved':'resetUserLoginCredentials' in allkt and 'sendPasswordResetEmail' not in allkt,
+              'no Cloudflare':'cloudflare' not in allkt.lower() and 'workers.dev' not in allkt.lower(),
+              'no Supabase secret':all(x not in allkt for x in ['SUPABASE_SERVICE_ROLE_KEY','SUPABASE_SECRET_KEYS','sb_secret_','BEGIN PRIVATE KEY']),
+          }
+          for k,v in checks.items(): print(('OK   ' if v else 'FAIL ')+k)
+          bad=[k for k,v in checks.items() if not v]
+          if bad: raise SystemExit('V136 AUDIT FAILED: '+', '.join(bad))
+          print('ALL V136 RESTORE FEEDBACK CHECKS PASSED')
+          PYAUDIT
+
+      - name: Publish immutable V136 source branch
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          BRANCH="v136-restore-feedback-base"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$BRANCH"
+          git add app/build.gradle.kts app/src/main/java/com/example/ui/LabTestsViewModel.kt app/src/main/java/com/example/ui/OperationsV14Dialog.kt V136_RESTORE_FEEDBACK_NOTES.txt
+          git commit -m "V136 show restore completion feedback"
+          COMMIT_SHA="$(git rev-parse HEAD)"
+          if git ls-remote --exit-code --heads origin "$BRANCH" >/dev/null 2>&1; then
+            git fetch -q origin "$BRANCH"
+            LOCAL_TREE="$(git rev-parse HEAD^{tree})"
+            REMOTE_TREE="$(git rev-parse FETCH_HEAD^{tree})"
+            if [ "$LOCAL_TREE" != "$REMOTE_TREE" ]; then
+              echo "::error::Existing $BRANCH differs; refusing to overwrite it."
+              exit 1
+            fi
+            COMMIT_SHA="$(git rev-parse FETCH_HEAD)"
+          else
+            git push origin "HEAD:refs/heads/$BRANCH"
+          fi
+          echo "V136_COMMIT_SHA=$COMMIT_SHA" >> "$GITHUB_ENV"
+
+      - name: Restore original Android signing identity
+        shell: bash
+        env:
+          SIGNING_BUNDLE_B64: ${{ secrets.TAHALIL_SIGNING_BUNDLE_B64 }}
+        run: |
+          set -euo pipefail
+          test -n "${SIGNING_BUNDLE_B64:-}"
+          SIGN_DIR="$RUNNER_TEMP/tahalil_v136_signing"
+          rm -rf "$SIGN_DIR" && mkdir -p "$SIGN_DIR/files"
+          printf '%s' "$SIGNING_BUNDLE_B64" | tr -d '\r\n ' | base64 --decode > "$SIGN_DIR/bundle.bin"
+          if unzip -t "$SIGN_DIR/bundle.bin" >/dev/null 2>&1; then
+            unzip -q "$SIGN_DIR/bundle.bin" -d "$SIGN_DIR/files"
+          else
+            cp "$SIGN_DIR/bundle.bin" "$SIGN_DIR/files/original.keystore"
+          fi
+          KEYSTORE="$(find "$SIGN_DIR/files" -type f \( -iname '*.jks' -o -iname '*.keystore' \) -print -quit)"
+          test -n "$KEYSTORE"
+          STORE_PASSWORD=""; KEY_ALIAS=""; KEY_PASSWORD=""
+          while IFS= read -r META; do
+            [ -f "$META" ] || continue
+            [ -n "$STORE_PASSWORD" ] || STORE_PASSWORD="$(sed -nE 's/^[[:space:]]*(STORE_PASSWORD|KEYSTORE_PASSWORD|storePassword|store_password)[[:space:]]*[:=][[:space:]]*"?([^"#]+)"?[[:space:]]*$/\2/p' "$META" | head -1 | xargs || true)"
+            [ -n "$KEY_ALIAS" ] || KEY_ALIAS="$(sed -nE 's/^[[:space:]]*(KEY_ALIAS|keyAlias|key_alias)[[:space:]]*[:=][[:space:]]*"?([^"#]+)"?[[:space:]]*$/\2/p' "$META" | head -1 | xargs || true)"
+            [ -n "$KEY_PASSWORD" ] || KEY_PASSWORD="$(sed -nE 's/^[[:space:]]*(KEY_PASSWORD|keyPassword|key_password)[[:space:]]*[:=][[:space:]]*"?([^"#]+)"?[[:space:]]*$/\2/p' "$META" | head -1 | xargs || true)"
+          done < <(find "$SIGN_DIR/files" -type f \( -iname '*.properties' -o -iname '*.env' -o -iname '*.txt' \) -print)
+          if [ -z "$STORE_PASSWORD" ] && keytool -list -keystore "$KEYSTORE" -storepass android >/dev/null 2>&1; then STORE_PASSWORD=android; fi
+          test -n "$STORE_PASSWORD"
+          [ -n "$KEY_ALIAS" ] || KEY_ALIAS="$(keytool -list -v -keystore "$KEYSTORE" -storepass "$STORE_PASSWORD" 2>/dev/null | sed -n 's/^Alias name: //p' | head -1)"
+          test -n "$KEY_ALIAS"
+          [ -n "$KEY_PASSWORD" ] || KEY_PASSWORD="$STORE_PASSWORD"
+          keytool -list -keystore "$KEYSTORE" -storepass "$STORE_PASSWORD" -alias "$KEY_ALIAS" >/dev/null
+          echo "::add-mask::$STORE_PASSWORD"
+          echo "::add-mask::$KEY_ALIAS"
+          echo "::add-mask::$KEY_PASSWORD"
+          {
+            echo "KEYSTORE_PATH=$KEYSTORE"
+            echo "STORE_PASSWORD=$STORE_PASSWORD"
+            echo "KEY_ALIAS=$KEY_ALIAS"
+            echo "KEY_PASSWORD=$KEY_PASSWORD"
+          } >> "$GITHUB_ENV"
+
+      - name: Build signed Android V136
+        shell: bash
+        run: |
+          set -euo pipefail
+          gradle --no-daemon --no-configuration-cache --no-parallel --max-workers=2 :app:assembleRelease
+
+      - name: Verify APK signature and package
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="$(find app/build/outputs/apk/release -type f -name '*.apk' -print -quit)"
+          test -n "$APK" && test -s "$APK"
+          APKSIGNER="$ANDROID_HOME/build-tools/35.0.0/apksigner"
+          "$APKSIGNER" verify --verbose --print-certs "$APK"
+          cp "$APK" Tahalil-Alakkad-V136-Restore-Feedback-Android-SIGNED.apk
+          sha256sum Tahalil-Alakkad-V136-Restore-Feedback-Android-SIGNED.apk > Tahalil-Alakkad-V136-Restore-Feedback-Android-SIGNED.apk.sha256
+
+      - name: Publish V136 release directly
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if gh release view v136 >/dev/null 2>&1; then
+            echo "::error::Release v136 already exists. Refusing to overwrite it."
+            exit 1
+          fi
+          gh release create v136 \
+            Tahalil-Alakkad-V136-Restore-Feedback-Android-SIGNED.apk \
+            Tahalil-Alakkad-V136-Restore-Feedback-Android-SIGNED.apk.sha256 \
+            --target "$V136_COMMIT_SHA" \
+            --title "تحاليل العقاد V136 — Restore Feedback" \
+            --notes "V136 shows an immediate restore-success dialog. If no data is missing, it explicitly confirms the backup was checked and nothing needed restoring. V135 missing-only restore logic is unchanged; Firebase Rules are unchanged."
+
+      - name: Final status
+        shell: bash
+        run: |
+          echo "V136 Restore Feedback built, signed, source-pinned and released."
