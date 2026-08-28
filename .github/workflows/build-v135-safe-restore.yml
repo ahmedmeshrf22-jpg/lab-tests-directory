@@ -1,0 +1,236 @@
+name: Build Tahalil Alakkad V135 Safe Restore
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: tahalil-v135-safe-restore
+  cancel-in-progress: false
+
+jobs:
+  build-v135:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Checkout V134 Safety base
+        uses: actions/checkout@v4
+        with:
+          ref: v134-safety-base
+          fetch-depth: 1
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Gradle 8.11.1
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+
+      - name: Apply V135 safe restore patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > /tmp/v135.patch.gz.b64 <<'PATCH64'
+          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
+          PATCH64
+          tr -d '\r\n ' < /tmp/v135.patch.gz.b64 | base64 --decode | gzip -dc > /tmp/v135.patch
+          patch -p1 < /tmp/v135.patch
+          echo "V135 safe restore patch applied over v134-safety-base"
+
+      - name: Audit V135 restore safety
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 <<'PYAUDIT'
+          from pathlib import Path
+          import subprocess, re
+          r=Path('.')
+          src=r/'app/src/main/java'
+          allkt='\n'.join(p.read_text(errors='ignore') for p in src.rglob('*.kt'))
+          grad=(r/'app/build.gradle.kts').read_text()
+          backup=(src/'com/example/util/CommercialBackupManager.kt').read_text()
+          vm=(src/'com/example/ui/LabTestsViewModel.kt').read_text()
+          login=(src/'com/example/ui/LoginScreen.kt').read_text()
+          tracked=subprocess.check_output(['git','diff','--name-only'], text=True).splitlines()
+          untracked=subprocess.check_output(['git','ls-files','--others','--exclude-standard'], text=True).splitlines()
+          changed={str(Path(x.strip())) for x in (tracked+untracked) if x.strip()}
+          allowed={
+            'app/build.gradle.kts',
+            'app/src/main/java/com/example/util/CommercialBackupManager.kt',
+            'V135_SAFE_RESTORE_NOTES.txt',
+          }
+          checks={
+            'V135 version':'versionCode = 135' in grad and '5.55-safe-restore-v135' in grad,
+            'same package':'applicationId = "com.aistudio.labtestsdirectory.egypt"' in grad,
+            'only restore files changed':changed <= allowed and changed == allowed,
+            'schema v3 preserved':'SCHEMA_VERSION = 3' in backup,
+            'V134 user archive preserved':'put("users", JSONArray(users))' in backup,
+            'V134 device archive preserved':'put("user_devices", JSONArray(userDevices))' in backup,
+            'V134 audit archive preserved':'put("audit_logs", JSONArray(auditLogs))' in backup,
+            'missing-only restore':'if (!snapshot.exists()) missing += write' in backup,
+            'server existence check':'write.ref.get(Source.SERVER)' in backup,
+            'dependency order':backup.find('restoreMissingPhase(customerWrites)') < backup.find('restoreMissingPhase(orderWrites)') < backup.find('restoreMissingPhase(paymentWrites)'),
+            'no overwrite existing':'batch.set(write.ref, write.data)' in backup and 'missing[i]' in backup,
+            'manager-bound create':'put("created_by_uid", restoreUid)' in backup,
+            'immutable payment update avoided':'Existing Firestore documents are NEVER overwritten' in backup,
+            'Firebase preserved':'FirebaseFirestore' in allkt and 'FirebaseAuth' in allkt,
+            'Supabase standby preserved':'tahalil-shadow-mirror' in allkt and 'tahalil-recovery-probe' in allkt,
+            'offline preserved':'OfflineAccessVault' in allkt,
+            'results preserved':'saveResultToDownloads' in allkt and 'requestResultRevision' in allkt,
+            'notifications preserved':'class OrderRealtimeNotificationService' in allkt,
+            'credential reset preserved':'resetUserLoginCredentials' in allkt and 'sendPasswordResetEmail' not in allkt,
+            'login compile fix preserved':'import androidx.compose.foundation.layout.weight' not in login,
+            'no Cloudflare':'cloudflare' not in allkt.lower() and 'workers.dev' not in allkt.lower(),
+            'no Supabase secret':all(x not in allkt for x in ['SUPABASE_SERVICE_ROLE_KEY','SUPABASE_SECRET_KEYS','sb_secret_','BEGIN PRIVATE KEY']),
+          }
+          for k,v in checks.items(): print(('OK   ' if v else 'FAIL ')+k)
+          bad=[k for k,v in checks.items() if not v]
+          if bad: raise SystemExit('V135 AUDIT FAILED: '+', '.join(bad))
+          print('ALL V135 SAFE RESTORE CHECKS PASSED')
+          PYAUDIT
+
+      - name: Publish immutable V135 source branch
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          BRANCH="v135-safe-restore-base"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$BRANCH"
+          git add app/build.gradle.kts app/src/main/java/com/example/util/CommercialBackupManager.kt V135_SAFE_RESTORE_NOTES.txt
+          git commit -m "V135 permission-safe missing-only restore"
+          COMMIT_SHA="$(git rev-parse HEAD)"
+          if git ls-remote --exit-code --heads origin "$BRANCH" >/dev/null 2>&1; then
+            git fetch -q origin "$BRANCH"
+            LOCAL_TREE="$(git rev-parse HEAD^{tree})"
+            REMOTE_TREE="$(git rev-parse FETCH_HEAD^{tree})"
+            if [ "$LOCAL_TREE" != "$REMOTE_TREE" ]; then
+              echo "::error::Existing $BRANCH differs; refusing to overwrite it."
+              exit 1
+            fi
+            COMMIT_SHA="$(git rev-parse FETCH_HEAD)"
+          else
+            git push origin "HEAD:refs/heads/$BRANCH"
+          fi
+          echo "V135_COMMIT_SHA=$COMMIT_SHA" >> "$GITHUB_ENV"
+
+      - name: Restore original Android signing identity
+        shell: bash
+        env:
+          SIGNING_BUNDLE_B64: ${{ secrets.TAHALIL_SIGNING_BUNDLE_B64 }}
+        run: |
+          set -euo pipefail
+          test -n "${SIGNING_BUNDLE_B64:-}"
+          SIGN_DIR="$RUNNER_TEMP/tahalil_v135_signing"
+          rm -rf "$SIGN_DIR" && mkdir -p "$SIGN_DIR/files"
+          printf '%s' "$SIGNING_BUNDLE_B64" | tr -d '\r\n ' | base64 --decode > "$SIGN_DIR/bundle.bin"
+          if unzip -t "$SIGN_DIR/bundle.bin" >/dev/null 2>&1; then
+            unzip -q "$SIGN_DIR/bundle.bin" -d "$SIGN_DIR/files"
+          else
+            cp "$SIGN_DIR/bundle.bin" "$SIGN_DIR/files/original.keystore"
+          fi
+          KEYSTORE="$(find "$SIGN_DIR/files" -type f \( -iname '*.jks' -o -iname '*.keystore' \) -print -quit)"
+          test -n "$KEYSTORE"
+          STORE_PASSWORD=""; KEY_ALIAS=""; KEY_PASSWORD=""
+          while IFS= read -r META; do
+            [ -f "$META" ] || continue
+            [ -n "$STORE_PASSWORD" ] || STORE_PASSWORD="$(sed -nE 's/^[[:space:]]*(STORE_PASSWORD|KEYSTORE_PASSWORD|storePassword|store_password)[[:space:]]*[:=][[:space:]]*"?([^"#]+)"?[[:space:]]*$/\2/p' "$META" | head -1 | xargs || true)"
+            [ -n "$KEY_ALIAS" ] || KEY_ALIAS="$(sed -nE 's/^[[:space:]]*(KEY_ALIAS|keyAlias|key_alias)[[:space:]]*[:=][[:space:]]*"?([^"#]+)"?[[:space:]]*$/\2/p' "$META" | head -1 | xargs || true)"
+            [ -n "$KEY_PASSWORD" ] || KEY_PASSWORD="$(sed -nE 's/^[[:space:]]*(KEY_PASSWORD|keyPassword|key_password)[[:space:]]*[:=][[:space:]]*"?([^"#]+)"?[[:space:]]*$/\2/p' "$META" | head -1 | xargs || true)"
+          done < <(find "$SIGN_DIR/files" -type f \( -iname '*.properties' -o -iname '*.env' -o -iname '*.txt' \) -print)
+          if [ -z "$STORE_PASSWORD" ] && keytool -list -keystore "$KEYSTORE" -storepass android >/dev/null 2>&1; then STORE_PASSWORD=android; fi
+          test -n "$STORE_PASSWORD"
+          [ -n "$KEY_ALIAS" ] || KEY_ALIAS="$(keytool -list -v -keystore "$KEYSTORE" -storepass "$STORE_PASSWORD" 2>/dev/null | sed -n 's/^Alias name: //p' | head -1)"
+          test -n "$KEY_ALIAS"
+          [ -n "$KEY_PASSWORD" ] || KEY_PASSWORD="$STORE_PASSWORD"
+          keytool -list -keystore "$KEYSTORE" -storepass "$STORE_PASSWORD" -alias "$KEY_ALIAS" >/dev/null
+          echo "::add-mask::$STORE_PASSWORD"
+          echo "::add-mask::$KEY_ALIAS"
+          echo "::add-mask::$KEY_PASSWORD"
+          {
+            echo "KEYSTORE_PATH=$KEYSTORE"
+            echo "STORE_PASSWORD=$STORE_PASSWORD"
+            echo "KEY_ALIAS=$KEY_ALIAS"
+            echo "KEY_PASSWORD=$KEY_PASSWORD"
+          } >> "$GITHUB_ENV"
+
+      - name: Build signed Android V135
+        shell: bash
+        run: |
+          set -euo pipefail
+          gradle --no-daemon --no-configuration-cache --no-parallel --max-workers=2 :app:assembleRelease
+
+      - name: Verify APK signature and package
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="$(find app/build/outputs/apk/release -type f -name '*.apk' -print -quit)"
+          test -n "$APK" && test -s "$APK"
+          APKSIGNER="$ANDROID_HOME/build-tools/35.0.0/apksigner"
+          "$APKSIGNER" verify --verbose --print-certs "$APK"
+          cp "$APK" Tahalil-Alakkad-V135-Safe-Restore-Android-SIGNED.apk
+          sha256sum Tahalil-Alakkad-V135-Safe-Restore-Android-SIGNED.apk > Tahalil-Alakkad-V135-Safe-Restore-Android-SIGNED.apk.sha256
+
+      - name: Publish V135 release directly
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if gh release view v135 >/dev/null 2>&1; then
+            echo "::error::Release v135 already exists. Refusing to overwrite it."
+            exit 1
+          fi
+          gh release create v135 \
+            Tahalil-Alakkad-V135-Safe-Restore-Android-SIGNED.apk \
+            Tahalil-Alakkad-V135-Safe-Restore-Android-SIGNED.apk.sha256 \
+            --target "$V135_COMMIT_SHA" \
+            --title "تحاليل العقاد V135 — Safe Restore" \
+            --notes "V135 fixes backup restore permissions without opening Firestore rules. Existing documents are never overwritten; only missing records are recreated in safe dependency order. V134 safety backup, Firebase, Supabase shadow backup, offline mode, results, notifications and UI are preserved."
+
+      - name: Final status
+        shell: bash
+        run: |
+          echo "V135 Safe Restore built, signed, source-pinned and released."
