@@ -1,0 +1,5 @@
+V140 Android Screenshot Enabled
+- Screenshot and screen recording are now allowed.
+- Android FLAG_SECURE was removed from MainActivity only.
+- Overlay/tapjacking protection remains enabled.
+- V139 Firebase, failover, reconciliation, backup, restore, notifications, offline vault, results and signing identity remain unchanged.

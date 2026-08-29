@@ -76,13 +76,7 @@ class MainActivity : FragmentActivity() {
         }
         OrderNotificationManager.registerCurrentToken()
 
-        // Sensitive pricing and account data must never appear in screenshots,
-        // screen recordings, casting, or the recent-apps thumbnail.
-        window.setFlags(
-            WindowManager.LayoutParams.FLAG_SECURE,
-            WindowManager.LayoutParams.FLAG_SECURE
-        )
-
+        // V140: screenshots and screen recording are intentionally allowed.
         // V45: block third-party overlay windows on Android 12+ to reduce tapjacking risk.
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             window.setHideOverlayWindows(true)
