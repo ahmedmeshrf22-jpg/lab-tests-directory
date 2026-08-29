@@ -3,4 +3,5 @@
     <cache-path name="pdf_cache" path="pdf/" />
     <cache-path name="update_cache" path="updates/" />
     <cache-path name="result_cache" path="results/" />
+    <cache-path name="result_failover" path="result_failover/" />
 </paths>

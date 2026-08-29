@@ -189,7 +189,12 @@ class OrderRealtimeNotificationService : Service() {
         }
     }
 
-    override fun onDestroy() {
+        override fun onTimeout(startId: Int, fgsType: Int) {
+        LabOrderBackgroundScheduler.schedule(this)
+        stopSelf(startId)
+    }
+
+override fun onDestroy() {
         registration?.remove()
         registration = null
         super.onDestroy()

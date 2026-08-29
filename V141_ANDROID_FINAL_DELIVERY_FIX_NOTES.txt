@@ -1,0 +1,6 @@
+Android V141 Final Delivery Fix
+- Result failover FileProvider authority aligned with AndroidManifest.
+- result_failover cache path explicitly exposed via FileProvider.
+- Android 15/16 dataSync FGS timeout handled safely with scheduler fallback.
+- Screenshots remain enabled.
+- Firebase/Supabase/offline/backup/restore/results/signing behavior otherwise preserved.
