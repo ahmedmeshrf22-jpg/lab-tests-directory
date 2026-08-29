@@ -48,6 +48,25 @@ service cloud.firestore {
       return customer.is_blacklisted != true && customer.is_archived != true;
     }
 
+    function validOrderFinancialState() {
+      return request.resource.data.subtotal_customer_price is number
+        && request.resource.data.discount_amount is number
+        && request.resource.data.discount_percent is number
+        && request.resource.data.total_customer_price is number
+        && request.resource.data.paid_amount is number
+        && request.resource.data.remaining_amount is number
+        && request.resource.data.subtotal_customer_price >= 0
+        && request.resource.data.discount_amount >= 0
+        && request.resource.data.discount_amount <= request.resource.data.subtotal_customer_price
+        && request.resource.data.discount_percent >= 0
+        && request.resource.data.discount_percent <= 100
+        && request.resource.data.total_customer_price == request.resource.data.subtotal_customer_price - request.resource.data.discount_amount
+        && request.resource.data.paid_amount >= 0
+        && request.resource.data.paid_amount <= request.resource.data.total_customer_price
+        && request.resource.data.remaining_amount == request.resource.data.total_customer_price - request.resource.data.paid_amount
+        && request.resource.data.payment_status in ['unpaid','partial','paid'];
+    }
+
     function validCustomerStaffUpdate() {
       let changed = request.resource.data.diff(resource.data).affectedKeys();
       return changed.hasOnly([
@@ -71,6 +90,7 @@ service cloud.firestore {
       && (!changed.hasAny(['discount_amount','discount_percent']) || canDiscount())
       && (!changed.hasAny(['payment_status','paid_amount','remaining_amount']) || canCollectPayments())
       && (!changed.hasAny(['workflow_status']) || request.resource.data.workflow_status in ['new','sent_to_lab','processing','ready','delivered','cancelled'])
+      && validOrderFinancialState()
       && request.resource.data.updated_by_uid == request.auth.uid;
     }
 
@@ -136,6 +156,11 @@ service cloud.firestore {
 
     match /{path=**}/devices/{deviceId} { allow read: if isPrivilegedAdmin(); }
 
+    match /lab_catalog_overrides/{document=**} {
+      allow read: if activeUser();
+      allow create, update, delete: if isPrivilegedAdmin();
+    }
+
     match /customer_price_overrides/{document=**} {
       allow read: if clinicUser();
       allow write: if isPrivilegedAdmin();
@@ -186,6 +211,7 @@ service cloud.firestore {
         allow create: if clinicUser()
           && customerIsActive(customerId)
           && request.resource.data.created_by_uid == request.auth.uid
+          && validOrderFinancialState()
           && (request.resource.data.discount_amount <= 0 || canDiscount())
           && (request.resource.data.payment_status == 'unpaid' || canCollectPayments())
           && (request.resource.data.paid_amount <= 0 || canCollectPayments());
@@ -198,7 +224,12 @@ service cloud.firestore {
 
         match /payments/{paymentId} {
           allow read: if clinicUser();
-          allow create: if canCollectPayments() && request.resource.data.created_by_uid == request.auth.uid;
+          allow create: if canCollectPayments()
+            && request.resource.data.created_by_uid == request.auth.uid
+            && request.resource.data.customer_id == customerId
+            && request.resource.data.order_id == orderId
+            && request.resource.data.amount is number
+            && request.resource.data.amount > 0;
           allow update: if false;
           allow delete: if isPrivilegedAdmin();
         }

@@ -20,8 +20,8 @@ android {
     applicationId = "com.aistudio.labtestsdirectory.egypt"
     minSdk = 24
     targetSdk = 36
-    versionCode = 140
-    versionName = "5.60-screenshot-enabled-v140"
+    versionCode = 141
+    versionName = "5.61-final-delivery-fix-v141"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }

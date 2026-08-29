@@ -122,6 +122,42 @@ class LabTestRepository(private val context: Context) {
     }
 
     @Synchronized
+    fun applyRemoteCatalogOverride(test: LabTest, deleted: Boolean) {
+        val id = test.id
+        if (deleted) {
+            deleteLabTest(id)
+            return
+        }
+        val normalized = buildTest(id, test.englishName, test.arabicName, test.marketName, test.searchText, test.customerPrice)
+        val deletedIds = readDeletedIds().toMutableSet().apply { remove(id) }
+        val editor = catalogPrefs.edit().putString(KEY_DELETED_IDS, JSONArray(deletedIds.toList()).toString())
+        if (id >= CUSTOM_ID_START) {
+            val custom = readObjectArray(KEY_CUSTOM_TESTS)
+            val replaced = JSONArray()
+            var found = false
+            for (i in 0 until custom.length()) {
+                val obj = custom.optJSONObject(i) ?: continue
+                if (obj.optInt("id") == id) { replaced.put(testToJson(normalized)); found = true } else replaced.put(obj)
+            }
+            if (!found) replaced.put(testToJson(normalized))
+            editor.putString(KEY_CUSTOM_TESTS, replaced.toString())
+            editor.putInt(KEY_NEXT_ID, maxOf(catalogPrefs.getInt(KEY_NEXT_ID, CUSTOM_ID_START), id + 1))
+        } else {
+            val edits = readObjectArray(KEY_EDITED_TESTS)
+            val replaced = JSONArray()
+            var found = false
+            for (i in 0 until edits.length()) {
+                val obj = edits.optJSONObject(i) ?: continue
+                if (obj.optInt("id") == id) { replaced.put(testToJson(normalized)); found = true } else replaced.put(obj)
+            }
+            if (!found) replaced.put(testToJson(normalized))
+            editor.putString(KEY_EDITED_TESTS, replaced.toString())
+        }
+        editor.apply()
+        cachedTests = null
+    }
+
+    @Synchronized
     fun bulkUpdateLabTests(updates: Map<Int, LabTest>): Int {
         if (updates.isEmpty()) return 0
         updates.values.forEach { updateLabTest(it) }

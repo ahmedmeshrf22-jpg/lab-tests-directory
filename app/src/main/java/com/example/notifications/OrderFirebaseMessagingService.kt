@@ -14,11 +14,19 @@ class OrderFirebaseMessagingService : FirebaseMessagingService() {
     override fun onNewToken(token: String) {
         super.onNewToken(token)
         val user = FirebaseAuth.getInstance().currentUser ?: return
-        OrderNotificationManager.saveToken(user.uid, user.email.orEmpty(), token)
+        OrderNotificationManager.saveTokenIfApproved(this, user.uid, user.email.orEmpty(), token)
     }
 
     override fun onMessageReceived(message: RemoteMessage) {
         super.onMessageReceived(message)
+        val user = FirebaseAuth.getInstance().currentUser ?: return
+        DeviceApprovalGuard.checkServerApproved(this, user) { approved ->
+            if (!approved || FirebaseAuth.getInstance().currentUser?.uid != user.uid) return@checkServerApproved
+            showApprovedMessage(message)
+        }
+    }
+
+    private fun showApprovedMessage(message: RemoteMessage) {
         OrderNotificationManager.ensureChannel(this)
 
         val title = message.notification?.title
