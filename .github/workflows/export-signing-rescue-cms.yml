@@ -1,0 +1,44 @@
+name: Export Android Signing Rescue CMS
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  rescue:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Encrypt original signing bundle for recovery
+        shell: bash
+        env:
+          SIGNING_BUNDLE_B64: ${{ secrets.TAHALIL_SIGNING_BUNDLE_B64 }}
+          RECOVERY_CERT_B64: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSUVJekNDQW91Z0F3SUJBZ0lVTy9HMW5RRkFSa1pobUtEc0FyRFIvZzZCZXE4d0RRWUpLb1pJaHZjTkFRRUwKQlFBd0lURWZNQjBHQTFVRUF3d1dWR0ZvWVd4cGJDQlRhV2R1YVc1bklGSmxjMk4xWlRBZUZ3MHlOakE0TXpFeApOalV6TlRaYUZ3MHlOakE1TURjeE5qVXpOVFphTUNFeEh6QWRCZ05WQkFNTUZsUmhhR0ZzYVd3Z1UybG5ibWx1Clp5QlNaWE5qZFdVd2dnR2lNQTBHQ1NxR1NJYjNEUUVCQVFVQUE0SUJqd0F3Z2dHS0FvSUJnUUNpTUxwVEluL0IKVEpHVDBoK1lTMGN1RkhHM083K1dHY1MvbWxMR0tKd2M0N0NEWmZRMzNpOHh1dG1FOEp4eExmcVUxb2Jpa004TAo0NURUdmlMNHdwZC90eU1XS2ZBTExLVzFyK0FhMjRBR2x4bWc0SWdWYjR5NjVrbzFRZXROdGM5V0pkcjc1alh1CnB3SDBaQlVNKzZXVnpzTFhKVlBlTU5WL0s0TzA4cHIvdEV1MjBBL3Rib0MvZmhNelFmd3NIRXRkeFk2dEZyc3EKYXhRUDh3Ly8wWWdYeTViZkNMa0xnV1A4TW4yVEI3a3kxVXFhRTZNdmdxbWU4cUc5QkoxTnIxZmFKdDVNMGV3RQpjZVlpaXRKSXF4ZmdocTgrcVpZRDlObGdYVE9seFhRcHYwdUhLbTNGOXAvLzlOZlJUMFEwcGRSbk5reUFFWFFlCkNkbytYK3RRbkVSNlBkb3dMQzA5Q2FkMW9vdU1ZNSt4RDJIY2FoSUhMajgydS9LY2V0WE96TFgxOHB6TXgrUkwKS0dDZHZuYkxqS3JTQVN6cWFjam9jcnJ2M2NrV3UrRFgxQitsdXhBbnJSSG9HcFh2VUlLQTBsRmN4RFo0RkpnbApzeUVuNk50MGN6MU9ta0drOURuQjA3Q2xidUp3QXV6a0JhS291eFJ5M0I2c1VoMlBLZHhRRTBzQ0F3RUFBYU5UCk1GRXdIUVlEVlIwT0JCWUVGQVAxTUtQWEZFcTduOHNmRStscXN3NnZvcnZlTUI4R0ExVWRJd1FZTUJhQUZBUDEKTUtQWEZFcTduOHNmRStscXN3NnZvcnZlTUE4R0ExVWRFd0VCL3dRRk1BTUJBZjh3RFFZSktvWklodmNOQVFFTApCUUFEZ2dHQkFCZG5VbG5MUnF2Z2dmUzdvQWRhYy9CcWVYb0l2YTRPaDNOYlB4L2E5ZHQ2S05ibExZVkRCdExTCkNCaERSZXg2YytKc0tYRnRyRVNUaHhLbVNFZllYMWNObEtka3VvZzM1WWlNczVMZzZNRFlFbG5rQTlrTWQ3N0MKdmwxdWZSQlFBcFJiNkRyTEd4WlZRcmZWYjFkQ1RlK1k5UzZ5ZWNKR2twVlZ5VmdoUFcyT1k2MERKbkRMMTRqWApKcjd0QlJDUkI0UGI0ejRSeVZYMkVQTGRkejVRci9XcVlpLzlqV0ltL1BRWkFlYkNlNHRzRFFTcWxtUTFhU3RiCmVHeDVHeWtqVHViNHpBYmVvcGRqZ1Y3TG1FaUZPZ1puMGZUQUtlVkw0S0xhd2hEYnhPVFl0V0x0RmhpbVk3d0sKcUlXcTMvL0ptZ2RGVHd2c21mTWZwZWFOV2lmU1gwcW9IbUZHMFk5VTNMSytwbnArSVpjbzNQNVo4bGJLMkhrbApiazViWEVucitQZ0diUkhFWmNIUE5kdUtNZEdmMzRhNWtSQzVnaU9rdWpOUmFBUUoxZlpmZ0VyMUJSUDZOcnNGCkpzVWw4T1QrbVFNT21yemoxSzlXOG1SMWl5N25aR2VwSGVKOEtFYzc0QTVOK3VVRUZBUnE0NStPUktuZmhPVFQKZ3FWZlRDTHJyUT09Ci0tLS0tRU5EIENFUlRJRklDQVRFLS0tLS0K
+        run: |
+          set -euo pipefail
+          test -n "${SIGNING_BUNDLE_B64:-}" || { echo "::error::Missing TAHALIL_SIGNING_BUNDLE_B64"; exit 1; }
+          umask 077
+          printf '%s' "$SIGNING_BUNDLE_B64" | tr -d '\r\n ' | base64 --decode > "$RUNNER_TEMP/signing-bundle.bin"
+          test -s "$RUNNER_TEMP/signing-bundle.bin"
+          printf '%s' "$RECOVERY_CERT_B64" | base64 --decode > "$RUNNER_TEMP/recovery-cert.pem"
+          openssl cms -encrypt -binary -aes-256-cbc -in "$RUNNER_TEMP/signing-bundle.bin" -outform DER -out Tahalil-Android-Signing-Rescue.cms "$RUNNER_TEMP/recovery-cert.pem"
+          sha256sum Tahalil-Android-Signing-Rescue.cms > Tahalil-Android-Signing-Rescue.cms.sha256
+          rm -f "$RUNNER_TEMP/signing-bundle.bin" "$RUNNER_TEMP/recovery-cert.pem"
+
+      - name: Publish encrypted rescue as draft release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TAG="signing-rescue-$(date -u +'%Y%m%d-%H%M%S')"
+          gh release create "$TAG" \
+            Tahalil-Android-Signing-Rescue.cms \
+            Tahalil-Android-Signing-Rescue.cms.sha256 \
+            --repo "$GITHUB_REPOSITORY" \
+            --target main \
+            --title "Android Signing Rescue — CMS Encrypted" \
+            --notes "One-time encrypted rescue of the original Android signing bundle. Safe to keep as draft; ciphertext only." \
+            --draft
