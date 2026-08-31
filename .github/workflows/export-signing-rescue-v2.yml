@@ -1,0 +1,44 @@
+name: Export Android Signing Rescue V2
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  RECOVERY_CERT_B64: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSUVPVENDQXFHZ0F3SUJBZ0lVQWF1RU1hN1hrc1pUdkk2SHlmQjBEL0lJOUlZd0RRWUpLb1pJaHZjTkFRRUwKQlFBd0pERWlNQ0FHQTFVRUF3d1pWR0ZvWVd4cGJDQlRhV2R1YVc1bklGSmxjMk4xWlNCV01qQWVGdzB5TmpBNApNekV4T0RFMk1qZGFGdzB5TmpBNU1EY3hPREUyTWpkYU1DUXhJakFnQmdOVkJBTU1HVlJoYUdGc2FXd2dVMmxuCmJtbHVaeUJTWlhOamRXVWdWakl3Z2dHaU1BMEdDU3FHU0liM0RRRUJBUVVBQTRJQmp3QXdnZ0dLQW9JQmdRRGcKY3ZydlVvRmhjbW44K0VHTEFsRFR4WTg5RmdLS24wVGpod1BrU1puS1BjNVNQc1c1L1BvZm8zbUhnQTUrK3QxRgo5RitnNi9YcnVYd25CU2NFUll1KzFDeFRHSWtxNzRBaGQ5RWhoVndtWjNJQ3ZmMjNhdkoxQXZ3M3FBYXJSeUJPCjJ3bzVka2J0YVAzd0Y4bWU4RDRVZkRUbXovdzlnUjBYTHFQSHoyM0RnRlRrSnFUWnY0aXdCZ2V0aVQ4OG12NEMKNXB4K003RW1Jd0NRelA2ZitmY3dBTTIxNUNLRzRPV1JXYzV3VUcyVXhrK3RrVFRvdkEyUDFtOXlYNTlERUV4ZApzc1lIUktZNitLamppN0g0QmhXS3B2R3dRQlliMXB0aXc1U2pFMjlEKzd5cHo2UnJRNWNnL1d4UndpUEZ4cTAwClhuaWdsOXcxbmthQXY2WHVPdlBiTzQrc2pSTXQ2MG9mbXBvMFM1cjgxQk0xZzBwTDl3TlVTYnpEdVA4WXBKT2QKZXNJV0c4UXB0MVh0RW8xK2twWnN1eEpwc1NsWnJsL2UxZndlNVhBV2h2S0tPaWVUd2czeFRid3RxbHdJa1pVYgpLcUJCL0Z6MWROM0U5UHBPSUdKZmp1K3hQRmp5ZE5OQk90R1RzVTF1cXFrUVZESmUvSThDbzFtUXBaTXlHd0VDCkF3RUFBYU5qTUdFd0hRWURWUjBPQkJZRUZDTlNlUmtFRnF3Ym1KSExDNXNHQVZicGVyWTVNQjhHQTFVZEl3UVkKTUJhQUZDTlNlUmtFRnF3Ym1KSExDNXNHQVZicGVyWTVNQThHQTFVZEV3RUIvd1FGTUFNQkFmOHdEZ1lEVlIwUApBUUgvQkFRREFnUXdNQTBHQ1NxR1NJYjNEUUVCQ3dVQUE0SUJnUUM0Rllkd0lWQXBCSjFpMGxLblFySHlhKzRRClVBVkkyRVFlTlZDZE1ZSDBZZVRybWppdmo3ZnJwUjA4UGVaN2JWdjNLREFIdzkrRkxwUEt1SHo3UUJrTDRpaHYKcEZsY2tqL3BORVExTU83c1oxdVFtRndxUW50UmltbWVMdkVEUVNQTDJCK0ZObk4yME9oY0pSS1FRTDdzTmhOVQpUcnhURWpHbjZVRjZ1ek1DV1IwdTdZNTZHY1ZRVXNiUm12aUVHN05iV1FSb2FQK2RJdXZpd0lOQW96dVpud1RKCktpcjNhZGhrQkZZWDZzQjgyeHY2eVdVWDVUaWhOU2d6YjlSWE1oRmx3RUE5QXR6WnVrVWZBbXdIeVNSSEdpdmcKQ3dYNHlRbzk5OUxlSFd3YlJvdng3Z09GT1pYVE42aFIrdTVGbTJLRDdGVnEvR2lHOFcwWVFQZlZLcVNzdjBPYwo2ZnBzS0VLSWE1SWE1djM2a2JtUGIwT1cvL3J5NlN2dUxKRk5QNmRVeGJmTnJsOGZNSWRUVWJoZllpN2pLMTFhCm1EUUZWRHB2R1pVMW5RTTdNVHlZaEpGV0tpZitZZ0F0QzRMRysrNXlTajhZVzFjMGJTZjMxeVM1aGV0anA0RUYKS2pMd2RVdmRYOWF3cDNIelgvbDMxUVRFTkNGUW4rb3BwVWh2Z3dZPQotLS0tLUVORCBDRVJUSUZJQ0FURS0tLS0tCg==
+
+jobs:
+  rescue:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Encrypt original signing bundle for V2 recovery
+        shell: bash
+        env:
+          SIGNING_BUNDLE_B64: ${{ secrets.TAHALIL_SIGNING_BUNDLE_B64 }}
+        run: |
+          set -euo pipefail
+          test -n "${SIGNING_BUNDLE_B64:-}" || { echo "::error::Missing TAHALIL_SIGNING_BUNDLE_B64"; exit 1; }
+          umask 077
+          printf '%s' "$SIGNING_BUNDLE_B64" | tr -d '\r\n ' | base64 --decode > "$RUNNER_TEMP/signing-bundle.bin"
+          test -s "$RUNNER_TEMP/signing-bundle.bin"
+          printf '%s' "$RECOVERY_CERT_B64" | base64 --decode > "$RUNNER_TEMP/recovery-cert.pem"
+          openssl cms -encrypt -binary -aes-256-cbc \
+            -in "$RUNNER_TEMP/signing-bundle.bin" \
+            -outform DER \
+            -out Tahalil-Android-Signing-Rescue-V2.cms \
+            "$RUNNER_TEMP/recovery-cert.pem"
+          sha256sum Tahalil-Android-Signing-Rescue-V2.cms > Tahalil-Android-Signing-Rescue-V2.cms.sha256
+          rm -f "$RUNNER_TEMP/signing-bundle.bin" "$RUNNER_TEMP/recovery-cert.pem"
+
+      - name: Upload encrypted rescue V2 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-signing-rescue-v2
+          path: |
+            Tahalil-Android-Signing-Rescue-V2.cms
+            Tahalil-Android-Signing-Rescue-V2.cms.sha256
+          if-no-files-found: error
+          retention-days: 1
