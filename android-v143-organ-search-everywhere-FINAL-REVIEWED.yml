@@ -1,0 +1,478 @@
+name: Android V143 Organ Search Everywhere FINAL REVIEWED
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: tahalil-android-v143-organ-search-everywhere
+  cancel-in-progress: false
+
+jobs:
+  build-v143:
+    name: Fix organ search everywhere + sign + release
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout old signing repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Gradle 8.11.1
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+
+      - name: Resolve exact V142 source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin '+refs/heads/*:refs/remotes/origin/*' '+refs/tags/*:refs/tags/*'
+          REF='refs/remotes/origin/v142-android-backup-smart-search-ui-base'
+          git rev-parse --verify "$REF^{commit}" >/dev/null
+          git show "$REF:app/build.gradle.kts" | grep -Fq 'versionCode = 142'
+          git show "$REF:app/src/main/java/com/example/data/repository/LabTestRepository.kt" | grep -Fq 'V142 semantic organ/system search'
+          rm -rf build_v143
+          git worktree add --detach build_v143 "$REF"
+          echo "Resolved V142 source: $REF"
+
+      - name: Apply V143 organ-search-everywhere fix
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 <<'PY'
+          from pathlib import Path
+          import json, re
+
+          root = Path('build_v143')
+          grad = root/'app/build.gradle.kts'
+          vmf = root/'app/src/main/java/com/example/ui/LabTestsViewModel.kt'
+          asset = root/'app/src/main/assets/lab_tests_android.json'
+
+          # Version bump: install directly over V142.
+          g = grad.read_text(encoding='utf-8')
+          g, n = re.subn(r'versionCode\s*=\s*142\b', 'versionCode = 143', g, count=1)
+          if n != 1:
+              raise SystemExit('Expected V142 versionCode marker not found')
+          g, n2 = re.subn(r'versionName\s*=\s*"[^"]+"', 'versionName = "5.63-organ-search-everywhere-v143"', g, count=1)
+          if n2 != 1:
+              raise SystemExit('versionName marker not found')
+          grad.write_text(g, encoding='utf-8')
+
+          # Fix grouped/manual/OCR path: never discard semantic matches just because
+          # one literal/direct match exists. Smart results are first, then direct,
+          # de-duplicated by test id.
+          vm = vmf.read_text(encoding='utf-8')
+          old = '''                val directMatches = repository.searchTests(q)\n                // V142: a natural/clinical phrase is accepted for each item too.\n                val allMatches = if (directMatches.isNotEmpty()) directMatches else repository.smartSearchTests(q)'''
+          new = '''                val directMatches = repository.searchTests(q)\n                val smartMatches = repository.smartSearchTests(q)\n                // V143: semantic organ matches must NEVER be hidden by one literal match.\n                val allMatches = (smartMatches + directMatches).distinctBy { it.id }'''
+          if old in vm:
+              vm = vm.replace(old, new, 1)
+          elif 'val allMatches = (smartMatches + directMatches).distinctBy { it.id }' not in vm:
+              raise SystemExit('V142 grouped-search fallback marker not found')
+          vmf.write_text(vm, encoding='utf-8')
+
+          tests = json.loads(asset.read_text(encoding='utf-8-sig'))
+          if len(tests) != 331:
+              raise SystemExit(f'Expected 331 tests, found {len(tests)}')
+
+          # These aliases are written into each related test's search_text so EVERY
+          # search surface (including literal/direct search) understands organs.
+          organ_rules = [
+              (["القلب","قلب","عضلة القلب","عضله القلب","انزيمات القلب","إنزيمات القلب","تحاليل القلب","فحص القلب","اطمن على القلب","اطمئن على القلب","عايز اطمن على القلب","عاوز اطمن على القلب","heart","cardiac","cardiology"],
+               ["CK-MB","Troponin I (Qualitative)","Troponin I (Quantitative)","Homocysteine","CRP","LDH (Lactate Dehydrogenase)","Cholesterol","HDL","LDL Cholesterol","Triglyceride"]),
+              (["الكبد","كبد","وظائف الكبد","انزيمات الكبد","إنزيمات الكبد","تحاليل الكبد","اطمن على الكبد","اطمئن على الكبد","liver","hepatic"],
+               ["ALT (SGPT)","AST (SGOT)","GGT","Alkaline Phosphatase","Bilirubin (Total)","Bilirubin (Direct)","Bilirubin (Indirect)","Albumin","Total Protein","Prothrombin Time & Conc","HBs Ag","HCV Ab","AFP"]),
+              (["الكلى","الكليتين","كلى","كلية","وظائف الكلى","تحاليل الكلى","اطمن على الكلى","اطمئن على الكلى","kidney","kidneys","renal"],
+               ["Creatinine","Blood Urea","BUN","eGFR","Creatinine Clearance","Albumin/Creatinine Ratio","Micro Albumin Random","Micro Albumin in 24 hrs","Protein in Urine Random","Sodium (Na)","Potassium (K)","Phosphorous","Uric Acid"]),
+              (["الغدة الدرقية","الغده الدرقيه","الدرقية","درقية","وظائف الغدة الدرقية","اطمن على الغدة الدرقية","thyroid"],
+               ["TSH","T3","T4","Free T3","Free T4","Anti Thyroid Ab","Thyroid Ab (Anti-Microsomal / Peroxidase Ab)"]),
+              (["البنكرياس","بنكرياس","وظائف البنكرياس","تحاليل البنكرياس","اطمن على البنكرياس","pancreas","pancreatic"],
+               ["Amylase","Amylase in urine","Lipase","Blood Glucose Fasting","Glucose Random","Blood Glucose 2 hrs P.P","Glycated Haemoglobin (HbA1c)","Insulin Level (Fasting)","Insulin (Random)","C-Peptide (Fasting)","C-Peptide (Random)","Homa-IR","Anti Islet Cells Antibody"]),
+              (["البروستاتا","بروستاتا","تحاليل البروستاتا","اطمن على البروستاتا","prostate"],
+               ["PSA (Total)","PSA (Free)"]),
+              (["المبيض","المبايض","مبيض","مبايض","مخزون المبيض","تحاليل المبايض","اطمن على المبايض","ovary","ovaries","ovarian"],
+               ["AMH","CA 125","FSH","LH","Estradiol (E2)","Progesterone"]),
+              (["الرحم","رحم","عنق الرحم","تحاليل الرحم","اطمن على الرحم","uterus","uterine","cervix","cervical"],
+               ["Beta HCG Quantitative","Progesterone","Estradiol (E2)","FSH","LH","CA 125","Cervical Swab C/S"]),
+              (["الغدة النخامية","الغده النخاميه","النخامية","النخاميه","نخامية","pituitary"],
+               ["ACTH AM","ACTH PM","FSH","LH","PRL","Growth Hormone (Basal)","Insulin Like Growth Factor-1 (IGF-1)","TSH"]),
+              (["الغدة الكظرية","الغده الكظريه","الكظرية","الكظريه","كظرية","adrenal"],
+               ["Cortisol AM","Cortisol PM","Cortisol Random","ACTH AM","ACTH PM","Aldosterone","Aldosterone / Renin Ratio","DHEA","DHEA-S"]),
+              (["العظام","عظام","صحة العظام","تحاليل العظام","اطمن على العظام","bone","bones"],
+               ["Vit D3 (25 Hydroxycholecalciferol)","Calcium (Total)","Calcium (Ionized)","Phosphorous","PTH","Alkaline Phosphatase"]),
+              (["العضلات","عضلات","عضلة","عضله","تحاليل العضلات","muscle","muscles"],
+               ["CK Total","LDH (Lactate Dehydrogenase)","AST (SGOT)"]),
+              (["المعدة","المعده","معدة","معده","تحاليل المعدة","جرثومة المعدة","اطمن على المعدة","stomach","gastric"],
+               ["H. Pylori IgG","H. Pylori IgM","H. Pylori Ag (in stool)","Gastrin Level"]),
+              (["القولون","قولون","الأمعاء","الامعاء","أمعاء","امعاء","تحاليل القولون","اطمن على القولون","colon","bowel","intestine","intestinal"],
+               ["Calprotectin in Stool","Occult Blood in Stool","CEA","Stool Analysis","Stool C/S"]),
+              (["الرئة","الرئه","الرئتين","رئة","رئه","التنفس","الجهاز التنفسي","تحاليل الرئة","اطمن على الرئة","lung","lungs","pulmonary","respiratory"],
+               ["D-Dimer","Alpha 1 Antitrypsin (Serum)","Sputum C/S","Acid Fast Bacilli (Sputum)","T.B Gold (QuantiFERON)","T.B DNA by PCR","IgE Specific (Inhalant Allergens) RAST"]),
+              (["الثدي","ثدي","تحاليل الثدي","اطمن على الثدي","breast"],
+               ["CA 15.3","PRL"]),
+              (["الخصية","الخصيه","الخصيتين","خصية","خصيه","تحاليل الخصية","اطمن على الخصية","testis","testicle","testicular","male fertility"],
+               ["Testosterone Total","Testosterone Free","FSH","LH","Semen Analysis","Semen Analysis with CASA","Semen C/S","Fructose In Semen","Anti Sperm Ab (Semen)"]),
+          ]
+
+          by_name = {str(t.get('english_name','')).strip().casefold(): t for t in tests}
+          touched = set()
+          missing = []
+          for aliases, targets in organ_rules:
+              alias_blob = ' | '.join(aliases)
+              for target in targets:
+                  t = by_name.get(target.casefold())
+                  if not t:
+                      missing.append(target)
+                      continue
+                  st = str(t.get('search_text','')).strip()
+                  if aliases[0] not in st:
+                      st = (st + ' | ' + alias_blob).strip(' |')
+                  t['search_text'] = st
+                  touched.add(t.get('id'))
+
+          # Heart is the acceptance-critical requirement: all 10 must exist and be searchable by القلب.
+          heart_targets = organ_rules[0][1]
+          for name in heart_targets:
+              t = by_name.get(name.casefold())
+              if not t:
+                  raise SystemExit(f'Heart target missing from catalogue: {name}')
+              if 'القلب' not in str(t.get('search_text','')):
+                  raise SystemExit(f'Heart direct-search alias missing after patch: {name}')
+
+          asset.write_text(json.dumps(tests, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+          print(f'Organ aliases written into search_text for {len(touched)} catalogue entries')
+          if missing:
+              print('Optional target names not present in this 331-test catalogue:', ', '.join(sorted(set(missing))))
+          PY
+
+      - name: Deep audit V143 requested behavior
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 <<'PY'
+          from pathlib import Path
+          import json
+          root=Path('build_v143')
+          grad=(root/'app/build.gradle.kts').read_text(encoding='utf-8')
+          vm=(root/'app/src/main/java/com/example/ui/LabTestsViewModel.kt').read_text(encoding='utf-8')
+          repo=(root/'app/src/main/java/com/example/data/repository/LabTestRepository.kt').read_text(encoding='utf-8')
+          tests=json.loads((root/'app/src/main/assets/lab_tests_android.json').read_text(encoding='utf-8'))
+          allkt='\n'.join(p.read_text(errors='ignore') for p in (root/'app/src/main/java').rglob('*.kt'))
+          by={t['english_name']:t for t in tests}
+          heart=["CK-MB","Troponin I (Qualitative)","Troponin I (Quantitative)","Homocysteine","CRP","LDH (Lactate Dehydrogenase)","Cholesterol","HDL","LDL Cholesterol","Triglyceride"]
+          checks={
+            'V143 version': 'versionCode = 143' in grad and '5.63-organ-search-everywhere-v143' in grad,
+            'same package': 'applicationId = "com.aistudio.labtestsdirectory.egypt"' in grad,
+            '331 tests': len(tests)==331,
+            'heart all 10 direct searchable': all(n in by and 'القلب' in by[n].get('search_text','') for n in heart),
+            'both troponin I preserved': 'Troponin I (Qualitative)' in by and 'Troponin I (Quantitative)' in by,
+            'smart + direct merged': 'val smartMatches = repository.smartSearchTests(q)' in vm and '(smartMatches + directMatches).distinctBy { it.id }' in vm,
+            'V142 semantic rules preserved': 'V142 semantic organ/system search' in repo,
+            'backup UI preserved': 'V142_QUICK_BACKUP' in allkt and 'نسخة احتياطية الآن' in allkt,
+            'login tagline preserved': 'V142_CARE_TAGLINE' in allkt and 'رعاية' in allkt and 'تليق' in allkt and 'بك' in allkt,
+            'screenshots enabled': 'FLAG_SECURE' not in allkt,
+            'no Cloudflare': 'cloudflare' not in allkt.lower() and 'workers.dev' not in allkt.lower(),
+          }
+          for k,v in checks.items(): print(('OK   ' if v else 'FAIL ')+k)
+          bad=[k for k,v in checks.items() if not v]
+          if bad: raise SystemExit('V143 AUDIT FAILED: '+', '.join(bad))
+          print('V143 ORGAN SEARCH EVERYWHERE AUDIT PASSED')
+          PY
+
+      - name: Compile-check Android V143
+        working-directory: build_v143
+        shell: bash
+        run: |
+          set -euo pipefail
+          gradle --no-daemon --no-configuration-cache --no-parallel --max-workers=2 :app:compileReleaseKotlin
+
+      - name: Select exact V142 signing identity
+        shell: bash
+        env:
+          SIGNING_BUNDLE_B64: ${{ secrets.TAHALIL_SIGNING_BUNDLE_B64 }}
+        run: |
+          set -euo pipefail
+          test -n "${SIGNING_BUNDLE_B64:-}" || { echo "::error::TAHALIL_SIGNING_BUNDLE_B64 missing in old signing repo"; exit 1; }
+
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner -print | sort -V | tail -1)"
+          test -n "$APKSIGNER"
+
+          # V142 is the exact installed/update identity we must preserve.
+          V142_APK="$RUNNER_TEMP/android-v142-installed.apk"
+          curl --fail --location --retry 3 \
+            'https://github.com/ahmedmeshrf22-jpg/lab-tests-directory/releases/download/v142-android/Tahalil-Alakkad-V142-All-Fixes-Organ-Smart-Search-Android-SIGNED.apk' \
+            -o "$V142_APK"
+          "$APKSIGNER" verify --verbose --print-certs "$V142_APK" >/dev/null
+
+          RAW_V142_CERTS="$("$APKSIGNER" verify --print-certs "$V142_APK" 2>&1 || true)"
+          EXPECTED_CERT="$(
+            printf '%s\n' "$RAW_V142_CERTS" \
+              | grep -i -m1 -E 'certificate[[:space:]]+SHA-256[[:space:]]+digest[[:space:]]*:' \
+              | sed -E 's/^.*digest[[:space:]]*:[[:space:]]*//' \
+              | tr -d ':[:space:]' \
+              | tr '[:upper:]' '[:lower:]' \
+              || true
+          )"
+
+          # Fallback only for APKs that also contain a v1/JAR signer certificate.
+          if [ -z "$EXPECTED_CERT" ]; then
+            SIGENTRY="$(unzip -Z1 "$V142_APK" 2>/dev/null | grep -Ei '^META-INF/.*\.(RSA|DSA|EC)$' | head -1 || true)"
+            if [ -n "$SIGENTRY" ]; then
+              unzip -p "$V142_APK" "$SIGENTRY" > "$RUNNER_TEMP/v142-signer-block.der"
+              if openssl pkcs7 -inform DER -in "$RUNNER_TEMP/v142-signer-block.der" -print_certs -out "$RUNNER_TEMP/v142-signer.pem" >/dev/null 2>&1; then
+                EXPECTED_CERT="$(
+                  openssl x509 -in "$RUNNER_TEMP/v142-signer.pem" -noout -fingerprint -sha256 2>/dev/null \
+                    | sed 's/.*=//' \
+                    | tr -d ':[:space:]' \
+                    | tr '[:upper:]' '[:lower:]'
+                )"
+              fi
+            fi
+          fi
+
+          test -n "$EXPECTED_CERT" || {
+            echo "::error::Could not read installed V142 signer certificate"
+            exit 1
+          }
+          test "${#EXPECTED_CERT}" -eq 64 || {
+            echo "::error::Unexpected V142 certificate SHA-256 length"
+            exit 1
+          }
+
+          SIGN_DIR="$RUNNER_TEMP/tahalil_v143_signing"
+          rm -rf "$SIGN_DIR" && mkdir -p "$SIGN_DIR/files" "$SIGN_DIR/test"
+          printf '%s' "$SIGNING_BUNDLE_B64" | tr -d '\r\n ' | base64 --decode > "$SIGN_DIR/bundle.bin"
+
+          if unzip -t "$SIGN_DIR/bundle.bin" >/dev/null 2>&1; then
+            unzip -q "$SIGN_DIR/bundle.bin" -d "$SIGN_DIR/files"
+          else
+            cp "$SIGN_DIR/bundle.bin" "$SIGN_DIR/files/original.keystore"
+          fi
+
+          mapfile -t KEYSTORES < <(find "$SIGN_DIR/files" -type f \( -iname '*.jks' -o -iname '*.keystore' \) -print | sort)
+          [ "${#KEYSTORES[@]}" -gt 0 ] || { echo "::error::No keystore found in signing bundle"; exit 1; }
+
+          # Collect every plausible password stored in the signing bundle, without logging values.
+          PASSWORD_FILE="$SIGN_DIR/password-candidates.txt"
+          : > "$PASSWORD_FILE"
+          while IFS= read -r META; do
+            [ -f "$META" ] || continue
+            sed -nE 's/^[[:space:]]*(STORE_PASSWORD|KEYSTORE_PASSWORD|storePassword|store_password|KEY_PASSWORD|keyPassword|key_password)[[:space:]]*[:=][[:space:]]*"?([^"#]+)"?[[:space:]]*$/\2/p' "$META" >> "$PASSWORD_FILE" || true
+          done < <(find "$SIGN_DIR/files" -type f \( -iname '*.properties' -o -iname '*.env' -o -iname '*.txt' \) -print)
+          printf '%s\n' android >> "$PASSWORD_FILE"
+          awk 'NF && !seen[$0]++' "$PASSWORD_FILE" > "$PASSWORD_FILE.tmp"
+          mv "$PASSWORD_FILE.tmp" "$PASSWORD_FILE"
+
+          FOUND_KEYSTORE=''
+          FOUND_STOREPASS=''
+          FOUND_ALIAS=''
+          FOUND_KEYPASS=''
+
+          while IFS= read -r KS; do
+            while IFS= read -r SP; do
+              [ -n "$SP" ] || continue
+              if ! keytool -list -keystore "$KS" -storepass "$SP" >/dev/null 2>&1; then
+                continue
+              fi
+
+              mapfile -t ALIASES < <(keytool -list -v -keystore "$KS" -storepass "$SP" 2>/dev/null | sed -n 's/^Alias name: //p')
+              for ALIAS in "${ALIASES[@]}"; do
+                [ -n "$ALIAS" ] || continue
+
+                CERT="$(
+                  keytool -exportcert -rfc -keystore "$KS" -storepass "$SP" -alias "$ALIAS" 2>/dev/null \
+                    | openssl x509 -noout -fingerprint -sha256 2>/dev/null \
+                    | sed 's/.*=//' | tr '[:upper:]' '[:lower:]' | tr -d ':[:space:]'
+                )"
+                [ -n "$CERT" ] || continue
+                [ "$CERT" = "$EXPECTED_CERT" ] || continue
+
+                # Cert matches V142. Now find a key password that can actually unlock the private key.
+                while IFS= read -r KP; do
+                  [ -n "$KP" ] || continue
+                  TEST_P12="$SIGN_DIR/test/keycheck.p12"
+                  rm -f "$TEST_P12"
+                  if keytool -importkeystore \
+                      -srckeystore "$KS" -srcstorepass "$SP" \
+                      -srcalias "$ALIAS" -srckeypass "$KP" \
+                      -destkeystore "$TEST_P12" -deststoretype PKCS12 \
+                      -deststorepass 'TemporaryCheckOnly_143!' \
+                      -destkeypass 'TemporaryCheckOnly_143!' \
+                      -noprompt >/dev/null 2>&1; then
+                    FOUND_KEYSTORE="$KS"
+                    FOUND_STOREPASS="$SP"
+                    FOUND_ALIAS="$ALIAS"
+                    FOUND_KEYPASS="$KP"
+                    break 4
+                  fi
+                done < "$PASSWORD_FILE"
+              done
+            done < "$PASSWORD_FILE"
+          done < <(printf '%s\n' "${KEYSTORES[@]}")
+
+          test -n "$FOUND_KEYSTORE" || {
+            echo "::error::No signing key inside TAHALIL_SIGNING_BUNDLE_B64 matches the installed V142 certificate."
+            exit 1
+          }
+
+          echo "::add-mask::$FOUND_STOREPASS"
+          echo "::add-mask::$FOUND_ALIAS"
+          echo "::add-mask::$FOUND_KEYPASS"
+
+          # Hard pre-build proof: selected keystore certificate MUST equal installed V142.
+          SELECTED_CERT="$(
+            keytool -exportcert -rfc -keystore "$FOUND_KEYSTORE" -storepass "$FOUND_STOREPASS" -alias "$FOUND_ALIAS" \
+              | openssl x509 -noout -fingerprint -sha256 \
+              | sed 's/.*=//' | tr '[:upper:]' '[:lower:]' | tr -d ':[:space:]'
+          )"
+          test "$SELECTED_CERT" = "$EXPECTED_CERT" || { echo "::error::Selected signing identity does not equal V142"; exit 1; }
+
+          {
+            echo "KEYSTORE_PATH=$FOUND_KEYSTORE"
+            echo "STORE_PASSWORD=$FOUND_STOREPASS"
+            echo "KEY_ALIAS=$FOUND_ALIAS"
+            echo "KEY_PASSWORD=$FOUND_KEYPASS"
+            echo "EXPECTED_V142_CERT=$EXPECTED_CERT"
+          } >> "$GITHUB_ENV"
+
+          echo "Exact installed V142 signing identity selected successfully."
+
+      - name: Build Android V143 release
+        working-directory: build_v143
+        shell: bash
+        run: |
+          set -euo pipefail
+          gradle --no-daemon --no-configuration-cache --no-parallel --max-workers=2 :app:assembleRelease
+
+      - name: Force exact V142 signer and verify final APK
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          RAW_APK="$(find build_v143/app/build/outputs/apk/release -type f -name '*.apk' -print -quit)"
+          test -n "$RAW_APK" && test -s "$RAW_APK"
+
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner -print | sort -V | tail -1)"
+          test -x "$APKSIGNER"
+
+          FINAL_APK='Tahalil-Alakkad-V143-Organ-Search-Everywhere-SIGNED.apk'
+          rm -f "$FINAL_APK"
+
+          # Do not trust whichever signer Gradle may have chosen: explicitly sign the
+          # final APK with the exact keystore+alias already proven equal to V142.
+          "$APKSIGNER" sign \
+            --ks "$KEYSTORE_PATH" \
+            --ks-key-alias "$KEY_ALIAS" \
+            --ks-pass "pass:$STORE_PASSWORD" \
+            --key-pass "pass:$KEY_PASSWORD" \
+            --out "$FINAL_APK" \
+            "$RAW_APK"
+
+          test -s "$FINAL_APK"
+          "$APKSIGNER" verify --verbose --print-certs "$FINAL_APK"
+
+          RAW_FINAL_CERTS="$("$APKSIGNER" verify --print-certs "$FINAL_APK" 2>&1 || true)"
+          FINAL_CERT="$(
+            printf '%s\n' "$RAW_FINAL_CERTS" \
+              | grep -i -m1 -E 'certificate[[:space:]]+SHA-256[[:space:]]+digest[[:space:]]*:' \
+              | sed -E 's/^.*digest[[:space:]]*:[[:space:]]*//' \
+              | tr -d ':[:space:]' \
+              | tr '[:upper:]' '[:lower:]' \
+              || true
+          )"
+
+          test -n "${EXPECTED_V142_CERT:-}" || {
+            echo "::error::Expected V142 certificate was not carried into final signing step"
+            exit 1
+          }
+          test -n "$FINAL_CERT" || {
+            echo "::error::Could not read final V143 signer certificate"
+            exit 1
+          }
+          test "${#FINAL_CERT}" -eq 64 || {
+            echo "::error::Unexpected final V143 certificate SHA-256 length"
+            exit 1
+          }
+          test "$FINAL_CERT" = "$EXPECTED_V142_CERT" || {
+            echo "::error::Final V143 signer differs from installed V142"
+            exit 1
+          }
+
+          sha256sum "$FINAL_APK" > "$FINAL_APK.sha256"
+          echo "FINAL V143 SIGNER MATCHES INSTALLED V142"
+
+      - name: Publish immutable V143 source branch
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          cd build_v143
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git checkout -B v143-android-organ-search-everywhere-base
+          git add -A
+          git commit -m 'Android V143 organ search everywhere fix' || true
+          V143_SHA="$(git rev-parse HEAD)"
+          git push --force "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:refs/heads/v143-android-organ-search-everywhere-base
+          echo "V143_COMMIT_SHA=$V143_SHA" >> "$GITHUB_ENV"
+
+      - name: Prepare source snapshot
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd build_v143 && zip -qr ../Tahalil-Alakkad-V143-Android-SOURCE.zip . -x '.git/*' '.gradle/*' 'app/build/*' 'build/*' '*.apk')
+          sha256sum Tahalil-Alakkad-V143-Android-SOURCE.zip > Tahalil-Alakkad-V143-Android-SOURCE.zip.sha256
+
+      - name: Upload V143 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Tahalil-Alakkad-Android-V143-ORGAN-SEARCH-EVERYWHERE
+          path: |
+            Tahalil-Alakkad-V143-Organ-Search-Everywhere-SIGNED.apk
+            Tahalil-Alakkad-V143-Organ-Search-Everywhere-SIGNED.apk.sha256
+            Tahalil-Alakkad-V143-Android-SOURCE.zip
+            Tahalil-Alakkad-V143-Android-SOURCE.zip.sha256
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish Android V143 release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TAG='v143-android'
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$TAG" \
+              Tahalil-Alakkad-V143-Organ-Search-Everywhere-SIGNED.apk \
+              Tahalil-Alakkad-V143-Organ-Search-Everywhere-SIGNED.apk.sha256 \
+              Tahalil-Alakkad-V143-Android-SOURCE.zip \
+              Tahalil-Alakkad-V143-Android-SOURCE.zip.sha256 \
+              --repo "$GITHUB_REPOSITORY" --clobber
+          else
+            gh release create "$TAG" \
+              Tahalil-Alakkad-V143-Organ-Search-Everywhere-SIGNED.apk \
+              Tahalil-Alakkad-V143-Organ-Search-Everywhere-SIGNED.apk.sha256 \
+              Tahalil-Alakkad-V143-Android-SOURCE.zip \
+              Tahalil-Alakkad-V143-Android-SOURCE.zip.sha256 \
+              --repo "$GITHUB_REPOSITORY" \
+              --target "$V143_COMMIT_SHA" \
+              --title 'تحاليل العقاد Android V143 — Organ Search Everywhere' \
+              --notes 'Fix: organ/system semantic search now works from direct search as well as smart/manual/OCR paths. Typing القلب returns CK-MB, both Troponin I qualitative/quantitative, Homocysteine, CRP, LDH, Cholesterol, HDL, LDL and Triglyceride. V142 backup UI, login tagline, Firebase, catalogue/prices and security behavior are preserved. Windows is not touched by this Android workflow.'
+          fi
+
+      - name: Final status
+        shell: bash
+        run: |
+          echo 'ANDROID V143 ORGAN SEARCH EVERYWHERE BUILT + EXACT V142 SIGNER VERIFIED + RELEASED'
