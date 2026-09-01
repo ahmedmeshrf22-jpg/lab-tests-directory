@@ -31,6 +31,12 @@ class LabOrderBackgroundService : JobService() {
                     return@addOnSuccessListener
                 }
 
+                DeviceApprovalGuard.checkServerApproved(this, user) { approved ->
+                    if (!approved) {
+                        jobFinished(params, false)
+                        return@checkServerApproved
+                    }
+
                 val prefs = getSharedPreferences("order_background_v107", Context.MODE_PRIVATE)
                 val checkpointKey = "last_scan_ms_${user.uid}"
                 val lastScan = prefs.getLong(checkpointKey, 0L)
@@ -128,6 +134,7 @@ class LabOrderBackgroundService : JobService() {
                         jobFinished(params, false)
                     }
                     .addOnFailureListener { jobFinished(params, true) }
+                }
             }
             .addOnFailureListener { jobFinished(params, true) }
         return true

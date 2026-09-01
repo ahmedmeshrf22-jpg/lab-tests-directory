@@ -1,0 +1,9 @@
+Android V141 Final Delivery Fix
+- Fixes Result Failover FileProvider authority and cache path.
+- Starts background order services/tokens only after approved-device access.
+- Re-validates device approval server-side inside realtime service, periodic job, and FCM delivery.
+- Reclassifies continuous operational listener as specialUse FGS for Android 15/16 instead of dataSync timeout class.
+- Adds shared Firestore catalogue overrides and server-backed bulk customer price updates.
+- Includes catalogue overrides in encrypted V134 backup/restore.
+- Adds Firestore financial invariants for order totals/payment state and payment document identity.
+- Preserves screenshots enabled, Firebase primary, Supabase failover, reconciliation, offline vault, backup, restore and signing identity.

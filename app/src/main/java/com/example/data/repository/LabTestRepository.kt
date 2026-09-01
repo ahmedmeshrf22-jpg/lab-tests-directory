@@ -122,6 +122,42 @@ class LabTestRepository(private val context: Context) {
     }
 
     @Synchronized
+    fun applyRemoteCatalogOverride(test: LabTest, deleted: Boolean) {
+        val id = test.id
+        if (deleted) {
+            deleteLabTest(id)
+            return
+        }
+        val normalized = buildTest(id, test.englishName, test.arabicName, test.marketName, test.searchText, test.customerPrice)
+        val deletedIds = readDeletedIds().toMutableSet().apply { remove(id) }
+        val editor = catalogPrefs.edit().putString(KEY_DELETED_IDS, JSONArray(deletedIds.toList()).toString())
+        if (id >= CUSTOM_ID_START) {
+            val custom = readObjectArray(KEY_CUSTOM_TESTS)
+            val replaced = JSONArray()
+            var found = false
+            for (i in 0 until custom.length()) {
+                val obj = custom.optJSONObject(i) ?: continue
+                if (obj.optInt("id") == id) { replaced.put(testToJson(normalized)); found = true } else replaced.put(obj)
+            }
+            if (!found) replaced.put(testToJson(normalized))
+            editor.putString(KEY_CUSTOM_TESTS, replaced.toString())
+            editor.putInt(KEY_NEXT_ID, maxOf(catalogPrefs.getInt(KEY_NEXT_ID, CUSTOM_ID_START), id + 1))
+        } else {
+            val edits = readObjectArray(KEY_EDITED_TESTS)
+            val replaced = JSONArray()
+            var found = false
+            for (i in 0 until edits.length()) {
+                val obj = edits.optJSONObject(i) ?: continue
+                if (obj.optInt("id") == id) { replaced.put(testToJson(normalized)); found = true } else replaced.put(obj)
+            }
+            if (!found) replaced.put(testToJson(normalized))
+            editor.putString(KEY_EDITED_TESTS, replaced.toString())
+        }
+        editor.apply()
+        cachedTests = null
+    }
+
+    @Synchronized
     fun bulkUpdateLabTests(updates: Map<Int, LabTest>): Int {
         if (updates.isEmpty()) return 0
         updates.values.forEach { updateLabTest(it) }
@@ -252,7 +288,112 @@ class LabTestRepository(private val context: Context) {
         AliasRule(listOf("b12", "vit b12", "vitamin b12", "فيتامين ب12"), listOf("VIT B12 (Cyanocobalamine)")),
         AliasRule(listOf("مخزون حديد", "ferritin"), listOf("Ferritin")),
         AliasRule(listOf("lipid profile", "lipids profile", "تحليل دهون", "دهون كامله"), listOf("Lipids Profile")),
-        AliasRule(listOf("وظائف غده درقيه", "thyroid function", "thyroid functions", "tft"), listOf("TSH", "Free T4"))
+        AliasRule(listOf("وظائف غده درقيه", "thyroid function", "thyroid functions", "tft"), listOf("TSH", "Free T4")),
+        // V142 common clinic shorthand / market wording.
+        AliasRule(listOf("cbc", "fbc", "complete blood count", "صورة دم", "صوره دم", "صورة دم كاملة"), listOf("CBC")),
+        AliasRule(listOf("crp", "c reactive protein", "سي ار بي"), listOf("CRP")),
+        AliasRule(listOf("esr", "sed rate", "سرعة ترسيب", "سرعه ترسيب"), listOf("ESR")),
+        AliasRule(listOf("tsh", "thyroid stimulating hormone"), listOf("TSH")),
+        AliasRule(listOf("ft4", "free t4", "free thyroxine"), listOf("Free T4")),
+        AliasRule(listOf("ft3", "free t3"), listOf("Free T3")),
+        AliasRule(listOf("ptt", "aptt", "a ptt", "partial thromboplastin"), listOf("PTT")),
+        AliasRule(listOf("d dimer", "d-dimer", "ddimer"), listOf("D-Dimer")),
+        AliasRule(listOf("creat", "cr", "creatinine", "كرياتينين"), listOf("Creatinine")),
+        AliasRule(listOf("urea", "bun", "blood urea", "يوريا"), listOf("Blood Urea")),
+        AliasRule(listOf("uric", "uric acid", "يوريك اسيد", "حمض اليوريك"), listOf("Uric Acid")),
+        AliasRule(listOf("ua"), listOf("Uric Acid", "Urine Analysis")),
+        AliasRule(listOf("alp", "alk phos", "alkaline phosphatase"), listOf("Alkaline Phosphatase")),
+        AliasRule(listOf("ggt", "gamma gt", "gamma glutamyl transferase"), listOf("GGT")),
+        AliasRule(listOf("t bil", "tbil", "total bilirubin", "bilirubin total"), listOf("Bilirubin (Total)")),
+        AliasRule(listOf("d bil", "dbil", "direct bilirubin", "bilirubin direct"), listOf("Bilirubin (Direct)")),
+        AliasRule(listOf("chol", "total cholesterol", "كوليسترول"), listOf("Cholesterol")),
+        AliasRule(listOf("hdl", "hdl c", "good cholesterol"), listOf("HDL")),
+        AliasRule(listOf("ldl", "ldl c", "bad cholesterol"), listOf("LDL Cholesterol")),
+        AliasRule(listOf("tg", "triglycerides", "triglyceride"), listOf("Triglyceride")),
+        AliasRule(listOf("na", "sodium", "صوديوم"), listOf("Sodium (Na)")),
+        AliasRule(listOf("k", "potassium", "بوتاسيوم"), listOf("Potassium (K)")),
+        AliasRule(listOf("mg", "magnesium", "ماغنسيوم", "مغنيسيوم"), listOf("Magnesium")),
+        AliasRule(listOf("ca", "total calcium", "calcium total", "كالسيوم كلي"), listOf("Calcium (Total)")),
+        AliasRule(listOf("ca2", "ca2+", "ionized calcium", "calcium ionized", "كالسيوم متأين"), listOf("Calcium (Ionized)")),
+        AliasRule(listOf("amylase", "amy"), listOf("Amylase")),
+        AliasRule(listOf("lipase", "lip"), listOf("Lipase")),
+        AliasRule(listOf("psa", "total psa", "psa total"), listOf("PSA (Total)")),
+        AliasRule(listOf("free psa", "fpsa", "psa free"), listOf("PSA (Free)")),
+        AliasRule(listOf("bhcg", "b hcg", "beta hcg", "pregnancy hormone", "هرمون الحمل"), listOf("Beta HCG Quantitative")),
+        AliasRule(listOf("urine", "urinalysis", "urine analysis", "تحليل بول", "بول كامل"), listOf("Urine Analysis")),
+
+        // V142 semantic organ/system search: typing an organ or a natural phrase
+        // such as "عايز اطمن على القلب" returns tests medically associated
+        // with that organ even when the organ word is absent from the test name.
+        AliasRule(
+            listOf("القلب", "قلب", "عضلة القلب", "عضله القلب", "انزيمات القلب", "إنزيمات القلب", "تحاليل القلب", "فحص القلب", "اطمن على القلب", "اطمئن على القلب", "عايز اطمن على القلب", "عاوز اطمن على القلب", "heart", "cardiac", "cardiology"),
+            listOf("CK-MB", "Troponin I (Qualitative)", "Troponin I (Quantitative)", "Homocysteine", "CRP", "LDH (Lactate Dehydrogenase)", "Cholesterol", "HDL", "LDL Cholesterol", "Triglyceride")
+        ),
+        AliasRule(
+            listOf("الكبد", "كبد", "وظائف الكبد", "انزيمات الكبد", "إنزيمات الكبد", "تحاليل الكبد", "اطمن على الكبد", "اطمئن على الكبد", "liver", "hepatic"),
+            listOf("ALT (SGPT)", "AST (SGOT)", "GGT", "Alkaline Phosphatase", "Bilirubin (Total)", "Bilirubin (Direct)", "Bilirubin (Indirect)", "Albumin", "Total Protein", "Prothrombin Time & Conc", "HBs Ag", "HCV Ab", "AFP")
+        ),
+        AliasRule(
+            listOf("الكلى", "الكليتين", "كلى", "كلية", "وظائف الكلى", "تحاليل الكلى", "اطمن على الكلى", "اطمئن على الكلى", "kidney", "kidneys", "renal"),
+            listOf("Creatinine", "Blood Urea", "BUN", "eGFR", "Creatinine Clearance", "Albumin/Creatinine Ratio", "Micro Albumin Random", "Micro Albumin in 24 hrs", "Protein in Urine Random", "Sodium (Na)", "Potassium (K)", "Phosphorous", "Uric Acid")
+        ),
+        AliasRule(
+            listOf("الغدة الدرقية", "الغده الدرقيه", "الدرقية", "درقية", "وظائف الغدة الدرقية", "اطمن على الغدة الدرقية", "thyroid"),
+            listOf("TSH", "T3", "T4", "Free T3", "Free T4", "Anti Thyroid Ab", "Thyroid Ab (Anti-Microsomal / Peroxidase Ab)")
+        ),
+        AliasRule(
+            listOf("البنكرياس", "بنكرياس", "وظائف البنكرياس", "تحاليل البنكرياس", "اطمن على البنكرياس", "pancreas", "pancreatic"),
+            listOf("Amylase", "Amylase in urine", "Lipase", "Blood Glucose Fasting", "Glucose Random", "Blood Glucose 2 hrs P.P", "Glycated Haemoglobin (HbA1c)", "Insulin Level (Fasting)", "Insulin (Random)", "C-Peptide (Fasting)", "C-Peptide (Random)", "Homa-IR", "Anti Islet Cells Antibody")
+        ),
+        AliasRule(
+            listOf("البروستاتا", "بروستاتا", "تحاليل البروستاتا", "اطمن على البروستاتا", "prostate"),
+            listOf("PSA (Total)", "PSA (Free)")
+        ),
+        AliasRule(
+            listOf("المبيض", "المبايض", "مبيض", "مبايض", "مخزون المبيض", "تحاليل المبايض", "اطمن على المبايض", "ovary", "ovaries", "ovarian"),
+            listOf("AMH", "CA 125", "FSH", "LH", "Estradiol (E2)", "Progesterone")
+        ),
+        AliasRule(
+            listOf("الرحم", "رحم", "عنق الرحم", "تحاليل الرحم", "اطمن على الرحم", "uterus", "uterine", "cervix", "cervical"),
+            listOf("Beta HCG Quantitative", "Progesterone", "Estradiol (E2)", "FSH", "LH", "CA 125", "Cervical Swab C/S")
+        ),
+        AliasRule(
+            listOf("الغدة النخامية", "الغده النخاميه", "النخامية", "النخاميه", "نخامية", "pituitary"),
+            listOf("ACTH AM", "ACTH PM", "FSH", "LH", "PRL", "Growth Hormone (Basal)", "Insulin Like Growth Factor-1 (IGF-1)", "TSH")
+        ),
+        AliasRule(
+            listOf("الغدة الكظرية", "الغده الكظريه", "الكظرية", "الكظريه", "كظرية", "adrenal"),
+            listOf("Cortisol AM", "Cortisol PM", "Cortisol Random", "ACTH AM", "ACTH PM", "Aldosterone", "Aldosterone / Renin Ratio", "DHEA", "DHEA-S")
+        ),
+        AliasRule(
+            listOf("العظام", "عظام", "صحة العظام", "تحاليل العظام", "اطمن على العظام", "bone", "bones"),
+            listOf("Vit D3 (25 Hydroxycholecalciferol)", "Calcium (Total)", "Calcium (Ionized)", "Phosphorous", "PTH", "Alkaline Phosphatase")
+        ),
+        AliasRule(
+            listOf("العضلات", "عضلات", "عضلة", "عضله", "تحاليل العضلات", "muscle", "muscles"),
+            listOf("CK Total", "LDH (Lactate Dehydrogenase)", "AST (SGOT)")
+        ),
+        AliasRule(
+            listOf("المعدة", "المعده", "معدة", "معده", "تحاليل المعدة", "جرثومة المعدة", "اطمن على المعدة", "stomach", "gastric"),
+            listOf("H. Pylori IgG", "H. Pylori IgM", "H. Pylori Ag (in stool)", "Gastrin Level")
+        ),
+        AliasRule(
+            listOf("القولون", "قولون", "الأمعاء", "الامعاء", "أمعاء", "امعاء", "تحاليل القولون", "اطمن على القولون", "colon", "bowel", "intestine", "intestinal"),
+            listOf("Calprotectin in Stool", "Occult Blood in Stool", "CEA", "Stool Analysis", "Stool C/S")
+        ),
+        AliasRule(
+            listOf("الرئة", "الرئه", "الرئتين", "رئة", "رئه", "التنفس", "الجهاز التنفسي", "تحاليل الرئة", "اطمن على الرئة", "lung", "lungs", "pulmonary", "respiratory"),
+            listOf("D-Dimer", "Alpha 1 Antitrypsin (Serum)", "Sputum C/S", "Acid Fast Bacilli (Sputum)", "T.B Gold (QuantiFERON)", "T.B DNA by PCR", "IgE Specific (Inhalant Allergens) RAST")
+        ),
+        AliasRule(
+            listOf("الثدي", "ثدي", "تحاليل الثدي", "اطمن على الثدي", "breast"),
+            listOf("CA 15.3", "PRL")
+        ),
+        AliasRule(
+            listOf("الخصية", "الخصيه", "الخصيتين", "خصية", "خصيه", "تحاليل الخصية", "اطمن على الخصية", "testis", "testicle", "testicular", "male fertility"),
+            listOf("Testosterone Total", "Testosterone Free", "FSH", "LH", "Semen Analysis", "Semen Analysis with CASA", "Semen C/S", "Fructose In Semen", "Anti Sperm Ab (Semen)")
+        ),
+        AliasRule(listOf("stool", "stool analysis", "تحليل براز"), listOf("Stool Analysis"))
     )
 
     private fun aliasTargets(normQuery: String): List<String>? {

@@ -44,4 +44,53 @@ object AutoBackupStorage {
         target.writeBytes(bytes)
         return target.absolutePath
     }
+
+    /** V142: newest .tahbak visible anywhere in Downloads. */
+    fun latestBackupEpochMillis(context: Context): Long? {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val resolver = context.contentResolver
+            val projection = arrayOf(MediaStore.MediaColumns.DISPLAY_NAME, MediaStore.MediaColumns.DATE_ADDED)
+            val selection = "${MediaStore.MediaColumns.DISPLAY_NAME} LIKE ?"
+            val args = arrayOf("%.tahbak")
+            resolver.query(
+                MediaStore.Downloads.EXTERNAL_CONTENT_URI, projection, selection, args,
+                "${MediaStore.MediaColumns.DATE_ADDED} DESC"
+            )?.use { cursor ->
+                if (cursor.moveToFirst()) {
+                    val sec = cursor.getLong(cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.DATE_ADDED))
+                    return sec * 1000L
+                }
+            }
+            return null
+        }
+        @Suppress("DEPRECATION")
+        val root = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+        return root.walkTopDown()
+            .filter { it.isFile && it.extension.equals("tahbak", ignoreCase = true) }
+            .maxByOrNull { it.lastModified() }?.lastModified()
+    }
+
+    fun latestBackupName(context: Context): String? {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val resolver = context.contentResolver
+            val projection = arrayOf(MediaStore.MediaColumns.DISPLAY_NAME, MediaStore.MediaColumns.DATE_ADDED)
+            val selection = "${MediaStore.MediaColumns.DISPLAY_NAME} LIKE ?"
+            val args = arrayOf("%.tahbak")
+            resolver.query(
+                MediaStore.Downloads.EXTERNAL_CONTENT_URI, projection, selection, args,
+                "${MediaStore.MediaColumns.DATE_ADDED} DESC"
+            )?.use { cursor ->
+                if (cursor.moveToFirst()) {
+                    return cursor.getString(cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.DISPLAY_NAME))
+                }
+            }
+            return null
+        }
+        @Suppress("DEPRECATION")
+        val root = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+        return root.walkTopDown()
+            .filter { it.isFile && it.extension.equals("tahbak", ignoreCase = true) }
+            .maxByOrNull { it.lastModified() }?.name
+    }
+
 }

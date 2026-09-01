@@ -246,6 +246,7 @@ object CommercialBackupManager {
                 val customerPrices = simple("customer_price_overrides")
                 val labPrices = simple("lab2lab_prices")
                 val phoneRegistry = simple("phone_registry")
+                val catalogOverrides = simple("lab_catalog_overrides")
                 val users = simple("users")
                 val auditLogs = simple("audit_logs")
 
@@ -280,6 +281,7 @@ object CommercialBackupManager {
                     put("customer_price_overrides", JSONArray(customerPrices))
                     put("lab2lab_prices", JSONArray(labPrices))
                     put("phone_registry", JSONArray(phoneRegistry))
+                    put("lab_catalog_overrides", JSONArray(catalogOverrides))
                     put("users", JSONArray(users))
                     put("user_devices", JSONArray(userDevices))
                     put("audit_logs", JSONArray(auditLogs))
@@ -427,6 +429,7 @@ object CommercialBackupManager {
             addSimple("customer_price_overrides", "customer_price_overrides")
             addSimple("lab2lab_prices", "lab2lab_prices")
             addSimple("phone_registry", "phone_registry")
+            addSimple("lab_catalog_overrides", "lab_catalog_overrides")
         }.onFailure {
             onResult(Result.failure(IllegalArgumentException("محتوى النسخة الاحتياطية تالف أو غير مكتمل")))
             return

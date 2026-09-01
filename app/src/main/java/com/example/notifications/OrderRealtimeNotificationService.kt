@@ -82,7 +82,14 @@ class OrderRealtimeNotificationService : Service() {
                     return@addOnSuccessListener
                 }
                 val role = normalizeUserRole(profile.getString("role").orEmpty())
-                attachOrderListener(db, user.uid, role)
+                DeviceApprovalGuard.checkServerApproved(this, user) { approved ->
+                    if (FirebaseAuth.getInstance().currentUser?.uid != activeUid) return@checkServerApproved
+                    if (!approved) {
+                        stopSelf()
+                        return@checkServerApproved
+                    }
+                    attachOrderListener(db, user.uid, role)
+                }
             }
             .addOnFailureListener {
                 // Existing periodic JobScheduler remains the fallback if this profile read fails.

@@ -136,6 +136,7 @@ class LabTestsViewModel(application: Application) : AndroidViewModel(application
         private const val MANAGER_UID = "Wps5Y19pZSbeGooEzFfW5UFsshq2"
         private const val LAB2LAB_COLLECTION = "lab2lab_prices"
         private const val CUSTOMER_OVERRIDES_COLLECTION = "customer_price_overrides"
+        private const val CATALOG_OVERRIDES_COLLECTION = "lab_catalog_overrides"
         private const val CUSTOMERS_COLLECTION = "customers"
         private const val LAB_ORDERS_COLLECTION = "lab_orders"
         private const val USERS_COLLECTION = "users"
@@ -625,6 +626,7 @@ class LabTestsViewModel(application: Application) : AndroidViewModel(application
     private var customerOverridesLoaded = false
     private var profileListener: ListenerRegistration? = null
     private var deviceAccessListener: ListenerRegistration? = null
+    private var catalogOverridesListener: ListenerRegistration? = null
     private var deviceRequestInFlight = false
     private var lastAuthUid: String? = null
     private var authenticatedEmail: String = ""
@@ -1158,6 +1160,7 @@ class LabTestsViewModel(application: Application) : AndroidViewModel(application
         lockAdmin()
         profileListener?.remove()
         deviceAccessListener?.remove()
+        catalogOverridesListener?.remove()
         labOrdersListener?.remove()
         clinicOrdersListener?.remove()
         customerOrdersListener?.remove()
@@ -1180,6 +1183,8 @@ class LabTestsViewModel(application: Application) : AndroidViewModel(application
             profileListener = null
             deviceAccessListener?.remove()
             deviceAccessListener = null
+            catalogOverridesListener?.remove()
+            catalogOverridesListener = null
             labOrdersListener?.remove()
             labOrdersListener = null
             labRealtimeInitialized = false
@@ -1213,7 +1218,6 @@ class LabTestsViewModel(application: Application) : AndroidViewModel(application
         val identityChanged = authenticatedUid != cleanUid || authenticatedEmail != cleanEmail
         authenticatedEmail = cleanEmail
         authenticatedUid = cleanUid
-        OrderNotificationManager.registerCurrentToken()
 
         val manager = isManagerAccount(email, uid)
         _actualManager.value = manager
@@ -1723,6 +1727,7 @@ class LabTestsViewModel(application: Application) : AndroidViewModel(application
 
     private fun loadAfterAccessGranted() {
         if (!hasOperationalAccess()) return
+        startCatalogOverridesSync()
         val labOnly = normalizeUserRole(operationalProfile()?.role.orEmpty()) == "lab_operator"
         if (labOnly) {
             _customerPriceOverrides.value = emptyMap()
@@ -2252,6 +2257,56 @@ class LabTestsViewModel(application: Application) : AndroidViewModel(application
             .addOnFailureListener { onResult(false, tr("تعذر تحديث الأسعار. تأكد من الإنترنت", "Unable to refresh prices. Check internet connection")) }
     }
 
+    private fun startCatalogOverridesSync() {
+        if (catalogOverridesListener != null) return
+        catalogOverridesListener = firestore.collection(CATALOG_OVERRIDES_COLLECTION)
+            .addSnapshotListener { snapshot, error ->
+                if (error != null || snapshot == null) return@addSnapshotListener
+                snapshot.documents.forEach { doc ->
+                    val id = (doc.getLong("id") ?: doc.id.removePrefix("test_").toLongOrNull())?.toInt()
+                        ?: return@forEach
+                    val deleted = doc.getBoolean("deleted") == true
+                    val test = LabTest(
+                        id = id,
+                        englishName = doc.getString("english_name").orEmpty(),
+                        arabicName = doc.getString("arabic_name").orEmpty(),
+                        marketName = doc.getString("market_name").orEmpty(),
+                        customerPrice = null,
+                        searchText = doc.getString("search_text").orEmpty()
+                    )
+                    repository.applyRemoteCatalogOverride(test, deleted)
+                    ShadowBackupReplicator.mirrorSnapshot(doc)
+                }
+                _catalogRevision.value += 1
+            }
+    }
+
+    private fun catalogOverrideData(test: LabTest, deleted: Boolean): Map<String, Any?> = mapOf(
+        "id" to test.id,
+        "english_name" to test.englishName,
+        "arabic_name" to test.arabicName,
+        "market_name" to test.marketName,
+        "search_text" to test.searchText,
+        "deleted" to deleted,
+        "updated_at_ms" to System.currentTimeMillis(),
+        "updated_at" to FieldValue.serverTimestamp(),
+        "updated_by_uid" to currentUid()
+    )
+
+    private fun saveCatalogOverride(test: LabTest, deleted: Boolean, onResult: (Boolean, String) -> Unit) {
+        if (!hasAdminAccess()) {
+            onResult(false, tr("الإجراء متاح للمدير فقط", "Manager only action"))
+            return
+        }
+        val ref = privilegedFirestore().collection(CATALOG_OVERRIDES_COLLECTION).document("test_${test.id}")
+        ref.set(catalogOverrideData(test, deleted), SetOptions.merge())
+            .addOnSuccessListener {
+                ShadowBackupReplicator.mirrorPath(ref.path, System.currentTimeMillis())
+                onResult(true, tr("تمت مزامنة دليل التحاليل", "Test catalogue synced"))
+            }
+            .addOnFailureListener { onResult(false, tr("تعذر مزامنة دليل التحاليل", "Unable to sync test catalogue")) }
+    }
+
     fun searchManagerTests(query: String): List<LabTest> =
         if (query.isBlank()) repository.getLabTests() else repository.searchTests(query)
 
@@ -2280,14 +2335,20 @@ class LabTestsViewModel(application: Application) : AndroidViewModel(application
         }
         val test = repository.addLabTest(englishName, arabicName, marketName, searchText, formatNumber(customerNumber))
         _catalogRevision.value += 1
-        saveManagerPrices(test, customerPrice, lab2LabPrice) { success, message ->
-            if (success) {
-                logAudit(
-                    action = "catalog_add", entityType = "lab_test", entityId = test.id.toString(),
-                    title = "إضافة تحليل", details = "${test.englishName} / ${test.arabicName}"
-                )
+        saveCatalogOverride(test, deleted = false) { catalogOk, catalogMessage ->
+            if (!catalogOk) {
+                onResult(false, catalogMessage)
+                return@saveCatalogOverride
             }
-            onResult(success, message)
+            saveManagerPrices(test, customerPrice, lab2LabPrice) { success, message ->
+                if (success) {
+                    logAudit(
+                        action = "catalog_add", entityType = "lab_test", entityId = test.id.toString(),
+                        title = "إضافة تحليل", details = "${test.englishName} / ${test.arabicName}"
+                    )
+                }
+                onResult(success, message)
+            }
         }
     }
 
@@ -2321,14 +2382,20 @@ class LabTestsViewModel(application: Application) : AndroidViewModel(application
         _selectedTests.value = _selectedTests.value.map { if (it.id == edited.id) edited else it }
         _recognizedTests.value = _recognizedTests.value.map { if (it.id == edited.id) edited else it }
         _catalogRevision.value += 1
-        saveManagerPrices(edited, customerPrice, lab2LabPrice) { success, message ->
-            if (success) {
-                logAudit(
-                    action = "catalog_update", entityType = "lab_test", entityId = edited.id.toString(),
-                    title = "تعديل تحليل", details = "${edited.englishName} / ${edited.arabicName}"
-                )
+        saveCatalogOverride(edited, deleted = false) { catalogOk, catalogMessage ->
+            if (!catalogOk) {
+                onResult(false, catalogMessage)
+                return@saveCatalogOverride
             }
-            onResult(success, message)
+            saveManagerPrices(edited, customerPrice, lab2LabPrice) { success, message ->
+                if (success) {
+                    logAudit(
+                        action = "catalog_update", entityType = "lab_test", entityId = edited.id.toString(),
+                        title = "تعديل تحليل", details = "${edited.englishName} / ${edited.arabicName}"
+                    )
+                }
+                onResult(success, message)
+            }
         }
     }
 
@@ -2376,15 +2443,34 @@ class LabTestsViewModel(application: Application) : AndroidViewModel(application
         val updates = preview.matched.associate { (test, price) ->
             test.id to test.copy(customerPrice = formatNumber(parsePriceInput(price)!!))
         }
-        repository.bulkUpdateLabTests(updates)
-        _catalogRevision.value += 1
-        _selectedTests.value = _selectedTests.value.map { updates[it.id] ?: it }
-        _recognizedTests.value = _recognizedTests.value.map { updates[it.id] ?: it }
-        _customerPriceOverrides.value = _customerPriceOverrides.value + updates.mapValues { it.value.customerPrice.orEmpty() }
-        onResult(true, tr(
-            "تم تعديل ${updates.size} تحليل${if (preview.notFound.isNotEmpty()) " • غير مطابق: ${preview.notFound.size}" else ""}",
-            "Updated ${updates.size} tests${if (preview.notFound.isNotEmpty()) " • unmatched: ${preview.notFound.size}" else ""}"
-        ))
+        val now = System.currentTimeMillis()
+        privilegedFirestore().runBatch { batch ->
+            updates.forEach { (id, test) ->
+                val price = parsePriceInput(test.customerPrice.orEmpty()) ?: 0.0
+                val ref = privilegedFirestore().collection(CUSTOMER_OVERRIDES_COLLECTION).document("test_$id")
+                batch.set(ref, mapOf(
+                    "id" to id,
+                    "customer_price" to price,
+                    "updated_at_ms" to now,
+                    "updated_at" to FieldValue.serverTimestamp()
+                ), SetOptions.merge())
+            }
+        }.addOnSuccessListener {
+            repository.bulkUpdateLabTests(updates)
+            _catalogRevision.value += 1
+            _selectedTests.value = _selectedTests.value.map { updates[it.id] ?: it }
+            _recognizedTests.value = _recognizedTests.value.map { updates[it.id] ?: it }
+            _customerPriceOverrides.value = _customerPriceOverrides.value + updates.mapValues { it.value.customerPrice.orEmpty() }
+            updates.keys.forEach { id ->
+                ShadowBackupReplicator.mirrorPath("$CUSTOMER_OVERRIDES_COLLECTION/test_$id", now)
+            }
+            onResult(true, tr(
+                "تم تعديل ${updates.size} تحليل${if (preview.notFound.isNotEmpty()) " • غير مطابق: ${preview.notFound.size}" else ""}",
+                "Updated ${updates.size} tests${if (preview.notFound.isNotEmpty()) " • unmatched: ${preview.notFound.size}" else ""}"
+            ))
+        }.addOnFailureListener {
+            onResult(false, tr("تعذر حفظ التعديل الجماعي على السيرفر", "Unable to save bulk update to server"))
+        }
     }
 
     fun deleteCatalogTest(test: LabTest, onResult: (Boolean, String) -> Unit) {
@@ -2392,15 +2478,21 @@ class LabTestsViewModel(application: Application) : AndroidViewModel(application
             onResult(false, tr("الإجراء متاح للمدير فقط", "Manager only action"))
             return
         }
-        repository.deleteLabTest(test.id)
-        _selectedTests.value = _selectedTests.value.filterNot { it.id == test.id }
-        _recognizedTests.value = _recognizedTests.value.filterNot { it.id == test.id }
-        _catalogRevision.value += 1
-        logAudit(
-            action = "catalog_delete", entityType = "lab_test", entityId = test.id.toString(),
-            title = "حذف تحليل", details = "${test.englishName} / ${test.arabicName}"
-        )
-        onResult(true, tr("تم حذف التحليل من الدليل", "Test removed from catalogue"))
+        saveCatalogOverride(test, deleted = true) { success, message ->
+            if (!success) {
+                onResult(false, message)
+                return@saveCatalogOverride
+            }
+            repository.deleteLabTest(test.id)
+            _selectedTests.value = _selectedTests.value.filterNot { it.id == test.id }
+            _recognizedTests.value = _recognizedTests.value.filterNot { it.id == test.id }
+            _catalogRevision.value += 1
+            logAudit(
+                action = "catalog_delete", entityType = "lab_test", entityId = test.id.toString(),
+                title = "حذف تحليل", details = "${test.englishName} / ${test.arabicName}"
+            )
+            onResult(true, tr("تم حذف التحليل من الدليل ومزامنته", "Test removed and synced"))
+        }
     }
 
     fun clearLab2LabState() {
@@ -5789,16 +5881,44 @@ class LabTestsViewModel(application: Application) : AndroidViewModel(application
 
     private fun parseQueries(rawInput: String): List<String> {
         if (rawInput.isBlank()) return emptyList()
-        val delimiterRegex = Regex("[\\n,،;؛]+")
-        val rawTokens = rawInput.split(delimiterRegex)
-        val seenNorm = mutableSetOf<String>()
+
+        // V142: universal medical-list tokenizer.
+        // Split only outside brackets/parentheses so names such as ALT (SGPT)
+        // and TIBC (Total Iron Binding Capacity) stay intact.
+        val hardSeparators = setOf(
+            '\n', '\r', '\t', ',', '،', ';', '؛', '|', '•', '·', '●', '▪', '◦',
+            '+', '=', '→', '←', '↔', '✓', '✔', '☑', '◆', '◇'
+        )
         val result = mutableListOf<String>()
-        for (token in rawTokens) {
-            val trimmed = token.trim()
-            if (trimmed.isEmpty()) continue
+        val seenNorm = mutableSetOf<String>()
+        val current = StringBuilder()
+        var depth = 0
+
+        fun flush() {
+            val trimmed = current.toString().trim().trim('-', '–', '—', '/', '\\', '.', ':')
+            current.setLength(0)
+            if (trimmed.isEmpty()) return
             val norm = normalizeText(trimmed)
             if (norm.isNotEmpty() && seenNorm.add(norm)) result.add(trimmed)
         }
+
+        rawInput.forEachIndexed { index, ch ->
+            when (ch) {
+                '(', '[', '{' -> { depth++; current.append(ch) }
+                ')', ']', '}' -> { if (depth > 0) depth--; current.append(ch) }
+                else -> {
+                    val prev = rawInput.getOrNull(index - 1)
+                    val next = rawInput.getOrNull(index + 1)
+                    val spacedDash = depth == 0 && ch in setOf('-', '–', '—') &&
+                        ((prev?.isWhitespace() == true) || (next?.isWhitespace() == true))
+                    val spacedSlash = depth == 0 && ch == '/' &&
+                        ((prev?.isWhitespace() == true) || (next?.isWhitespace() == true))
+                    val separator = depth == 0 && (ch in hardSeparators || spacedDash || spacedSlash)
+                    if (separator) flush() else current.append(ch)
+                }
+            }
+        }
+        flush()
         return result
     }
 
@@ -5836,13 +5956,22 @@ class LabTestsViewModel(application: Application) : AndroidViewModel(application
         _recognizedTests.value = emptyList()
         _searchQuery.value = newQuery
         val trimmed = newQuery.trim()
-        if (trimmed.length < 2) {
+        if (trimmed.length < 2 && !trimmed.equals("k", ignoreCase = true)) {
             _uiState.value = SearchUiState.EmptyQuery
             return
         }
 
-        // Preserve the established batch behaviour for pasted multi-test lists.
-        if (newQuery.contains('\n') || newQuery.contains(',') || newQuery.contains('،') || newQuery.contains(';') || newQuery.contains('؛')) {
+        // V142: understand multiple tests even when they are written side-by-side
+        // with punctuation/symbols or simply as recognizable medical abbreviations.
+        // The same detector is used by image/PDF OCR, giving manual and image search
+        // one consistent interpretation path.
+        val explicitTests = detectTestsFromRecognizedText(newQuery)
+        val parsed = parseQueries(newQuery)
+        if (explicitTests.size > 1) {
+            onQueryChanged(explicitTests.joinToString("\n") { it.englishName })
+            return
+        }
+        if (parsed.size > 1) {
             onQueryChanged(newQuery)
             return
         }
@@ -5880,7 +6009,9 @@ class LabTestsViewModel(application: Application) : AndroidViewModel(application
             val queryGroups = mutableListOf<QueryGroup>()
             val unmatchedQueries = mutableListOf<String>()
             for (q in queries) {
-                val allMatches = repository.searchTests(q)
+                val directMatches = repository.searchTests(q)
+                // V142: a natural/clinical phrase is accepted for each item too.
+                val allMatches = if (directMatches.isNotEmpty()) directMatches else repository.smartSearchTests(q)
                 // V69: when the user typed a full catalogue name/abbreviation, show only
                 // that exact test instead of related substring results. This is especially
                 // important for pasted multi-line price inquiries.
@@ -5997,8 +6128,7 @@ class LabTestsViewModel(application: Application) : AndroidViewModel(application
 
         // Extra pass: OCR often places one abbreviation/name on its own line. Exact
         // catalogue search catches punctuation variants such as ALT(SGPT), TSH, HbA1c.
-        val segments = rawText
-            .split(Regex("[\\n,،;؛•|]+"))
+        val segments = parseQueries(rawText)
             .map { it.trim() }
             .filter { it.length in 2..120 }
 

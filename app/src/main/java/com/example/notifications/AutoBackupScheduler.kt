@@ -131,6 +131,22 @@ object AutoBackupScheduler {
         }
     }
 
+    /** V142: recover a missed 04:00 backup when the app is next opened. */
+    fun catchUpIfMissed(context: Context) {
+        if (!AutoBackupCredentialStore.isConfigured(context)) return
+        val now = System.currentTimeMillis()
+        val todayFour = Calendar.getInstance().apply {
+            timeInMillis = now
+            set(Calendar.HOUR_OF_DAY, FOUR_AM_HOUR)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }.timeInMillis
+        if (now < todayFour + 15 * 60 * 1000L) return
+        val latest = AutoBackupStorage.latestBackupEpochMillis(context) ?: 0L
+        if (latest < todayFour) enqueueNow(context)
+    }
+
     fun enqueueNow(context: Context) {
         val scheduler = context.getSystemService(Context.JOB_SCHEDULER_SERVICE) as JobScheduler
         val info = JobInfo.Builder(JOB_ID, ComponentName(context, AutoBackupJobService::class.java))

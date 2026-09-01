@@ -74,6 +74,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.R
 import com.example.settings.tr
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.layout.width
+import androidx.compose.runtime.LaunchedEffect
+import kotlinx.coroutines.delay
 
 private val LoginNavy = Color(0xFF082D42)
 private val LoginBlue = Color(0xFF087FA4)
@@ -190,6 +197,36 @@ fun LoginScreen(
                     }
 
                     Spacer(modifier = Modifier.height(12.dp))
+
+                    // V142_CARE_TAGLINE: sequential clinic promise under the logo.
+                    var careWordsVisible by remember { mutableStateOf(0) }
+                    LaunchedEffect(Unit) {
+                        careWordsVisible = 0
+                        for (i in 1..3) {
+                            delay(320)
+                            careWordsVisible = i
+                        }
+                    }
+                    Row(
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        listOf("رعاية", "تليق", "بك").forEachIndexed { index, word ->
+                            AnimatedVisibility(
+                                visible = careWordsVisible > index,
+                                enter = fadeIn(tween(300)) + slideInVertically(tween(300)) { it / 2 }
+                            ) {
+                                Text(
+                                    text = word,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = LoginBlue
+                                )
+                            }
+                            if (index < 2) Spacer(Modifier.width(5.dp))
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(7.dp))
 
                     Text(
                         text = "تحاليل العقاد",

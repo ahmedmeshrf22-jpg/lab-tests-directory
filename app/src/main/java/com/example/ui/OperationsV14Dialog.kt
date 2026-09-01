@@ -112,6 +112,9 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+import com.example.util.AutoBackupCredentialStore
+import com.example.util.AutoBackupStorage
+import com.example.notifications.BackupNotificationManager
 
 private val OpsPrimary = Color(0xFF006D86)
 private val OpsDark = Color(0xFF17324D)
@@ -123,8 +126,8 @@ fun OperationsSystemCard(isManager: Boolean, onClick: () -> Unit) {
 LabeledIconAction(
         label = appText("التقارير والحسابات", "Reports & Accounts"),
         onClick = onClick,
-        modifier = Modifier.fillMaxWidth()
-    ) { Icon(Icons.Default.Assessment, contentDescription = null, tint = OpsPrimary) }
+        modifier = Modifier.fillMaxWidth(),
+        actionSize = 68.dp) { Icon(Icons.Default.Assessment, contentDescription = null, tint = OpsPrimary, modifier = Modifier.size(48.dp)) }
 }
 
 @Composable
@@ -305,11 +308,12 @@ private fun OpsMenuCard(
     subtitle: String,
     onClick: () -> Unit
 ) {
-LabeledIconAction(label = title, onClick = onClick, modifier = modifier) {
+LabeledIconAction(label = title, onClick = onClick, modifier = modifier,
+        actionSize = 72.dp) {
         Image(
             painter = painterResource(iconRes),
             contentDescription = null,
-            modifier = Modifier.size(36.dp),
+            modifier = Modifier.size(54.dp),
             contentScale = ContentScale.Fit
         )
     }
@@ -1240,8 +1244,8 @@ private fun StaffSummaryCard(
 LabeledIconAction(
         label = "$label • $value",
         onClick = onClick,
-        modifier = modifier
-    ) { Icon(if (selected) Icons.Default.CheckCircle else Icons.Default.Tune, contentDescription = null, tint = OpsPrimary) }
+        modifier = modifier,
+        actionSize = 62.dp) { Icon(if (selected) Icons.Default.CheckCircle else Icons.Default.Tune, contentDescription = null, tint = OpsPrimary, modifier = Modifier.size(42.dp)) }
 }
 
 @Composable
@@ -1598,14 +1602,14 @@ private fun UserAccessDialog(
                         Modifier.size(46.dp).background(if (enabled) Color(0xFFE7F5F7) else Color(0xFFE2E8F0), CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(if (enabled) Icons.Default.CheckCircle else Icons.Default.Block, contentDescription = null, tint = if (enabled) OpsGreen else Color(0xFF64748B))
+                        Icon(if (enabled) Icons.Default.CheckCircle else Icons.Default.Block, contentDescription = null, tint = if (enabled) OpsGreen else Color(0xFF64748B), modifier = Modifier.size(38.dp))
                     }
                     Spacer(Modifier.width(10.dp))
                     Column(Modifier.weight(1f)) {
                         Text(profile.displayName.ifBlank { profile.email }, fontWeight = FontWeight.ExtraBold, fontSize = 18.sp, color = OpsDark)
                         Text(profile.email, fontSize = 10.sp, color = Color(0xFF64748B), maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
-                    LabeledIconAction(label = tr("إغلاق", "Close"), onClick = onDismiss, enabled = !saving) { Icon(Icons.Default.Close, contentDescription = tr("إغلاق", "Close")) }
+                    LabeledIconAction(label = tr("إغلاق", "Close"), onClick = onDismiss, enabled = !saving, actionSize = 60.dp) { Icon(Icons.Default.Close, contentDescription = tr("إغلاق", "Close"), modifier = Modifier.size(38.dp)) }
                 }
 
                 Spacer(Modifier.height(10.dp))
@@ -1638,7 +1642,7 @@ private fun UserAccessDialog(
                                         color = Color(0xFF64748B)
                                     )
                                 }
-                                LabeledIconAction(label = if (enabled) "مفعّل" else "غير مفعّل", onClick = { if (!isSuper) enabled = !(enabled) }, enabled = !isSuper) { Icon(if (enabled) Icons.Default.CheckCircle else Icons.Default.Block, contentDescription = null) }
+                                LabeledIconAction(label = if (enabled) "مفعّل" else "غير مفعّل", onClick = { if (!isSuper) enabled = !(enabled) }, enabled = !isSuper, actionSize = 60.dp) { Icon(if (enabled) Icons.Default.CheckCircle else Icons.Default.Block, contentDescription = null, modifier = Modifier.size(38.dp)) }
                             }
                         }
                     }
@@ -1699,8 +1703,8 @@ private fun UserAccessDialog(
                     if (!isSuper) {
                         item {
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.Top) {
-                                LabeledIconAction(label = tr("إعادة ضبط PIN التطبيق", "Reset app PIN"), onClick = onResetPin, modifier = Modifier.weight(1f)) { Icon(Icons.Default.Visibility, contentDescription = null) }
-                                LabeledIconAction(label = tr("إعادة تعيين كلمة المرور", "Reset password"), onClick = { showPasswordReset = true }, modifier = Modifier.weight(1f)) { Icon(Icons.Default.LockReset, contentDescription = null) }
+                                LabeledIconAction(label = tr("إعادة ضبط PIN التطبيق", "Reset app PIN"), onClick = onResetPin, modifier = Modifier.weight(1f), actionSize = 60.dp) { Icon(Icons.Default.Visibility, contentDescription = null, modifier = Modifier.size(38.dp)) }
+                                LabeledIconAction(label = tr("إعادة تعيين كلمة المرور", "Reset password"), onClick = { showPasswordReset = true }, modifier = Modifier.weight(1f), actionSize = 60.dp) { Icon(Icons.Default.LockReset, contentDescription = null, modifier = Modifier.size(38.dp)) }
                             }
                         }
                     }
@@ -1722,7 +1726,7 @@ private fun UserAccessDialog(
                                 saving = true
                                 onSave(enabled, role, canEditCustomers, canDiscount, canCollectPayments, canViewReports) { saving = false }
                             }
-                        }, modifier = Modifier.fillMaxWidth(), enabled = !saving) { Icon(Icons.Default.Edit, contentDescription = null) }
+                        }, modifier = Modifier.fillMaxWidth(), enabled = !saving, actionSize = 60.dp) { Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(38.dp)) }
                 }
             }
         }
@@ -1780,15 +1784,14 @@ private fun UserAccessDialog(
                             onResetPassword(next)
                         }
                     },
-                    enabled = newLoginPassword.length >= 6 && newLoginPassword == confirmLoginPassword
-                ) { Icon(Icons.Default.LockReset, contentDescription = null) }
+                    enabled = newLoginPassword.length >= 6 && newLoginPassword == confirmLoginPassword, actionSize = 60.dp) { Icon(Icons.Default.LockReset, contentDescription = null, modifier = Modifier.size(38.dp)) }
             },
             dismissButton = {
                 LabeledIconAction(label = tr("إلغاء", "Cancel"), onClick = {
                     showPasswordReset = false
                     newLoginPassword = ""
                     confirmLoginPassword = ""
-                }) { Icon(Icons.Default.Close, contentDescription = null) }
+                }, actionSize = 60.dp) { Icon(Icons.Default.Close, contentDescription = null, modifier = Modifier.size(38.dp)) }
             }
         )
     }
@@ -1836,6 +1839,52 @@ private fun RoleButtons(role: String, onRole: (String) -> Unit) {
 
 @Composable
 private fun BackupRestoreScreen(viewModel: LabTestsViewModel) {
+    // V142_QUICK_BACKUP: always-visible manual backup control and status.
+    val quickBackupContext = LocalContext.current
+    var quickBackupBusy by remember { mutableStateOf(false) }
+    var quickBackupMessage by remember { mutableStateOf("") }
+    var showQuickBackupPassword by remember { mutableStateOf(false) }
+    var quickBackupPassword by remember { mutableStateOf("") }
+    var quickBackupLastName by remember { mutableStateOf(AutoBackupStorage.latestBackupName(quickBackupContext)) }
+
+    // Resolve localized Compose text while we are still inside the @Composable scope.
+    // The local backup function itself must stay non-Composable because it is invoked
+    // from click/callback lambdas.
+    val quickBackupCreatingText = appText("جاري إنشاء النسخة الاحتياطية…", "Creating backup…")
+    val quickBackupSuccessText = appText(
+        "تم حفظ نسخة جديدة ✓ والنسخ التلقائي 4:00 ص مفعّل",
+        "New backup saved ✓ and automatic 4:00 AM backup is enabled"
+    )
+
+    fun runQuickBackup(password: String) {
+        if (quickBackupBusy) return
+        quickBackupBusy = true
+        quickBackupMessage = quickBackupCreatingText
+        BackupNotificationManager.notifyBackupStarted(quickBackupContext)
+        viewModel.createCommercialBackup(password) { ok, msg, bytes ->
+            if (!ok || bytes == null) {
+                quickBackupBusy = false
+                quickBackupMessage = msg
+                BackupNotificationManager.notifyBackupFailed(quickBackupContext, msg)
+            } else {
+                runCatching { AutoBackupStorage.saveToPhone(quickBackupContext, bytes) }
+                    .onSuccess { savedPath ->
+                        quickBackupBusy = false
+                        quickBackupLastName = AutoBackupStorage.latestBackupName(quickBackupContext)
+                        quickBackupMessage = quickBackupSuccessText
+                        AutoBackupScheduler.requestExactAlarmAccessOnce(quickBackupContext)
+                        AutoBackupScheduler.schedule(quickBackupContext)
+                        BackupNotificationManager.notifyBackupCompleted(quickBackupContext, savedPath)
+                    }
+                    .onFailure { error ->
+                        quickBackupBusy = false
+                        quickBackupMessage = error.message.orEmpty()
+                        BackupNotificationManager.notifyBackupFailed(quickBackupContext, error.message.orEmpty())
+                    }
+            }
+        }
+    }
+
     val context = LocalContext.current
     val isOnline by viewModel.isOnline.collectAsState()
     var backupPassword by remember { mutableStateOf("") }
@@ -1949,11 +1998,92 @@ private fun BackupRestoreScreen(viewModel: LabTestsViewModel) {
         )
     }
 
-    LazyColumn(
+    
+    if (showQuickBackupPassword) {
+        AlertDialog(
+            onDismissRequest = { showQuickBackupPassword = false; quickBackupPassword = "" },
+            title = { Text(appText("تأمين النسخة الاحتياطية", "Secure backup"), fontWeight = FontWeight.ExtraBold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(appText(
+                        "اكتب كلمة مرور لا تقل عن 10 أحرف. هتتحفظ مشفرة داخل Android Keystore علشان النسخ التلقائي.",
+                        "Enter at least 10 characters. It is encrypted by Android Keystore for automatic backups."
+                    ))
+                    OutlinedTextField(
+                        value = quickBackupPassword,
+                        onValueChange = { quickBackupPassword = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text(appText("كلمة مرور النسخة", "Backup password")) },
+                        singleLine = true,
+                        visualTransformation = PasswordVisualTransformation()
+                    )
+                }
+            },
+            confirmButton = {
+                LabeledIconAction(
+                    label = appText("إنشاء النسخة", "Create backup"),
+                    onClick = {
+                        val password = quickBackupPassword
+                        showQuickBackupPassword = false
+                        quickBackupPassword = ""
+                        runQuickBackup(password)
+                    },
+                    enabled = quickBackupPassword.length >= 10,
+                    actionSize = 62.dp
+                ) { Icon(Icons.Default.Backup, contentDescription = null, modifier = Modifier.size(42.dp)) }
+            },
+            dismissButton = {
+                LabeledIconAction(
+                    label = appText("إلغاء", "Cancel"),
+                    onClick = { showQuickBackupPassword = false; quickBackupPassword = "" },
+                    actionSize = 58.dp
+                ) { Icon(Icons.Default.Close, contentDescription = null, modifier = Modifier.size(38.dp)) }
+            }
+        )
+    }
+
+LazyColumn(
         modifier = Modifier.fillMaxSize().padding(14.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
         contentPadding = PaddingValues(bottom = 30.dp)
     ) {
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFFEAF8FB)),
+                shape = RoundedCornerShape(20.dp)
+            ) {
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(14.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(7.dp)
+                ) {
+                    Text(appText("النسخ الاحتياطي", "Backup"), fontWeight = FontWeight.ExtraBold, fontSize = 18.sp)
+                    LabeledIconAction(
+                        label = if (quickBackupBusy) appText("جاري النسخ…", "Backing up…") else appText("نسخة احتياطية الآن", "Backup now"),
+                        onClick = {
+                            val savedPassword = AutoBackupCredentialStore.loadPassword(quickBackupContext)
+                            if (savedPassword != null) runQuickBackup(savedPassword) else showQuickBackupPassword = true
+                        },
+                        enabled = !quickBackupBusy,
+                        actionSize = 72.dp
+                    ) {
+                        if (quickBackupBusy) CircularProgressIndicator(modifier = Modifier.size(42.dp), strokeWidth = 3.dp)
+                        else Icon(Icons.Default.Backup, contentDescription = null, modifier = Modifier.size(50.dp))
+                    }
+                    Text(
+                        if (AutoBackupCredentialStore.isConfigured(quickBackupContext))
+                            appText("النسخ التلقائي: 4:00 ص • مفعّل", "Automatic backup: 4:00 AM • enabled")
+                        else appText("النسخ التلقائي: يحتاج إعداد أول نسخة", "Automatic backup: first backup setup required"),
+                        fontSize = 12.sp, fontWeight = FontWeight.Bold
+                    )
+                    quickBackupLastName?.let { Text(appText("آخر نسخة: $it", "Last backup: $it"), fontSize = 11.sp) }
+                    if (quickBackupMessage.isNotBlank()) Text(quickBackupMessage, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                }
+            }
+        }
+
+
         item {
             Card(
                 modifier = Modifier.fillMaxWidth(),

@@ -71,10 +71,10 @@ class MainActivity : FragmentActivity() {
         OrderNotificationManager.ensureChannel(this)
         BackupNotificationManager.ensureChannel(this)
         AutoBackupScheduler.schedule(this)
+        AutoBackupScheduler.catchUpIfMissed(this)
         if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
             requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 9901)
         }
-        OrderNotificationManager.registerCurrentToken()
 
         // V140: screenshots and screen recording are intentionally allowed.
         // V45: block third-party overlay windows on Android 12+ to reduce tapjacking risk.
@@ -167,8 +167,9 @@ class MainActivity : FragmentActivity() {
 
                     // V107: one lightweight background checker serves both sides.
                     // Lab gets new/edit/cancel alerts; clinic gets accepted/result/cancel alerts.
-                    LaunchedEffect(effectiveUserProfile?.role, currentUser?.uid, actingAsUser?.uid) {
-                        if (currentUser != null) {
+                    LaunchedEffect(effectiveUserProfile?.role, currentUser?.uid, actingAsUser?.uid, accountEnabled, deviceAccessStatus) {
+                        val approvedForBackground = currentUser != null && accountEnabled == true && deviceAccessStatus == "approved"
+                        if (approvedForBackground) {
                             OrderNotificationManager.ensureChannels(this@MainActivity)
                             OrderNotificationManager.registerCurrentToken()
                             LabOrderBackgroundScheduler.schedule(this@MainActivity)
@@ -194,9 +195,6 @@ class MainActivity : FragmentActivity() {
                                 setCustomKey("signed_in", fAuth.currentUser != null)
                             }
                             viewModel.onAuthenticatedUserChanged(fAuth.currentUser?.email, fAuth.currentUser?.uid)
-                            if (fAuth.currentUser != null) {
-                                OrderNotificationManager.registerCurrentToken()
-                            }
                             if (fAuth.currentUser == null) {
                                 isLocallyUnlocked = false
                                 viewModel.clearLab2LabState()

@@ -10,6 +10,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import com.example.MainActivity
 import com.example.R
+import com.google.firebase.FirebaseApp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
@@ -55,9 +56,23 @@ object OrderNotificationManager {
      * the token attached only to the previous clinic account. */
     fun registerCurrentToken() {
         val user = FirebaseAuth.getInstance().currentUser ?: return
-        FirebaseMessaging.getInstance().token.addOnSuccessListener { token ->
-            if (token.isBlank()) return@addOnSuccessListener
-            saveToken(user.uid, user.email.orEmpty(), token)
+        val context = FirebaseApp.getInstance().applicationContext
+        DeviceApprovalGuard.checkServerApproved(context, user) { approved ->
+            if (!approved || FirebaseAuth.getInstance().currentUser?.uid != user.uid) return@checkServerApproved
+            FirebaseMessaging.getInstance().token.addOnSuccessListener { token ->
+                if (token.isBlank()) return@addOnSuccessListener
+                saveToken(user.uid, user.email.orEmpty(), token)
+            }
+        }
+    }
+
+    fun saveTokenIfApproved(context: Context, uid: String, email: String, token: String) {
+        val user = FirebaseAuth.getInstance().currentUser ?: return
+        if (user.uid != uid) return
+        DeviceApprovalGuard.checkServerApproved(context, user) { approved ->
+            if (approved && FirebaseAuth.getInstance().currentUser?.uid == uid) {
+                saveToken(uid, email, token)
+            }
         }
     }
 
