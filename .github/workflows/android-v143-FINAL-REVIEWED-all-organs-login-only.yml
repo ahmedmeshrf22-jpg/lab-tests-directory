@@ -1,0 +1,641 @@
+name: Android V143 FINAL REVIEWED All Organs + Login Only
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: tahalil-android-v143-final-reviewed
+  cancel-in-progress: false
+
+jobs:
+  build-v143:
+    name: All organs + login only + exact signer + release
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout original signing repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Gradle 8.11.1
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+
+      - name: Resolve exact V142 source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin '+refs/heads/*:refs/remotes/origin/*' '+refs/tags/*:refs/tags/*'
+          REF='refs/remotes/origin/v142-android-backup-smart-search-ui-base'
+          git rev-parse --verify "$REF^{commit}" >/dev/null
+          git show "$REF:app/build.gradle.kts" | grep -Fq 'versionCode = 142'
+          git show "$REF:app/src/main/java/com/example/data/repository/LabTestRepository.kt" | grep -Fq 'V142 semantic organ/system search'
+          git show "$REF:app/src/main/java/com/example/ui/LoginScreen.kt" | grep -Fq 'V142_CARE_TAGLINE'
+          git show "$REF:app/src/main/java/com/example/ui/OperationsV14Dialog.kt" | grep -Fq 'V142_QUICK_BACKUP'
+          rm -rf build_v143
+          git worktree add --detach build_v143 "$REF"
+          echo "Exact V142 source resolved."
+
+      - name: Apply all requested V143 changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > "$RUNNER_TEMP/apply_v143_final.py" <<'PY'
+          from pathlib import Path
+          import json, os, re
+          
+          root = Path(os.environ.get('V143_ROOT', 'build_v143'))
+          proxy = os.environ.get('V143_PROXY_TEST') == '1'
+          SRC = root / 'app/src/main/java'
+          GRAD = root / 'app/build.gradle.kts'
+          VMF = SRC / 'com/example/ui/LabTestsViewModel.kt'
+          REPOF = SRC / 'com/example/data/repository/LabTestRepository.kt'
+          ASSET = root / 'app/src/main/assets/lab_tests_android.json'
+          MAINF = SRC / 'com/example/MainActivity.kt'
+          SETTINGSF = SRC / 'com/example/settings/AppSettings.kt'
+          MANAGERF = SRC / 'com/example/ui/ManagerSettingsDialog.kt'
+          USERSETF = SRC / 'com/example/ui/UserSettingsDialog.kt'
+          LOGINF = SRC / 'com/example/ui/LoginScreen.kt'
+          for p in [GRAD, VMF, REPOF, ASSET, MAINF, SETTINGSF, MANAGERF, USERSETF, LOGINF]:
+              if not p.exists(): raise SystemExit(f'Missing required source: {p}')
+          
+          def matching(s, i, op='(', cl=')'):
+              if i < 0 or i >= len(s) or s[i] != op: raise ValueError(f'expected {op} at {i}')
+              depth=0; state='code'; j=i; triple='"""'
+              while j < len(s):
+                  c=s[j]; n=s[j+1] if j+1 < len(s) else ''
+                  if state=='code':
+                      if s.startswith(triple,j): state='triple'; j+=3; continue
+                      if c=='"': state='string'
+                      elif c=="'": state='char'
+                      elif c=='/' and n=='/': state='line'; j+=1
+                      elif c=='/' and n=='*': state='block'; j+=1
+                      elif c==op: depth+=1
+                      elif c==cl:
+                          depth-=1
+                          if depth==0: return j
+                  elif state=='string':
+                      if c=='\\': j+=1
+                      elif c=='"': state='code'
+                  elif state=='char':
+                      if c=='\\': j+=1
+                      elif c=="'": state='code'
+                  elif state=='triple':
+                      if s.startswith(triple,j): state='code'; j+=3; continue
+                  elif state=='line':
+                      if c=='\n': state='code'
+                  elif state=='block':
+                      if c=='*' and n=='/': state='code'; j+=1
+                  j+=1
+              raise ValueError(f'unbalanced {op}{cl}')
+          
+          def line_start(s,pos): return s.rfind('\n',0,pos)+1
+          
+          def function_span(s,name):
+              m=re.search(rf'\bfun\s+{re.escape(name)}\s*\(',s)
+              if not m: return None
+              p=s.find('(',m.start()); q=matching(s,p,'(',')'); b=s.find('{',q)
+              if b<0: raise ValueError(f'{name} body missing')
+              e=matching(s,b,'{','}')
+              return line_start(s,m.start()), e+1
+          
+          def remove_function(s,name):
+              span=function_span(s,name)
+              if not span: return s
+              a,e=span
+              while e < len(s) and s[e] in ' \t': e+=1
+              if e < len(s) and s[e]=='\n': e+=1
+              return s[:a]+s[e:]
+          
+          def remove_call_block(s, marker):
+              pos=s.find(marker)
+              if pos<0: return s,False
+              a=line_start(s,pos); b=s.find('{',pos)
+              if b<0: raise ValueError(f'block missing for {marker}')
+              e=matching(s,b,'{','}')+1
+              while e < len(s) and s[e] in ' \t': e+=1
+              if e < len(s) and s[e]=='\n': e+=1
+              return s[:a]+s[e:],True
+          
+          def remove_when_branch(s, marker):
+              pos=s.find(marker)
+              if pos<0: return s,False
+              a=line_start(s,pos); arrow=s.find('->',pos); b=s.find('{',arrow)
+              if arrow<0 or b<0: raise ValueError(f'when branch malformed: {marker}')
+              e=matching(s,b,'{','}')+1
+              while e < len(s) and s[e] in ' \t': e+=1
+              if e < len(s) and s[e]=='\n': e+=1
+              return s[:a]+s[e:],True
+          
+          # ------------------------------------------------------------------
+          # Version bump only over the exact V142 source in production.
+          g=GRAD.read_text(encoding='utf-8')
+          if not proxy and not re.search(r'\bversionCode\s*=\s*142\b',g):
+              raise SystemExit('Expected exact V142 source')
+          g,n=re.subn(r'\bversionCode\s*=\s*\d+\b','versionCode = 143',g,count=1)
+          if n!=1: raise SystemExit('versionCode marker missing')
+          g,n=re.subn(r'versionName\s*=\s*"[^"]+"','versionName = "5.63-all-organs-login-only-v143"',g,count=1)
+          if n!=1: raise SystemExit('versionName marker missing')
+          GRAD.write_text(g,encoding='utf-8')
+          
+          # ------------------------------------------------------------------
+          # Search: smart semantic matches must never be hidden by a literal match.
+          vm=VMF.read_text(encoding='utf-8')
+          old='''                val directMatches = repository.searchTests(q)\n                // V142: a natural/clinical phrase is accepted for each item too.\n                val allMatches = if (directMatches.isNotEmpty()) directMatches else repository.smartSearchTests(q)'''
+          new='''                val directMatches = repository.searchTests(q)\n                val smartMatches = repository.smartSearchTests(q)\n                // V143: combine semantic + direct results on every grouped/manual/OCR path.\n                val allMatches = (smartMatches + directMatches).distinctBy { it.id }'''
+          if old in vm: vm=vm.replace(old,new,1)
+          elif 'val allMatches = (smartMatches + directMatches).distinctBy { it.id }' not in vm:
+              # Proxy/base compatibility; V119 used a single direct call here.
+              old2='                val allMatches = repository.searchTests(q)'
+              if old2 in vm: vm=vm.replace(old2,new,1)
+              else: raise SystemExit('Grouped search marker missing')
+          VMF.write_text(vm,encoding='utf-8')
+          
+          # Major organs AND lab-relevant body systems. These are related-test suggestions,
+          # not diagnoses. Aliases are also written into search_text so literal/direct search
+          # paths and editable-catalogue paths do not depend on only one smart-search branch.
+          system_rules = [
+          (["القلب","قلب","عضلة القلب","عضله القلب","انزيمات القلب","إنزيمات القلب","تحاليل القلب","فحص القلب","اطمن على القلب","اطمئن على القلب","عايز اطمن على القلب","عاوز اطمن على القلب","heart","cardiac","cardiology"],
+           ["CK-MB","Troponin I (Qualitative)","Troponin I (Quantitative)","Homocysteine","CRP","LDH (Lactate Dehydrogenase)","Cholesterol","HDL","LDL Cholesterol","Triglyceride"]),
+          (["الكبد","كبد","وظائف الكبد","انزيمات الكبد","إنزيمات الكبد","تحاليل الكبد","اطمن على الكبد","اطمئن على الكبد","liver","hepatic"],
+           ["ALT (SGPT)","AST (SGOT)","GGT","Alkaline Phosphatase","Bilirubin (Total)","Bilirubin (Direct)","Bilirubin (Indirect)","Albumin","Total Protein","Prothrombin Time & Conc","HBs Ag","HCV Ab","AFP"]),
+          (["المرارة","المراره","مرارة","مراره","القنوات المرارية","القنوات المراريه","الصفراء","تحاليل المرارة","gallbladder","biliary","bile duct"],
+           ["GGT","Alkaline Phosphatase","Bilirubin (Total)","Bilirubin (Direct)","Bilirubin (Indirect)","ALT (SGPT)","AST (SGOT)"]),
+          (["الكلى","الكليتين","كلى","كلية","وظائف الكلى","تحاليل الكلى","اطمن على الكلى","اطمئن على الكلى","kidney","kidneys","renal"],
+           ["Creatinine","Blood Urea","BUN","eGFR","Creatinine Clearance","Albumin/Creatinine Ratio","Micro Albumin Random","Micro Albumin in 24 hrs","Protein in Urine Random","Sodium (Na)","Potassium (K)","Phosphorous","Uric Acid"]),
+          (["المسالك البولية","المسالك البوليه","الجهاز البولي","المثانة","المثانه","بول","تحاليل البول","urinary","urinary tract","bladder"],
+           ["Urine Analysis","Urine C/S","Creatinine in Random Urine","Creatinine in 24 hrs Urine","Albumin in 24 hrs Urine","Micro Albumin Random","Micro Albumin in 24 hrs","Protein in Urine Random","Stone Analysis"]),
+          (["الغدة الدرقية","الغده الدرقيه","الدرقية","درقية","وظائف الغدة الدرقية","اطمن على الغدة الدرقية","thyroid"],
+           ["TSH","T3","T4","Free T3","Free T4","Anti Thyroid Ab","Thyroid Ab (Anti-Microsomal / Peroxidase Ab)","Thyroglobulin"]),
+          (["البنكرياس","بنكرياس","وظائف البنكرياس","تحاليل البنكرياس","اطمن على البنكرياس","pancreas","pancreatic"],
+           ["Amylase","Amylase in urine","Lipase","Blood Glucose Fasting","Glucose Random","Blood Glucose 2 hrs P.P","Glycated Haemoglobin (HbA1c)","Insulin Level (Fasting)","Insulin (Random)","C-Peptide (Fasting)","C-Peptide (Random)","Homa-IR","Anti Islet Cells Antibody"]),
+          (["السكر","سكري","السكري","مرض السكر","اطمن على السكر","diabetes","glucose","blood sugar"],
+           ["Blood Glucose Fasting","Glucose Random","Blood Glucose 2 hrs P.P","Glycated Haemoglobin (HbA1c)","Fructosamine","Insulin Level (Fasting)","Insulin (Random)","C-Peptide (Fasting)","C-Peptide (Random)","Homa-IR","Anti GAD Antibody","Anti Islet Cells Antibody"]),
+          (["الغدة النخامية","الغده النخاميه","النخامية","النخاميه","نخامية","pituitary"],
+           ["ACTH AM","ACTH PM","FSH","LH","PRL","Growth Hormone (Basal)","Insulin Like Growth Factor-1 (IGF-1)","TSH"]),
+          (["الغدة الكظرية","الغده الكظريه","الكظرية","الكظريه","كظرية","adrenal"],
+           ["Cortisol AM","Cortisol PM","Cortisol Random","ACTH AM","ACTH PM","Aldosterone","Aldosterone / Renin Ratio","DHEA","DHEA-S"]),
+          (["الهرمونات","هرمونات","الغدد الصماء","الجهاز الهرموني","endocrine","hormones"],
+           ["TSH","Free T4","Free T3","Cortisol AM","ACTH AM","FSH","LH","PRL","Testosterone Total","Estradiol (E2)","Progesterone","Insulin Level (Fasting)"]),
+          (["البروستاتا","بروستاتا","تحاليل البروستاتا","اطمن على البروستاتا","prostate"], ["PSA (Total)","PSA (Free)"]),
+          (["المبيض","المبايض","مبيض","مبايض","مخزون المبيض","تحاليل المبايض","اطمن على المبايض","ovary","ovaries","ovarian"],
+           ["AMH","CA 125","FSH","LH","Estradiol (E2)","Progesterone"]),
+          (["الرحم","رحم","عنق الرحم","تحاليل الرحم","اطمن على الرحم","uterus","uterine","cervix","cervical"],
+           ["Beta HCG Quantitative","Progesterone","Estradiol (E2)","FSH","LH","CA 125","Cervical Swab C/S"]),
+          (["الخصية","الخصيه","الخصيتين","خصية","خصيه","تحاليل الخصية","اطمن على الخصية","testis","testicle","testicular","male fertility"],
+           ["Testosterone Total","Testosterone Free","FSH","LH","Semen Analysis","Semen Analysis with CASA","Semen C/S","Fructose In Semen","Anti Sperm Ab (Semen)"]),
+          (["الخصوبة","الخصوبه","تأخر الانجاب","تأخر الإنجاب","العقم","fertility","infertility"],
+           ["FSH","LH","PRL","AMH","Testosterone Total","Testosterone Free","Estradiol (E2)","Progesterone","Beta HCG Quantitative","Semen Analysis","Semen Analysis with CASA"]),
+          (["الثدي","ثدي","تحاليل الثدي","اطمن على الثدي","breast"], ["CA 15.3","PRL"]),
+          (["العظام","عظام","صحة العظام","تحاليل العظام","اطمن على العظام","bone","bones"],
+           ["Vit D3 (25 Hydroxycholecalciferol)","Calcium (Total)","Calcium (Ionized)","Phosphorous","PTH","Alkaline Phosphatase"]),
+          (["العضلات","عضلات","عضلة","عضله","تحاليل العضلات","muscle","muscles"], ["CK Total","LDH (Lactate Dehydrogenase)","AST (SGOT)","Aldolase"]),
+          (["المفاصل","مفاصل","الروماتيزم","روماتيزم","آلام المفاصل","المناعة والروماتيزم","joints","rheumatology","rheumatic"],
+           ["ESR","CRP","RF Titer","Anti CCP","ASOT","ANA - ELISA","Uric Acid","Synovial Fluid C/S"]),
+          (["الدم","صورة الدم","صوره الدم","فقر الدم","انيميا","أنيميا","نخاع العظم","bone marrow","blood","anemia","anaemia","hematology"],
+           ["CBC","Haemoglobin Hb","Platelets Count","Ferritin","Iron","TIBC (Total Iron Binding Capacity)","Transferrin","Transferrin Saturation","Reticulocytic Count","HB Electrophoresis","G6PD","VIT B12 (Cyanocobalamine)"]),
+          (["المناعة","المناعه","الجهاز المناعي","مناعة ذاتية","مناعه ذاتيه","autoimmune","immunity","immune system"],
+           ["ANA - ELISA","ANA IF (Titre)","Anti CCP","RF Titer","C3","C4","IGG","IgA Immunoglobulin","IgG Immunoglobulin","IgM Immunoglobulin","IgE Total","Extractable Nuclear Antigen (ENA)","DNA (Anti DNA DS) ELISA","DNA (Anti DNA DS) IF"]),
+          (["التجلط","السيولة","سيولة الدم","الجلطات","جلطات","تخثر الدم","coagulation","clotting","thrombosis"],
+           ["D-Dimer","PTT","Prothrombin Time & Conc","Fibrinogen","FDPs","Anti Thrombin III","Protein C","Protein S","Lupus Anticoagulant","Factor V","Factor VII","Factor VIII","Von Willebrand Factor - Activity","Von Willebrand Factor - Concentration","Thrombophilia Genetic Screening"]),
+          (["الأوعية الدموية","الاوعية الدموية","الشرايين","الأوردة","الاوردة","الدورة الدموية","vascular","arteries","veins","circulation"],
+           ["D-Dimer","Homocysteine","Cholesterol","HDL","LDL Cholesterol","Triglyceride","Lipids Profile","CRP","Prothrombin Time & Conc","PTT"]),
+          (["المعدة","المعده","معدة","معده","تحاليل المعدة","جرثومة المعدة","اطمن على المعدة","stomach","gastric"],
+           ["H. Pylori IgG","H. Pylori IgM","H. Pylori Ag (in stool)","Gastrin Level"]),
+          (["القولون","قولون","الأمعاء","الامعاء","أمعاء","امعاء","تحاليل القولون","اطمن على القولون","colon","bowel","intestine","intestinal"],
+           ["Calprotectin in Stool","Occult Blood in Stool","CEA","Stool Analysis","Stool C/S","ASCA IgA","ASCA IgG","Tissue Transglutaminase IgA","Tissue Transglutaminase IgG","Anti Endomysium Ab IgA","Anti Endomysium Ab IgG"]),
+          (["الجهاز الهضمي","الهضم","تحاليل الجهاز الهضمي","digestive","gastrointestinal","GI tract"],
+           ["H. Pylori Ag (in stool)","Calprotectin in Stool","Occult Blood in Stool","Stool Analysis","Stool C/S","CA 19.9","CEA","Tissue Transglutaminase IgA","Tissue Transglutaminase IgG","Anti Endomysium Ab IgA","Anti Endomysium Ab IgG","Anti Gliadin (IgA)","Anti Gliadin (IgG)"]),
+          (["الرئة","الرئه","الرئتين","رئة","رئه","التنفس","الجهاز التنفسي","تحاليل الرئة","اطمن على الرئة","lung","lungs","pulmonary","respiratory"],
+           ["D-Dimer","Alpha 1 Antitrypsin (Serum)","Sputum C/S","Acid Fast Bacilli (Sputum)","T.B Gold (QuantiFERON)","T.B DNA by PCR","IgE Specific (Inhalant Allergens) RAST"]),
+          (["المخ","المخ والأعصاب","المخ والاعصاب","الأعصاب","الاعصاب","الجهاز العصبي","brain","neurology","nervous system"],
+           ["VIT B12 (Cyanocobalamine)","Magnesium","Sodium (Na)","Potassium (K)","Blood Glucose Fasting","Glycated Haemoglobin (HbA1c)","TSH"]),
+          (["الجلد","البشرة","الشعر","تساقط الشعر","جلدية","skin","hair","dermatology"],
+           ["CBC","Ferritin","TSH","Vit D3 (25 Hydroxycholecalciferol)","Zinc (Zn)","VIT B12 (Cyanocobalamine)","IgE Total"]),
+          (["الأذن","الاذن","أذن","اذن","ear"], ["Ear C/S"]),
+          (["العين","عين","العينين","eye","eyes"], ["Eye C/S"]),
+          (["الطحال","طحال","spleen","splenic"], ["CBC","Platelets Count","LDH (Lactate Dehydrogenase)"]),
+          (["الغدد الليمفاوية","الغدد اللمفاوية","الليمفاوي","الجهاز الليمفاوي","lymph","lymphatic"], ["CBC","ESR","CRP","LDH (Lactate Dehydrogenase)","Beta 2 Microglobulin"]),
+          ]
+          
+          tests=json.loads(ASSET.read_text(encoding='utf-8-sig'))
+          if len(tests)!=331: raise SystemExit(f'Expected 331 tests, found {len(tests)}')
+          by_name={str(t.get('english_name','')).strip().casefold():t for t in tests}
+          missing=[]; touched=set()
+          for aliases,targets in system_rules:
+              blob=' | '.join(aliases)
+              for target in targets:
+                  t=by_name.get(target.casefold())
+                  if not t: missing.append(target); continue
+                  st=str(t.get('search_text','')).strip()
+                  # Always merge every alias, not only the first one.
+                  existing=st.casefold()
+                  add=[a for a in aliases if a.casefold() not in existing]
+                  if add: st=(st+' | '+' | '.join(add)).strip(' |')
+                  t['search_text']=st; touched.add(t.get('id'))
+          if missing: raise SystemExit('Catalogue targets missing: '+', '.join(sorted(set(missing))))
+          ASSET.write_text(json.dumps(tests,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
+          
+          # Add extended semantic aliases to repository smart/direct alias rules. Existing V142 rules stay intact.
+          repo=REPOF.read_text(encoding='utf-8')
+          if 'V143_EXTENDED_ORGAN_SYSTEM_SEARCH' not in repo:
+              extras = system_rules[2:3] + system_rules[4:5] + system_rules[7:8] + system_rules[10:11] + system_rules[15:16] + system_rules[18:24] + system_rules[26:27] + system_rules[28:34]
+              def kstr(x): return '"'+x.replace('\\','\\\\').replace('"','\\"')+'"'
+              lines=['        // V143_EXTENDED_ORGAN_SYSTEM_SEARCH: all major lab-relevant organs/systems.']
+              for aliases,targets in extras:
+                  lines.append('        AliasRule(listOf('+', '.join(kstr(x) for x in aliases)+'), listOf('+', '.join(kstr(x) for x in targets)+')),' )
+              inject='\n'.join(lines)+'\n'
+              marker='        AliasRule(listOf("stool", "stool analysis", "تحليل براز"), listOf("Stool Analysis"))'
+              if marker not in repo: raise SystemExit('V142 aliasRules tail marker missing')
+              repo=repo.replace(marker,inject+marker,1)
+          REPOF.write_text(repo,encoding='utf-8')
+          
+          # ------------------------------------------------------------------
+          # Login-only app access: keep Firebase login + approved-device gate, remove the
+          # SECOND local unlock layer (biometric/device credential/app PIN).
+          main=MAINF.read_text(encoding='utf-8')
+          for decl in [
+              r'^\s*var isLocallyUnlocked by remember \{ mutableStateOf\(false\) \}\s*\n',
+              r'^\s*var unlockError by remember \{ mutableStateOf<String\?>\(null\) \}\s*\n',
+              r'^\s*var backgroundedAt by remember \{ mutableStateOf\(0L\) \}\s*\n',
+          ]: main=re.sub(decl,'',main,count=1,flags=re.M)
+          main,_=remove_call_block(main,'LaunchedEffect(appSettings.securityEnabled, currentUser)')
+          life='DisposableEffect(lifecycleOwner, appSettings.securityEnabled, appSettings.autoLockSeconds, appSettings.unlockMode, externalPickerActive)'
+          pos=main.find(life)
+          if pos>=0:
+              a=line_start(main,pos); b=main.find('{',pos); e=matching(main,b,'{','}')+1
+              indent=re.match(r'\s*',main[a:pos]).group(0)
+              repl=f'''{indent}// V143_LOGIN_ONLY: an active Firebase session opens directly.\n{indent}// Only the privileged admin area keeps its separate admin PIN gate.\n{indent}DisposableEffect(lifecycleOwner) {{\n{indent}    val observer = LifecycleEventObserver {{ _, event ->\n{indent}        if (event == Lifecycle.Event.ON_STOP && auth.currentUser != null) {{\n{indent}            viewModel.lockAdmin()\n{indent}        }}\n{indent}    }}\n{indent}    lifecycleOwner.lifecycle.addObserver(observer)\n{indent}    onDispose {{ lifecycleOwner.lifecycle.removeObserver(observer) }}\n{indent}}}'''
+              main=main[:a]+repl+main[e:]
+          elif 'V143_LOGIN_ONLY' not in main: raise SystemExit('Local-lock lifecycle marker missing')
+          main,removed=remove_when_branch(main,'appSettings.securityEnabled && !isLocallyUnlocked ->')
+          if not removed and 'AppPinUnlockScreen(' in main: raise SystemExit('Local unlock when-branch not removed')
+          # Any leftover assignment came from login/logout callbacks and is now meaningless.
+          main=re.sub(r'^\s*isLocallyUnlocked\s*=\s*(?:true|false)\s*\n','',main,flags=re.M)
+          # externalPickerActive was only needed to prevent false app-lock triggers during a picker.
+          if main.count('externalPickerActive')==1:
+              main=re.sub(r'^\s*val externalPickerActive by viewModel\.externalPickerActive\.collectAsState\(\)\s*\n','',main,count=1,flags=re.M)
+          main=remove_function(main,'isSecurityConfiguredOnDevice')
+          main=remove_function(main,'launchBiometricPrompt')
+          for imp in [
+           'import android.app.KeyguardManager\n','import androidx.biometric.BiometricManager\n','import androidx.biometric.BiometricPrompt\n',
+           'import androidx.core.content.ContextCompat\n','import com.example.ui.AppPinUnlockScreen\n','import com.example.ui.DeviceUnlockScreen\n']:
+              main=main.replace(imp,'')
+          MAINF.write_text(main,encoding='utf-8')
+          
+          # Force legacy local-app-lock settings off even if an older device stored them as enabled.
+          settings=SETTINGSF.read_text(encoding='utf-8')
+          settings=settings.replace('val securityEnabled: Boolean = true,','val securityEnabled: Boolean = false,',1)
+          settings=settings.replace('            securityEnabled = true,','            securityEnabled = false,',1)
+          settings=settings.replace('            autoLockSeconds = settings.autoLockSeconds.coerceAtLeast(0),','            autoLockSeconds = 0,',1)
+          settings=settings.replace('.putBoolean(personal(KEY_SECURITY_ENABLED), true)','.putBoolean(personal(KEY_SECURITY_ENABLED), false)')
+          settings=settings.replace('            securityEnabled = true,\n            unlockMode = safeUnlockMode,\n            appPinConfigured = hasPin,\n            autoLockSeconds = prefs.getInt(personal(KEY_AUTO_LOCK_SECONDS), prefs.getInt(KEY_AUTO_LOCK_SECONDS, 0)),',
+          '''            securityEnabled = false,\n            unlockMode = safeUnlockMode,\n            appPinConfigured = hasPin,\n            autoLockSeconds = 0,''')
+          SETTINGSF.write_text(settings,encoding='utf-8')
+          
+          # Remove only the end-user app-lock controls. KEEP the separate administration PIN controls.
+          mgr=MANAGERF.read_text(encoding='utf-8')
+          needle='title = tr("قفل التطبيق", "App lock")'
+          pos=mgr.find(needle)
+          if pos>=0:
+              call=mgr.rfind('SettingsSwitchRow(',0,pos); p=mgr.find('(',call); q=matching(mgr,p,'(',')')
+              a=line_start(mgr,call); e=q+1
+              while e<len(mgr) and mgr[e] in ' \t': e+=1
+              if e<len(mgr) and mgr[e]=='\n': e+=1
+              mgr=mgr[:a]+mgr[e:]
+          # Remove conditional auto-lock/biometric settings block.
+          pos=mgr.find('if (settings.securityEnabled) {')
+          if pos>=0:
+              a=line_start(mgr,pos); b=mgr.find('{',pos); e=matching(mgr,b,'{','}')+1
+              while e<len(mgr) and mgr[e] in ' \t': e+=1
+              if e<len(mgr) and mgr[e]=='\n': e+=1
+              mgr=mgr[:a]+mgr[e:]
+          # Remove separator that only separated local lock from admin PIN.
+          mgr=re.sub(r'\n\s*Spacer\(Modifier\.height\(10\.dp\)\)\s*\n\s*HorizontalDivider\(color = Color\(0xFFE2E8F0\)\)\s*\n\s*Spacer\(Modifier\.height\(10\.dp\)\)\s*\n', '\n', mgr, count=1)
+          MANAGERF.write_text(mgr,encoding='utf-8')
+          
+          # Remove the same local app-lock controls from the normal user settings screen.
+          user=USERSETF.read_text(encoding='utf-8')
+          user=re.sub(r'^\s*var showPinEditor by remember \{ mutableStateOf\(false\) \}\s*\n', '', user, count=1, flags=re.M)
+          user=re.sub(r'^\s*var pinError by remember \{ mutableStateOf<String\?>\(null\) \}\s*\n', '', user, count=1, flags=re.M)
+          old_back = """    val handleSystemBack: () -> Unit = {
+                  if (showPinEditor) {
+                      showPinEditor = false
+                      pinError = null
+                  } else {
+                      onDismiss()
+                  }
+              }"""
+          if old_back in user:
+              user=user.replace(old_back, '    val handleSystemBack: () -> Unit = { onDismiss() }', 1)
+          pos=user.find('SimpleSettingsCard(tr("الأمان", "Security"), Icons.Default.Lock)')
+          if pos>=0:
+              item_pos=user.rfind('item {',0,pos)
+              if item_pos<0: raise SystemExit('User security item wrapper missing')
+              a=line_start(user,item_pos); b=user.find('{',item_pos); e=matching(user,b,'{','}')+1
+              while e<len(user) and user[e] in ' \t': e+=1
+              if e<len(user) and user[e]=='\n': e+=1
+              user=user[:a]+user[e:]
+          pos=user.find('if (showPinEditor) {')
+          if pos>=0:
+              a=line_start(user,pos); b=user.find('{',pos); e=matching(user,b,'{','}')+1
+              while e<len(user) and user[e] in ' \t': e+=1
+              if e<len(user) and user[e]=='\n': e+=1
+              user=user[:a]+user[e:]
+          user=remove_function(user,'SetPinDialog')
+          USERSETF.write_text(user,encoding='utf-8')
+          
+          # ------------------------------------------------------------------
+          # Production assertions on the actual V142 source.
+          if not proxy:
+              login=LOGINF.read_text(encoding='utf-8')
+              title_pos=login.find('text = "تحاليل العقاد"')
+              tag_pos=login.find('V142_CARE_TAGLINE')
+              if tag_pos<0 or title_pos<0 or tag_pos>title_pos:
+                  raise SystemExit('رعاية تليق بك must be under logo / before login title')
+              if not all(x in login for x in ['listOf("رعاية", "تليق", "بك")','delay(320)','AnimatedVisibility','fadeIn','slideInVertically']):
+                  raise SystemExit('Sequential login tagline animation missing')
+          
+          print(f'V143 patch complete: {len(system_rules)} organ/system groups, {len(touched)} catalogue tests tagged; local biometric/PIN unlock removed.')
+          PY
+          V143_ROOT=build_v143 python3 "$RUNNER_TEMP/apply_v143_final.py"
+
+      - name: Deep audit all requested behavior
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 <<'PY'
+          from pathlib import Path
+          import json
+          r=Path('build_v143'); src=r/'app/src/main/java'
+          grad=(r/'app/build.gradle.kts').read_text()
+          main=(src/'com/example/MainActivity.kt').read_text()
+          vm=(src/'com/example/ui/LabTestsViewModel.kt').read_text()
+          repo=(src/'com/example/data/repository/LabTestRepository.kt').read_text()
+          login=(src/'com/example/ui/LoginScreen.kt').read_text()
+          ops=(src/'com/example/ui/OperationsV14Dialog.kt').read_text()
+          manager=(src/'com/example/ui/ManagerSettingsDialog.kt').read_text()
+          userset=(src/'com/example/ui/UserSettingsDialog.kt').read_text()
+          settings=(src/'com/example/settings/AppSettings.kt').read_text()
+          scheduler=(src/'com/example/notifications/AutoBackupScheduler.kt').read_text()
+          storage=(src/'com/example/util/AutoBackupStorage.kt').read_text()
+          backup=(src/'com/example/util/CommercialBackupManager.kt').read_text()
+          allkt='\n'.join(p.read_text(errors='ignore') for p in src.rglob('*.kt'))
+          tests=json.loads((r/'app/src/main/assets/lab_tests_android.json').read_text())
+          by={t['english_name']:t for t in tests}
+          group_probes={
+            'القلب':['CK-MB','Troponin I (Qualitative)','Troponin I (Quantitative)'],
+            'الكبد':['ALT (SGPT)','AST (SGOT)','GGT'],
+            'المرارة':['GGT','Bilirubin (Total)'],
+            'الكلى':['Creatinine','Blood Urea','eGFR'],
+            'المسالك البولية':['Urine Analysis','Urine C/S'],
+            'الغدة الدرقية':['TSH','Free T4'],
+            'البنكرياس':['Amylase','Lipase'],
+            'السكر':['Blood Glucose Fasting','Glycated Haemoglobin (HbA1c)'],
+            'الغدة النخامية':['ACTH AM','PRL'],
+            'الغدة الكظرية':['Cortisol AM','Aldosterone'],
+            'الهرمونات':['TSH','FSH','Testosterone Total'],
+            'البروستاتا':['PSA (Total)','PSA (Free)'],
+            'المبايض':['AMH','CA 125'],
+            'الرحم':['Beta HCG Quantitative','Cervical Swab C/S'],
+            'الخصية':['Testosterone Total','Semen Analysis'],
+            'الخصوبة':['FSH','Semen Analysis'],
+            'الثدي':['CA 15.3','PRL'],
+            'العظام':['Vit D3 (25 Hydroxycholecalciferol)','Calcium (Total)'],
+            'العضلات':['CK Total','Aldolase'],
+            'المفاصل':['RF Titer','Anti CCP'],
+            'الدم':['CBC','Ferritin'],
+            'المناعة':['ANA - ELISA','C3'],
+            'التجلط':['D-Dimer','PTT'],
+            'الأوعية الدموية':['Homocysteine','Lipids Profile'],
+            'المعدة':['H. Pylori Ag (in stool)','Gastrin Level'],
+            'القولون':['Calprotectin in Stool','Occult Blood in Stool'],
+            'الجهاز الهضمي':['Stool Analysis','Tissue Transglutaminase IgA'],
+            'الرئة':['Sputum C/S','T.B Gold (QuantiFERON)'],
+            'المخ':['VIT B12 (Cyanocobalamine)','Sodium (Na)'],
+            'الجلد':['Zinc (Zn)','Ferritin'],
+            'الأذن':['Ear C/S'],
+            'العين':['Eye C/S'],
+            'الطحال':['CBC','Platelets Count'],
+            'الغدد الليمفاوية':['CBC','Beta 2 Microglobulin'],
+          }
+          semantic_ok=all(all(name in by and alias in by[name].get('search_text','') for name in names) for alias,names in group_probes.items())
+          login_tag=login.find('V142_CARE_TAGLINE'); login_title=login.find('text = "تحاليل العقاد"')
+          local_lock_tokens=['AppPinUnlockScreen','DeviceUnlockScreen','BiometricPrompt','BiometricManager','isLocallyUnlocked','launchBiometricPrompt','securityEnabled && !isLocallyUnlocked']
+          local_ui_tokens=['قفل التطبيق','App lock','PIN للتطبيق','App PIN','بصمة / قفل الهاتف','Biometrics / device lock']
+          checks={
+            'V143 exact version': 'versionCode = 143' in grad and '5.63-all-organs-login-only-v143' in grad,
+            'same package': 'applicationId = "com.aistudio.labtestsdirectory.egypt"' in grad,
+            '331 tests preserved': len(tests)==331,
+            'all 34 organ/system probes direct-searchable': semantic_ok,
+            'both Troponin I tests included for heart': all(x in by and 'القلب' in by[x].get('search_text','') for x in ['Troponin I (Qualitative)','Troponin I (Quantitative)']),
+            'extended semantic repository rules': 'V143_EXTENDED_ORGAN_SYSTEM_SEARCH' in repo,
+            'smart + direct results merged': '(smartMatches + directMatches).distinctBy { it.id }' in vm,
+            'universal multi-test tokenizer preserved': 'universal medical-list tokenizer' in vm and 'parseQueries(rawText)' in vm,
+            'normal Firebase login preserved': 'mutableStateOf(auth.currentUser)' in main and 'currentUser == null ->' in main and 'signInWithEmailAndPassword' in main,
+            'active session has no local unlock gate': 'V143_LOGIN_ONLY' in main and all(x not in main for x in local_lock_tokens),
+            'approved-device gate preserved': 'deviceAccessStatus != "approved"' in main and 'DeviceAuthorizationScreen' in main,
+            'local lock UI removed everywhere': all(x not in manager and x not in userset for x in local_ui_tokens),
+            'legacy local lock forced off': 'val securityEnabled: Boolean = false' in settings and 'securityEnabled = false' in settings and 'autoLockSeconds = 0' in settings,
+            'admin PIN gate preserved': 'تغيير PIN الإدارة' in manager and 'changeAdminPin' in manager and 'viewModel.lockAdmin()' in main,
+            'login slogan below logo/before title': login_tag >= 0 and login_title >= 0 and login_tag < login_title,
+            'login slogan word-by-word animation': all(x in login for x in ['listOf("رعاية", "تليق", "بك")','delay(320)','AnimatedVisibility','fadeIn','slideInVertically']),
+            'backup now UI preserved': 'V142_QUICK_BACKUP' in ops and 'نسخة احتياطية الآن' in ops,
+            '4am backup status preserved': 'النسخ التلقائي: 4:00 ص' in ops and 'FOUR_AM_HOUR = 4' in scheduler,
+            'missed 4am catch-up preserved': 'catchUpIfMissed' in scheduler and 'AutoBackupScheduler.catchUpIfMissed(this)' in main,
+            'latest backup detection preserved': 'latestBackupEpochMillis' in storage and 'latestBackupName' in storage,
+            'safe restore preserved': 'if (!snapshot.exists()) missing += write' in backup,
+            'Firebase authoritative preserved': 'FirebaseFirestore' in allkt and 'FirebaseAuth' in allkt,
+            'failover/reconciliation preserved': 'tahalil-result-failover' in allkt and 'tahalil-shadow-reconcile' in allkt,
+            'offline vault preserved': 'OfflineAccessVault' in allkt,
+            'screenshots enabled': 'FLAG_SECURE' not in allkt,
+            'overlay defense preserved': 'setHideOverlayWindows(true)' in main,
+            'no Cloudflare': 'cloudflare' not in allkt.lower() and 'workers.dev' not in allkt.lower(),
+            'no client secret': all(x not in allkt for x in ['SUPABASE_SERVICE_ROLE_KEY','SUPABASE_SECRET_KEYS','sb_secret_','BEGIN PRIVATE KEY']),
+          }
+          for k,v in checks.items(): print(('OK   ' if v else 'FAIL ')+k)
+          bad=[k for k,v in checks.items() if not v]
+          if bad: raise SystemExit('FINAL V143 AUDIT FAILED: '+', '.join(bad))
+          print('ALL REQUESTED V143 + V142 PRESERVATION CHECKS PASSED')
+          PY
+
+      - name: Compile-check Android V143
+        working-directory: build_v143
+        shell: bash
+        run: |
+          set -euo pipefail
+          gradle --no-daemon --no-configuration-cache --no-parallel --max-workers=2 :app:compileReleaseKotlin
+
+      - name: Select exact installed V142 signing identity
+        shell: bash
+        env:
+          SIGNING_BUNDLE_B64: ${{ secrets.TAHALIL_SIGNING_BUNDLE_B64 }}
+        run: |
+          set -euo pipefail
+          test -n "${SIGNING_BUNDLE_B64:-}" || { echo "::error::TAHALIL_SIGNING_BUNDLE_B64 missing"; exit 1; }
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner -print | sort -V | tail -1)"
+          test -n "$APKSIGNER"
+
+          apk_cert_sha256() {
+            local apk="$1" raw cert
+            raw="$("$APKSIGNER" verify --print-certs "$apk" 2>&1 || true)"
+            cert="$(printf '%s\n' "$raw" | python3 -c 'import re,sys; s=sys.stdin.read(); m=re.search(r"certificate\s+SHA-256\s+digest\s*:\s*([0-9A-Fa-f:]+)",s,re.I); print(re.sub(r"[^0-9A-Fa-f]","",m.group(1)).lower() if m else "")')"
+            test -n "$cert" || return 1
+            printf '%s' "$cert"
+          }
+
+          V142_APK="$RUNNER_TEMP/android-v142-installed.apk"
+          curl --fail --location --retry 3 \
+            'https://github.com/ahmedmeshrf22-jpg/lab-tests-directory/releases/download/v142-android/Tahalil-Alakkad-V142-All-Fixes-Organ-Smart-Search-Android-SIGNED.apk' \
+            -o "$V142_APK"
+          "$APKSIGNER" verify --verbose --print-certs "$V142_APK" >/dev/null
+          EXPECTED_CERT="$(apk_cert_sha256 "$V142_APK")"
+          test -n "$EXPECTED_CERT" || { echo "::error::Could not read installed V142 signer certificate"; exit 1; }
+
+          SIGN_DIR="$RUNNER_TEMP/tahalil_v143_exact_signing"
+          rm -rf "$SIGN_DIR" && mkdir -p "$SIGN_DIR/files" "$SIGN_DIR/test"
+          printf '%s' "$SIGNING_BUNDLE_B64" | tr -d '\r\n ' | base64 --decode > "$SIGN_DIR/bundle.bin"
+          if unzip -t "$SIGN_DIR/bundle.bin" >/dev/null 2>&1; then
+            unzip -q "$SIGN_DIR/bundle.bin" -d "$SIGN_DIR/files"
+          else
+            cp "$SIGN_DIR/bundle.bin" "$SIGN_DIR/files/original.keystore"
+          fi
+          mapfile -t KEYSTORES < <(find "$SIGN_DIR/files" -type f \( -iname '*.jks' -o -iname '*.keystore' \) -print | sort)
+          [ "${#KEYSTORES[@]}" -gt 0 ] || { echo "::error::No keystore in signing bundle"; exit 1; }
+
+          PASSFILE="$SIGN_DIR/passwords.txt"; : > "$PASSFILE"
+          while IFS= read -r META; do
+            [ -f "$META" ] || continue
+            sed -nE 's/^[[:space:]]*(STORE_PASSWORD|KEYSTORE_PASSWORD|storePassword|store_password|KEY_PASSWORD|keyPassword|key_password)[[:space:]]*[:=][[:space:]]*"?([^"#]+)"?[[:space:]]*$/\2/p' "$META" >> "$PASSFILE" || true
+          done < <(find "$SIGN_DIR/files" -type f \( -iname '*.properties' -o -iname '*.env' -o -iname '*.txt' \) -print)
+          printf '%s\n' android >> "$PASSFILE"
+          tr -d '\r' < "$PASSFILE" | awk 'NF && !seen[$0]++' > "$PASSFILE.tmp" && mv "$PASSFILE.tmp" "$PASSFILE"
+
+          FOUND_KEYSTORE=''; FOUND_STOREPASS=''; FOUND_ALIAS=''; FOUND_KEYPASS=''
+          while IFS= read -r KS; do
+            while IFS= read -r SP; do
+              [ -n "$SP" ] || continue
+              keytool -list -keystore "$KS" -storepass "$SP" >/dev/null 2>&1 || continue
+              mapfile -t ALIASES < <(keytool -list -v -keystore "$KS" -storepass "$SP" 2>/dev/null | sed -n 's/^Alias name: //p')
+              for ALIAS in "${ALIASES[@]}"; do
+                [ -n "$ALIAS" ] || continue
+                CERT="$(keytool -exportcert -rfc -keystore "$KS" -storepass "$SP" -alias "$ALIAS" 2>/dev/null | openssl x509 -noout -fingerprint -sha256 2>/dev/null | sed 's/.*=//' | tr '[:upper:]' '[:lower:]' | tr -d ':[:space:]')"
+                [ "$CERT" = "$EXPECTED_CERT" ] || continue
+                { printf '%s\n' "$SP"; cat "$PASSFILE"; } | awk 'NF && !seen[$0]++' > "$SIGN_DIR/keypasses.txt"
+                while IFS= read -r KP; do
+                  [ -n "$KP" ] || continue
+                  rm -f "$SIGN_DIR/test/keycheck.p12"
+                  if keytool -importkeystore -srckeystore "$KS" -srcstorepass "$SP" -srcalias "$ALIAS" -srckeypass "$KP" \
+                     -destkeystore "$SIGN_DIR/test/keycheck.p12" -deststoretype PKCS12 \
+                     -deststorepass 'TemporaryCheckOnly_143!' -destkeypass 'TemporaryCheckOnly_143!' -noprompt >/dev/null 2>&1; then
+                    FOUND_KEYSTORE="$KS"; FOUND_STOREPASS="$SP"; FOUND_ALIAS="$ALIAS"; FOUND_KEYPASS="$KP"
+                    break 4
+                  fi
+                done < "$SIGN_DIR/keypasses.txt"
+              done
+            done < "$PASSFILE"
+          done < <(printf '%s\n' "${KEYSTORES[@]}")
+
+          test -n "$FOUND_KEYSTORE" || { echo "::error::Signing bundle does not contain the exact installed V142 private key"; exit 1; }
+          echo "::add-mask::$FOUND_STOREPASS"; echo "::add-mask::$FOUND_ALIAS"; echo "::add-mask::$FOUND_KEYPASS"
+          {
+            echo "KEYSTORE_PATH=$FOUND_KEYSTORE"
+            echo "STORE_PASSWORD=$FOUND_STOREPASS"
+            echo "KEY_ALIAS=$FOUND_ALIAS"
+            echo "KEY_PASSWORD=$FOUND_KEYPASS"
+            echo "EXPECTED_V142_CERT=$EXPECTED_CERT"
+          } >> "$GITHUB_ENV"
+          echo 'Exact V142 private signing identity selected and private-key password verified.'
+
+      - name: Build signed Android V143
+        working-directory: build_v143
+        shell: bash
+        run: |
+          set -euo pipefail
+          gradle --no-daemon --no-configuration-cache --no-parallel --max-workers=2 :app:assembleRelease
+
+      - name: Verify exact signer and prepare APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="$(find build_v143/app/build/outputs/apk/release -type f -name '*.apk' -print -quit)"
+          test -n "$APK" && test -s "$APK"
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner -print | sort -V | tail -1)"
+          "$APKSIGNER" verify --verbose --print-certs "$APK"
+          RAW="$("$APKSIGNER" verify --print-certs "$APK" 2>&1 || true)"
+          NEW_CERT="$(printf '%s\n' "$RAW" | python3 -c 'import re,sys; s=sys.stdin.read(); m=re.search(r"certificate\s+SHA-256\s+digest\s*:\s*([0-9A-Fa-f:]+)",s,re.I); print(re.sub(r"[^0-9A-Fa-f]","",m.group(1)).lower() if m else "")')"
+          test -n "${EXPECTED_V142_CERT:-}" && test -n "$NEW_CERT"
+          test "$NEW_CERT" = "$EXPECTED_V142_CERT" || { echo '::error::Built APK signer differs from installed V142'; exit 1; }
+          cp "$APK" Tahalil-Alakkad-V143-All-Organs-Login-Only-SIGNED.apk
+          sha256sum Tahalil-Alakkad-V143-All-Organs-Login-Only-SIGNED.apk > Tahalil-Alakkad-V143-All-Organs-Login-Only-SIGNED.apk.sha256
+
+      - name: Publish immutable V143 source branch
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          cd build_v143
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git checkout -B v143-android-all-organs-login-only-base
+          git add -A
+          git commit -m 'Android V143 all organs search + login only' || true
+          V143_SHA="$(git rev-parse HEAD)"
+          git push --force "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:refs/heads/v143-android-all-organs-login-only-base
+          echo "V143_COMMIT_SHA=$V143_SHA" >> "$GITHUB_ENV"
+
+      - name: Prepare source snapshot
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd build_v143 && zip -qr ../Tahalil-Alakkad-V143-Android-SOURCE.zip . -x '.git/*' '.gradle/*' 'app/build/*' 'build/*' '*.apk')
+          sha256sum Tahalil-Alakkad-V143-Android-SOURCE.zip > Tahalil-Alakkad-V143-Android-SOURCE.zip.sha256
+
+      - name: Upload V143 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Tahalil-Alakkad-Android-V143-FINAL-REVIEWED
+          path: |
+            Tahalil-Alakkad-V143-All-Organs-Login-Only-SIGNED.apk
+            Tahalil-Alakkad-V143-All-Organs-Login-Only-SIGNED.apk.sha256
+            Tahalil-Alakkad-V143-Android-SOURCE.zip
+            Tahalil-Alakkad-V143-Android-SOURCE.zip.sha256
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish Android V143 release and preserve Windows V144 latest
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TAG='v143-android'
+          TITLE='تحاليل العقاد Android V143 — All Organs + Login Only'
+          NOTES='V143 expands semantic search across all major lab-relevant organs and body systems on direct/manual/smart/OCR paths; keeps the sequential رعاية تليق بك slogan on Login; removes the second local biometric/device-credential/app-PIN unlock layer so an active Firebase session opens directly; keeps the approved-device gate and separate privileged administration PIN; preserves V142 backup UI, 04:00 catch-up, catalogue, Firebase, results, failover, offline behavior, notifications, screenshots and overlay defense. Windows V144 is untouched.'
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$TAG" Tahalil-Alakkad-V143-All-Organs-Login-Only-SIGNED.apk Tahalil-Alakkad-V143-All-Organs-Login-Only-SIGNED.apk.sha256 Tahalil-Alakkad-V143-Android-SOURCE.zip Tahalil-Alakkad-V143-Android-SOURCE.zip.sha256 --repo "$GITHUB_REPOSITORY" --clobber
+            gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --title "$TITLE" --notes "$NOTES"
+          else
+            gh release create "$TAG" Tahalil-Alakkad-V143-All-Organs-Login-Only-SIGNED.apk Tahalil-Alakkad-V143-All-Organs-Login-Only-SIGNED.apk.sha256 Tahalil-Alakkad-V143-Android-SOURCE.zip Tahalil-Alakkad-V143-Android-SOURCE.zip.sha256 --repo "$GITHUB_REPOSITORY" --target "$V143_COMMIT_SHA" --title "$TITLE" --notes "$NOTES"
+          fi
+          gh release edit v144-windows --repo "$GITHUB_REPOSITORY" --latest
+          curl --fail --location --retry 3 "https://github.com/$GITHUB_REPOSITORY/releases/latest/download/latest-windows.json" -o "$RUNNER_TEMP/latest-windows.json"
+          python3 -c 'import json,os; m=json.load(open(os.environ["RUNNER_TEMP"]+"/latest-windows.json",encoding="utf-8-sig")); assert int(m.get("versionCode",0))==144, m'
+
+      - name: Final status
+        shell: bash
+        run: |
+          echo 'ANDROID V143 FINAL REVIEWED: ALL ORGANS + LOGIN ONLY + EXACT V142 SIGNER + WINDOWS V144 PRESERVED'
