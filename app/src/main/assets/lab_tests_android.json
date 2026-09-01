@@ -45,7 +45,7 @@
     "arabic_name": "هرمون ACTH صباحًا",
     "market_name": "ACTH صباحي",
     "customer_price": null,
-    "search_text": "ACTH AM هرمون ACTH صباحًا ACTH صباحي acth am هرمون acth صباحا acth صباحي تحليل هرمون ACTH صباحًا actham am acth adrenocorticotropic hormone am acth morning"
+    "search_text": "ACTH AM هرمون ACTH صباحًا ACTH صباحي acth am هرمون acth صباحا acth صباحي تحليل هرمون ACTH صباحًا actham am acth adrenocorticotropic hormone am acth morning | الغدة النخامية | الغده النخاميه | النخامية | النخاميه | نخامية | pituitary | الغدة الكظرية | الغده الكظريه | الكظرية | الكظريه | كظرية | adrenal"
   },
   {
     "id": 7,
@@ -53,7 +53,7 @@
     "arabic_name": "هرمون ACTH مساءً",
     "market_name": "ACTH مسائي",
     "customer_price": null,
-    "search_text": "ACTH PM هرمون ACTH مساءً ACTH مسائي acth pm هرمون acth مساء acth مسايي تحليل هرمون ACTH مساءً acthpm pm acth adrenocorticotropic hormone pm acth evening"
+    "search_text": "ACTH PM هرمون ACTH مساءً ACTH مسائي acth pm هرمون acth مساء acth مسايي تحليل هرمون ACTH مساءً acthpm pm acth adrenocorticotropic hormone pm acth evening | الغدة النخامية | الغده النخاميه | النخامية | النخاميه | نخامية | pituitary | الغدة الكظرية | الغده الكظريه | الكظرية | الكظريه | كظرية | adrenal"
   },
   {
     "id": 8,
@@ -61,7 +61,7 @@
     "arabic_name": "ألفا فيتو بروتين",
     "market_name": "AFP دلالة أورام",
     "customer_price": null,
-    "search_text": "AFP ألفا فيتو بروتين AFP دلالة أورام afp الفا فيتو بروتين afp دلالة اورام تحليل ألفا فيتو بروتين alpha fetoprotein alpha feto protein tumor marker afp"
+    "search_text": "AFP ألفا فيتو بروتين AFP دلالة أورام afp الفا فيتو بروتين afp دلالة اورام تحليل ألفا فيتو بروتين alpha fetoprotein alpha feto protein tumor marker afp | الكبد | كبد | وظائف الكبد | انزيمات الكبد | إنزيمات الكبد | تحاليل الكبد | اطمن على الكبد | اطمئن على الكبد | liver | hepatic"
   },
   {
     "id": 9,
@@ -69,7 +69,7 @@
     "arabic_name": "إنزيم الكبد ALT",
     "market_name": "ALT",
     "customer_price": null,
-    "search_text": "ALT (SGPT) إنزيم الكبد ALT ALT alt sgpt انزيم الكبد alt alt تحليل إنزيم الكبد ALT alt sgpt altsgpt sgpt alanine aminotransferase alanine transaminase"
+    "search_text": "ALT (SGPT) إنزيم الكبد ALT ALT alt sgpt انزيم الكبد alt alt تحليل إنزيم الكبد ALT alt sgpt altsgpt sgpt alanine aminotransferase alanine transaminase | الكبد | كبد | وظائف الكبد | انزيمات الكبد | إنزيمات الكبد | تحاليل الكبد | اطمن على الكبد | اطمئن على الكبد | liver | hepatic"
   },
   {
     "id": 10,
@@ -85,7 +85,7 @@
     "arabic_name": "مخزون المبيض",
     "market_name": "AMH مخزون المبيض",
     "customer_price": null,
-    "search_text": "AMH مخزون المبيض AMH مخزون المبيض amh مخزون المبيض amh مخزون المبيض تحليل مخزون المبيض anti mullerian hormone anti-mullerian hormone ovarian reserve"
+    "search_text": "AMH مخزون المبيض AMH مخزون المبيض amh مخزون المبيض amh مخزون المبيض تحليل مخزون المبيض anti mullerian hormone anti-mullerian hormone ovarian reserve | المبيض | المبايض | مبيض | مبايض | مخزون المبيض | تحاليل المبايض | اطمن على المبايض | ovary | ovaries | ovarian"
   },
   {
     "id": 12,
@@ -149,7 +149,7 @@
     "arabic_name": "إنزيم الكبد AST",
     "market_name": "AST",
     "customer_price": null,
-    "search_text": "AST (SGOT) إنزيم الكبد AST AST ast sgot انزيم الكبد ast ast تحليل إنزيم الكبد AST ast sgot astsgot sgot aspartate aminotransferase aspartate transaminase"
+    "search_text": "AST (SGOT) إنزيم الكبد AST AST ast sgot انزيم الكبد ast ast تحليل إنزيم الكبد AST ast sgot astsgot sgot aspartate aminotransferase aspartate transaminase | الكبد | كبد | وظائف الكبد | انزيمات الكبد | إنزيمات الكبد | تحاليل الكبد | اطمن على الكبد | اطمئن على الكبد | liver | hepatic | العضلات | عضلات | عضلة | عضله | تحاليل العضلات | muscle | muscles"
   },
   {
     "id": 20,
@@ -173,7 +173,7 @@
     "arabic_name": "ميكروب الدرن بالبلغم",
     "market_name": "AFB بلغم",
     "customer_price": null,
-    "search_text": "Acid Fast Bacilli (Sputum) ميكروب الدرن بالبلغم AFB بلغم acid fast bacilli sputum ميكروب الدرن بالبلغم afb بلغم تحليل ميكروب الدرن بالبلغم acid fast bacilli sputum acidfastbacillisputum afb sputum tb smear sputum"
+    "search_text": "Acid Fast Bacilli (Sputum) ميكروب الدرن بالبلغم AFB بلغم acid fast bacilli sputum ميكروب الدرن بالبلغم afb بلغم تحليل ميكروب الدرن بالبلغم acid fast bacilli sputum acidfastbacillisputum afb sputum tb smear sputum | الرئة | الرئه | الرئتين | رئة | رئه | التنفس | الجهاز التنفسي | تحاليل الرئة | اطمن على الرئة | lung | lungs | pulmonary | respiratory"
   },
   {
     "id": 23,
@@ -221,7 +221,7 @@
     "arabic_name": "ألبومين الدم",
     "market_name": "ألبومين",
     "customer_price": null,
-    "search_text": "Albumin ألبومين الدم ألبومين albumin البومين الدم البومين تحليل ألبومين الدم"
+    "search_text": "Albumin ألبومين الدم ألبومين albumin البومين الدم البومين تحليل ألبومين الدم | الكبد | كبد | وظائف الكبد | انزيمات الكبد | إنزيمات الكبد | تحاليل الكبد | اطمن على الكبد | اطمئن على الكبد | liver | hepatic"
   },
   {
     "id": 29,
@@ -229,7 +229,7 @@
     "arabic_name": "نسبة الألبومين للكرياتينين",
     "market_name": "Albumin/Creatinine Ratio",
     "customer_price": null,
-    "search_text": "Albumin/Creatinine Ratio نسبة الألبومين للكرياتينين albumin creatinine ratio نسبة الالبومين للكرياتينين albumin creatinine ratio تحليل نسبة الألبومين للكرياتينين albumin creatinine ratio albumincreatinineratio acr uacr urine albumin creatinine ratio"
+    "search_text": "Albumin/Creatinine Ratio نسبة الألبومين للكرياتينين albumin creatinine ratio نسبة الالبومين للكرياتينين albumin creatinine ratio تحليل نسبة الألبومين للكرياتينين albumin creatinine ratio albumincreatinineratio acr uacr urine albumin creatinine ratio | الكلى | الكليتين | كلى | كلية | وظائف الكلى | تحاليل الكلى | اطمن على الكلى | اطمئن على الكلى | kidney | kidneys | renal"
   },
   {
     "id": 30,
@@ -261,7 +261,7 @@
     "arabic_name": "هرمون الألدوستيرون",
     "market_name": "Aldosterone",
     "customer_price": null,
-    "search_text": "Aldosterone هرمون الألدوستيرون aldosterone هرمون الالدوستيرون aldosterone تحليل هرمون الألدوستيرون"
+    "search_text": "Aldosterone هرمون الألدوستيرون aldosterone هرمون الالدوستيرون aldosterone تحليل هرمون الألدوستيرون | الغدة الكظرية | الغده الكظريه | الكظرية | الكظريه | كظرية | adrenal"
   },
   {
     "id": 34,
@@ -269,7 +269,7 @@
     "arabic_name": "نسبة الألدوستيرون للرينين",
     "market_name": "Aldosterone/Renin Ratio",
     "customer_price": null,
-    "search_text": "Aldosterone / Renin Ratio نسبة الألدوستيرون للرينين Aldosterone/Renin Ratio aldosterone renin ratio نسبة الالدوستيرون للرينين aldosterone renin ratio تحليل نسبة الألدوستيرون للرينين aldosterone renin ratio aldosteronereninratio arr"
+    "search_text": "Aldosterone / Renin Ratio نسبة الألدوستيرون للرينين Aldosterone/Renin Ratio aldosterone renin ratio نسبة الالدوستيرون للرينين aldosterone renin ratio تحليل نسبة الألدوستيرون للرينين aldosterone renin ratio aldosteronereninratio arr | الغدة الكظرية | الغده الكظريه | الكظرية | الكظريه | كظرية | adrenal"
   },
   {
     "id": 35,
@@ -277,7 +277,7 @@
     "arabic_name": "الفوسفاتاز القلوي",
     "market_name": "Alkaline Phosphatase",
     "customer_price": null,
-    "search_text": "Alkaline Phosphatase الفوسفاتاز القلوي alkaline phosphatase الفوسفاتاز القلوي alkaline phosphatase تحليل الفوسفاتاز القلوي alkalinephosphatase alp alk phos alkaline phosphatase alp"
+    "search_text": "Alkaline Phosphatase الفوسفاتاز القلوي alkaline phosphatase الفوسفاتاز القلوي alkaline phosphatase تحليل الفوسفاتاز القلوي alkalinephosphatase alp alk phos alkaline phosphatase alp | الكبد | كبد | وظائف الكبد | انزيمات الكبد | إنزيمات الكبد | تحاليل الكبد | اطمن على الكبد | اطمئن على الكبد | liver | hepatic | العظام | عظام | صحة العظام | تحاليل العظام | اطمن على العظام | bone | bones"
   },
   {
     "id": 36,
@@ -317,7 +317,7 @@
     "arabic_name": "إنزيم الأميليز",
     "market_name": "Amylase",
     "customer_price": null,
-    "search_text": "Amylase إنزيم الأميليز amylase انزيم الاميليز amylase تحليل إنزيم الأميليز"
+    "search_text": "Amylase إنزيم الأميليز amylase انزيم الاميليز amylase تحليل إنزيم الأميليز | البنكرياس | بنكرياس | وظائف البنكرياس | تحاليل البنكرياس | اطمن على البنكرياس | pancreas | pancreatic"
   },
   {
     "id": 41,
@@ -325,7 +325,7 @@
     "arabic_name": "أميليز البول",
     "market_name": "Amylase بول",
     "customer_price": null,
-    "search_text": "Amylase in urine أميليز البول Amylase بول amylase in urine اميليز البول amylase بول تحليل أميليز البول amylaseinurine urine amylase in amylase urine urine amylase"
+    "search_text": "Amylase in urine أميليز البول Amylase بول amylase in urine اميليز البول amylase بول تحليل أميليز البول amylaseinurine urine amylase in amylase urine urine amylase | البنكرياس | بنكرياس | وظائف البنكرياس | تحاليل البنكرياس | اطمن على البنكرياس | pancreas | pancreatic"
   },
   {
     "id": 42,
@@ -381,7 +381,7 @@
     "arabic_name": "أجسام مضادة لخلايا جزر البنكرياس",
     "market_name": "Islet Cell Antibody",
     "customer_price": null,
-    "search_text": "Anti Islet Cells Antibody أجسام مضادة لخلايا جزر البنكرياس Islet Cell Antibody anti islet cells antibody اجسام مضادة لخلايا جزر البنكرياس islet cell antibody تحليل أجسام مضادة لخلايا جزر البنكرياس antiisletcellsantibody isletcellantibody"
+    "search_text": "Anti Islet Cells Antibody أجسام مضادة لخلايا جزر البنكرياس Islet Cell Antibody anti islet cells antibody اجسام مضادة لخلايا جزر البنكرياس islet cell antibody تحليل أجسام مضادة لخلايا جزر البنكرياس antiisletcellsantibody isletcellantibody | البنكرياس | بنكرياس | وظائف البنكرياس | تحاليل البنكرياس | اطمن على البنكرياس | pancreas | pancreatic"
   },
   {
     "id": 49,
@@ -437,7 +437,7 @@
     "arabic_name": "أجسام مضادة للغدة الدرقية",
     "market_name": "Thyroid Antibodies",
     "customer_price": null,
-    "search_text": "Anti Thyroid Ab أجسام مضادة للغدة الدرقية Thyroid Antibodies anti thyroid ab اجسام مضادة للغدة الدرقية thyroid antibodies تحليل أجسام مضادة للغدة الدرقية antithyroidab thyroidantibodies anti thyroid antibodies thyroid antibody"
+    "search_text": "Anti Thyroid Ab أجسام مضادة للغدة الدرقية Thyroid Antibodies anti thyroid ab اجسام مضادة للغدة الدرقية thyroid antibodies تحليل أجسام مضادة للغدة الدرقية antithyroidab thyroidantibodies anti thyroid antibodies thyroid antibody | الغدة الدرقية | الغده الدرقيه | الدرقية | درقية | وظائف الغدة الدرقية | اطمن على الغدة الدرقية | thyroid"
   },
   {
     "id": 56,
@@ -461,7 +461,7 @@
     "arabic_name": "أجسام مضادة للحيوانات المنوية",
     "market_name": "Anti Sperm",
     "customer_price": null,
-    "search_text": "Anti Sperm Ab (Semen) أجسام مضادة للحيوانات المنوية Anti Sperm anti sperm ab semen اجسام مضادة للحيوانات المنوية anti sperm تحليل أجسام مضادة للحيوانات المنوية anti sperm ab semen antispermabsemen antisperm"
+    "search_text": "Anti Sperm Ab (Semen) أجسام مضادة للحيوانات المنوية Anti Sperm anti sperm ab semen اجسام مضادة للحيوانات المنوية anti sperm تحليل أجسام مضادة للحيوانات المنوية anti sperm ab semen antispermabsemen antisperm | الخصية | الخصيه | الخصيتين | خصية | خصيه | تحاليل الخصية | اطمن على الخصية | testis | testicle | testicular | male fertility"
   },
   {
     "id": 59,
@@ -573,7 +573,7 @@
     "arabic_name": "نيتروجين يوريا الدم",
     "market_name": "BUN",
     "customer_price": null,
-    "search_text": "BUN نيتروجين يوريا الدم bun نيتروجين يوريا الدم bun تحليل نيتروجين يوريا الدم blood urea nitrogen urea nitrogen"
+    "search_text": "BUN نيتروجين يوريا الدم bun نيتروجين يوريا الدم bun تحليل نيتروجين يوريا الدم blood urea nitrogen urea nitrogen | الكلى | الكليتين | كلى | كلية | وظائف الكلى | تحاليل الكلى | اطمن على الكلى | اطمئن على الكلى | kidney | kidneys | renal"
   },
   {
     "id": 73,
@@ -613,7 +613,7 @@
     "arabic_name": "هرمون الحمل الرقمي",
     "market_name": "تحليل حمل رقمي",
     "customer_price": null,
-    "search_text": "Beta HCG Quantitative هرمون الحمل الرقمي تحليل حمل رقمي beta hcg quantitative هرمون الحمل الرقمي تحليل حمل رقمي تحليل هرمون الحمل الرقمي betahcgquantitative quantitative beta hcg b hcg quantitative bhcg quantitative quantitative pregnancy test pregnancy blood quantitative هرمون حمل رقمي"
+    "search_text": "Beta HCG Quantitative هرمون الحمل الرقمي تحليل حمل رقمي beta hcg quantitative هرمون الحمل الرقمي تحليل حمل رقمي تحليل هرمون الحمل الرقمي betahcgquantitative quantitative beta hcg b hcg quantitative bhcg quantitative quantitative pregnancy test pregnancy blood quantitative هرمون حمل رقمي | الرحم | رحم | عنق الرحم | تحاليل الرحم | اطمن على الرحم | uterus | uterine | cervix | cervical"
   },
   {
     "id": 78,
@@ -653,7 +653,7 @@
     "arabic_name": "بيليروبين مباشر",
     "market_name": "Bilirubin Direct",
     "customer_price": null,
-    "search_text": "Bilirubin (Direct) بيليروبين مباشر Bilirubin Direct bilirubin direct بيليروبين مباشر bilirubin direct تحليل بيليروبين مباشر bilirubindirect direct bilirubin d bilirubin direct bili"
+    "search_text": "Bilirubin (Direct) بيليروبين مباشر Bilirubin Direct bilirubin direct بيليروبين مباشر bilirubin direct تحليل بيليروبين مباشر bilirubindirect direct bilirubin d bilirubin direct bili | الكبد | كبد | وظائف الكبد | انزيمات الكبد | إنزيمات الكبد | تحاليل الكبد | اطمن على الكبد | اطمئن على الكبد | liver | hepatic"
   },
   {
     "id": 83,
@@ -661,7 +661,7 @@
     "arabic_name": "بيليروبين كلي",
     "market_name": "Bilirubin Total",
     "customer_price": null,
-    "search_text": "Bilirubin (Total) بيليروبين كلي Bilirubin Total bilirubin total بيليروبين كلي bilirubin total تحليل بيليروبين كلي bilirubintotal total bilirubin t bilirubin total bili"
+    "search_text": "Bilirubin (Total) بيليروبين كلي Bilirubin Total bilirubin total بيليروبين كلي bilirubin total تحليل بيليروبين كلي bilirubintotal total bilirubin t bilirubin total bili | الكبد | كبد | وظائف الكبد | انزيمات الكبد | إنزيمات الكبد | تحاليل الكبد | اطمن على الكبد | اطمئن على الكبد | liver | hepatic"
   },
   {
     "id": 84,
@@ -677,7 +677,7 @@
     "arabic_name": "سكر بعد الأكل بساعتين",
     "market_name": "سكر بعد الأكل بساعتين",
     "customer_price": null,
-    "search_text": "Blood Glucose 2 hrs P.P سكر بعد الأكل بساعتين blood glucose 2 hrs p p سكر بعد الاكل بساعتين سكر بعد الاكل بساعتين تحليل سكر بعد الأكل بساعتين blood glucose 2 hrs p p bloodglucose2hrspp glucose 2 hrs p p blood ppbs ppbg 2hpp 2 hr pp 2 hours pp 2 hour postprandial glucose postprandial blood sugar postprandial blood glucose blood sugar after meal سكر بعد الاكل بساعتين"
+    "search_text": "Blood Glucose 2 hrs P.P سكر بعد الأكل بساعتين blood glucose 2 hrs p p سكر بعد الاكل بساعتين سكر بعد الاكل بساعتين تحليل سكر بعد الأكل بساعتين blood glucose 2 hrs p p bloodglucose2hrspp glucose 2 hrs p p blood ppbs ppbg 2hpp 2 hr pp 2 hours pp 2 hour postprandial glucose postprandial blood sugar postprandial blood glucose blood sugar after meal سكر بعد الاكل بساعتين | البنكرياس | بنكرياس | وظائف البنكرياس | تحاليل البنكرياس | اطمن على البنكرياس | pancreas | pancreatic"
   },
   {
     "id": 86,
@@ -685,7 +685,7 @@
     "arabic_name": "سكر صائم",
     "market_name": "سكر صائم",
     "customer_price": null,
-    "search_text": "Blood Glucose Fasting سكر صائم blood glucose fasting سكر صايم سكر صايم تحليل سكر صائم bloodglucosefasting fasting blood glucose glucose fasting blood fbs fbg fasting blood sugar fasting sugar glucose fasting سكر صايم"
+    "search_text": "Blood Glucose Fasting سكر صائم blood glucose fasting سكر صايم سكر صايم تحليل سكر صائم bloodglucosefasting fasting blood glucose glucose fasting blood fbs fbg fasting blood sugar fasting sugar glucose fasting سكر صايم | البنكرياس | بنكرياس | وظائف البنكرياس | تحاليل البنكرياس | اطمن على البنكرياس | pancreas | pancreatic"
   },
   {
     "id": 87,
@@ -693,7 +693,7 @@
     "arabic_name": "يوريا الدم",
     "market_name": "Urea",
     "customer_price": null,
-    "search_text": "Blood Urea يوريا الدم Urea blood urea يوريا الدم urea تحليل يوريا الدم bloodurea urea blood serum urea يوريا"
+    "search_text": "Blood Urea يوريا الدم Urea blood urea يوريا الدم urea تحليل يوريا الدم bloodurea urea blood serum urea يوريا | الكلى | الكليتين | كلى | كلية | وظائف الكلى | تحاليل الكلى | اطمن على الكلى | اطمئن على الكلى | kidney | kidneys | renal"
   },
   {
     "id": 88,
@@ -741,7 +741,7 @@
     "arabic_name": "سي بيبتيد صائم",
     "market_name": "C-Peptide صائم",
     "customer_price": null,
-    "search_text": "C-Peptide (Fasting) سي بيبتيد صائم C-Peptide صائم c peptide fasting سي بيبتيد صايم c peptide صايم تحليل سي بيبتيد صائم c peptide fasting cpeptidefasting fasting c peptide c peptide صائم cpeptide fasting"
+    "search_text": "C-Peptide (Fasting) سي بيبتيد صائم C-Peptide صائم c peptide fasting سي بيبتيد صايم c peptide صايم تحليل سي بيبتيد صائم c peptide fasting cpeptidefasting fasting c peptide c peptide صائم cpeptide fasting | البنكرياس | بنكرياس | وظائف البنكرياس | تحاليل البنكرياس | اطمن على البنكرياس | pancreas | pancreatic"
   },
   {
     "id": 94,
@@ -757,7 +757,7 @@
     "arabic_name": "سي بيبتيد عشوائي",
     "market_name": "C-Peptide عشوائي",
     "customer_price": null,
-    "search_text": "C-Peptide (Random) سي بيبتيد عشوائي C-Peptide عشوائي c peptide random سي بيبتيد عشوايي c peptide عشوايي تحليل سي بيبتيد عشوائي c peptide random cpeptiderandom random c peptide c peptide عشوائي cpeptide random"
+    "search_text": "C-Peptide (Random) سي بيبتيد عشوائي C-Peptide عشوائي c peptide random سي بيبتيد عشوايي c peptide عشوايي تحليل سي بيبتيد عشوائي c peptide random cpeptiderandom random c peptide c peptide عشوائي cpeptide random | البنكرياس | بنكرياس | وظائف البنكرياس | تحاليل البنكرياس | اطمن على البنكرياس | pancreas | pancreatic"
   },
   {
     "id": 96,
@@ -781,7 +781,7 @@
     "arabic_name": "دلالة أورام المبيض",
     "market_name": "CA 125",
     "customer_price": null,
-    "search_text": "CA 125 دلالة أورام المبيض ca 125 دلالة اورام المبيض ca 125 تحليل دلالة أورام المبيض ca125"
+    "search_text": "CA 125 دلالة أورام المبيض ca 125 دلالة اورام المبيض ca 125 تحليل دلالة أورام المبيض ca125 | المبيض | المبايض | مبيض | مبايض | مخزون المبيض | تحاليل المبايض | اطمن على المبايض | ovary | ovaries | ovarian | الرحم | رحم | عنق الرحم | تحاليل الرحم | اطمن على الرحم | uterus | uterine | cervix | cervical"
   },
   {
     "id": 99,
@@ -789,7 +789,7 @@
     "arabic_name": "دلالة أورام الثدي",
     "market_name": "CA 15-3",
     "customer_price": null,
-    "search_text": "CA 15.3 دلالة أورام الثدي CA 15-3 ca 15 3 دلالة اورام الثدي ca 15 3 تحليل دلالة أورام الثدي ca 15 3 ca153"
+    "search_text": "CA 15.3 دلالة أورام الثدي CA 15-3 ca 15 3 دلالة اورام الثدي ca 15 3 تحليل دلالة أورام الثدي ca 15 3 ca153 | الثدي | ثدي | تحاليل الثدي | اطمن على الثدي | breast"
   },
   {
     "id": 100,
@@ -837,7 +837,7 @@
     "arabic_name": "مستضد السرطان الجنيني CEA",
     "market_name": "CEA",
     "customer_price": null,
-    "search_text": "CEA مستضد السرطان الجنيني CEA cea مستضد السرطان الجنيني cea cea تحليل مستضد السرطان الجنيني CEA carcinoembryonic antigen cea tumor marker"
+    "search_text": "CEA مستضد السرطان الجنيني CEA cea مستضد السرطان الجنيني cea cea تحليل مستضد السرطان الجنيني CEA carcinoembryonic antigen cea tumor marker | القولون | قولون | الأمعاء | الامعاء | أمعاء | امعاء | تحاليل القولون | اطمن على القولون | colon | bowel | intestine | intestinal"
   },
   {
     "id": 106,
@@ -845,7 +845,7 @@
     "arabic_name": "إنزيم عضلة القلب CK-MB",
     "market_name": "CK-MB",
     "customer_price": null,
-    "search_text": "CK-MB إنزيم عضلة القلب CK-MB ck mb انزيم عضلة القلب ck mb ck mb تحليل إنزيم عضلة القلب CK-MB ck mb ckmb cpk mb creatine kinase mb"
+    "search_text": "CK-MB إنزيم عضلة القلب CK-MB ck mb انزيم عضلة القلب ck mb ck mb تحليل إنزيم عضلة القلب CK-MB ck mb ckmb cpk mb creatine kinase mb | القلب | قلب | عضلة القلب | عضله القلب | انزيمات القلب | إنزيمات القلب | تحاليل القلب | فحص القلب | اطمن على القلب | اطمئن على القلب | عايز اطمن على القلب | عاوز اطمن على القلب | heart | cardiac | cardiology"
   },
   {
     "id": 107,
@@ -853,7 +853,7 @@
     "arabic_name": "إنزيم العضلات الكلي",
     "market_name": "CK Total",
     "customer_price": null,
-    "search_text": "CK Total إنزيم العضلات الكلي ck total انزيم العضلات الكلي ck total تحليل إنزيم العضلات الكلي cktotal total ck cpk cpk total creatine kinase total"
+    "search_text": "CK Total إنزيم العضلات الكلي ck total انزيم العضلات الكلي ck total تحليل إنزيم العضلات الكلي cktotal total ck cpk cpk total creatine kinase total | العضلات | عضلات | عضلة | عضله | تحاليل العضلات | muscle | muscles"
   },
   {
     "id": 108,
@@ -885,7 +885,7 @@
     "arabic_name": "بروتين سي التفاعلي",
     "market_name": "CRP",
     "customer_price": null,
-    "search_text": "CRP بروتين سي التفاعلي crp بروتين سي التفاعلي crp تحليل بروتين سي التفاعلي c reactive protein c-reactive protein crp quantitative تحليل crp"
+    "search_text": "CRP بروتين سي التفاعلي crp بروتين سي التفاعلي crp تحليل بروتين سي التفاعلي c reactive protein c-reactive protein crp quantitative تحليل crp | القلب | قلب | عضلة القلب | عضله القلب | انزيمات القلب | إنزيمات القلب | تحاليل القلب | فحص القلب | اطمن على القلب | اطمئن على القلب | عايز اطمن على القلب | عاوز اطمن على القلب | heart | cardiac | cardiology"
   },
   {
     "id": 112,
@@ -901,7 +901,7 @@
     "arabic_name": "كالسيوم متأين",
     "market_name": "Calcium Ionized",
     "customer_price": null,
-    "search_text": "Calcium (Ionized) كالسيوم متأين Calcium Ionized calcium ionized كالسيوم متاين calcium ionized تحليل كالسيوم متأين calciumionized ionized calcium ionised calcium ica ca ionized"
+    "search_text": "Calcium (Ionized) كالسيوم متأين Calcium Ionized calcium ionized كالسيوم متاين calcium ionized تحليل كالسيوم متأين calciumionized ionized calcium ionised calcium ica ca ionized | العظام | عظام | صحة العظام | تحاليل العظام | اطمن على العظام | bone | bones"
   },
   {
     "id": 114,
@@ -909,7 +909,7 @@
     "arabic_name": "كالسيوم كلي",
     "market_name": "Calcium Total",
     "customer_price": null,
-    "search_text": "Calcium (Total) كالسيوم كلي Calcium Total calcium total كالسيوم كلي calcium total تحليل كالسيوم كلي calciumtotal total calcium serum calcium ca total"
+    "search_text": "Calcium (Total) كالسيوم كلي Calcium Total calcium total كالسيوم كلي calcium total تحليل كالسيوم كلي calciumtotal total calcium serum calcium ca total | العظام | عظام | صحة العظام | تحاليل العظام | اطمن على العظام | bone | bones"
   },
   {
     "id": 115,
@@ -917,7 +917,7 @@
     "arabic_name": "كالبروتكتين البراز",
     "market_name": "Calprotectin براز",
     "customer_price": null,
-    "search_text": "Calprotectin in Stool كالبروتكتين البراز Calprotectin براز calprotectin in stool كالبروتكتين البراز calprotectin براز تحليل كالبروتكتين البراز calprotectininstool stool calprotectin in calprotectin stool stool calprotectin"
+    "search_text": "Calprotectin in Stool كالبروتكتين البراز Calprotectin براز calprotectin in stool كالبروتكتين البراز calprotectin براز تحليل كالبروتكتين البراز calprotectininstool stool calprotectin in calprotectin stool stool calprotectin | القولون | قولون | الأمعاء | الامعاء | أمعاء | امعاء | تحاليل القولون | اطمن على القولون | colon | bowel | intestine | intestinal"
   },
   {
     "id": 116,
@@ -933,7 +933,7 @@
     "arabic_name": "مزرعة مسحة عنق الرحم",
     "market_name": "مزرعة مسحة عنق الرحم",
     "customer_price": null,
-    "search_text": "Cervical Swab C/S مزرعة مسحة عنق الرحم cervical swab c s مزرعة مسحة عنق الرحم مزرعة مسحة عنق الرحم تحليل مزرعة مسحة عنق الرحم cervical swab c s cervicalswabcs cervical swab culture cervical swab cs cervical swab c&s cervical swab culture sensitivity cervical swab culture and sensitivity"
+    "search_text": "Cervical Swab C/S مزرعة مسحة عنق الرحم cervical swab c s مزرعة مسحة عنق الرحم مزرعة مسحة عنق الرحم تحليل مزرعة مسحة عنق الرحم cervical swab c s cervicalswabcs cervical swab culture cervical swab cs cervical swab c&s cervical swab culture sensitivity cervical swab culture and sensitivity | الرحم | رحم | عنق الرحم | تحاليل الرحم | اطمن على الرحم | uterus | uterine | cervix | cervical"
   },
   {
     "id": 118,
@@ -965,7 +965,7 @@
     "arabic_name": "كوليسترول",
     "market_name": "Cholesterol",
     "customer_price": null,
-    "search_text": "Cholesterol كوليسترول cholesterol كوليسترول cholesterol تحليل كوليسترول total cholesterol serum cholesterol chol tc cholesterol"
+    "search_text": "Cholesterol كوليسترول cholesterol كوليسترول cholesterol تحليل كوليسترول total cholesterol serum cholesterol chol tc cholesterol | القلب | قلب | عضلة القلب | عضله القلب | انزيمات القلب | إنزيمات القلب | تحاليل القلب | فحص القلب | اطمن على القلب | اطمئن على القلب | عايز اطمن على القلب | عاوز اطمن على القلب | heart | cardiac | cardiology"
   },
   {
     "id": 122,
@@ -1005,7 +1005,7 @@
     "arabic_name": "كورتيزول صباحي",
     "market_name": "Cortisol صباحي",
     "customer_price": null,
-    "search_text": "Cortisol AM كورتيزول صباحي Cortisol صباحي cortisol am كورتيزول صباحي cortisol صباحي تحليل كورتيزول صباحي cortisolam am cortisol morning cortisol cortisol morning"
+    "search_text": "Cortisol AM كورتيزول صباحي Cortisol صباحي cortisol am كورتيزول صباحي cortisol صباحي تحليل كورتيزول صباحي cortisolam am cortisol morning cortisol cortisol morning | الغدة الكظرية | الغده الكظريه | الكظرية | الكظريه | كظرية | adrenal"
   },
   {
     "id": 127,
@@ -1013,7 +1013,7 @@
     "arabic_name": "كورتيزول مسائي",
     "market_name": "Cortisol مسائي",
     "customer_price": null,
-    "search_text": "Cortisol PM كورتيزول مسائي Cortisol مسائي cortisol pm كورتيزول مسايي cortisol مسايي تحليل كورتيزول مسائي cortisolpm pm cortisol evening cortisol cortisol evening"
+    "search_text": "Cortisol PM كورتيزول مسائي Cortisol مسائي cortisol pm كورتيزول مسايي cortisol مسايي تحليل كورتيزول مسائي cortisolpm pm cortisol evening cortisol cortisol evening | الغدة الكظرية | الغده الكظريه | الكظرية | الكظريه | كظرية | adrenal"
   },
   {
     "id": 128,
@@ -1021,7 +1021,7 @@
     "arabic_name": "كورتيزول عشوائي",
     "market_name": "Cortisol عشوائي",
     "customer_price": null,
-    "search_text": "Cortisol Random كورتيزول عشوائي Cortisol عشوائي cortisol random كورتيزول عشوايي cortisol عشوايي تحليل كورتيزول عشوائي cortisolrandom random cortisol"
+    "search_text": "Cortisol Random كورتيزول عشوائي Cortisol عشوائي cortisol random كورتيزول عشوايي cortisol عشوايي تحليل كورتيزول عشوائي cortisolrandom random cortisol | الغدة الكظرية | الغده الكظريه | الكظرية | الكظريه | كظرية | adrenal"
   },
   {
     "id": 129,
@@ -1037,7 +1037,7 @@
     "arabic_name": "كرياتينين",
     "market_name": "Creatinine",
     "customer_price": null,
-    "search_text": "Creatinine كرياتينين creatinine كرياتينين creatinine تحليل كرياتينين serum creatinine creat creatinine blood كرياتينين الدم"
+    "search_text": "Creatinine كرياتينين creatinine كرياتينين creatinine تحليل كرياتينين serum creatinine creat creatinine blood كرياتينين الدم | الكلى | الكليتين | كلى | كلية | وظائف الكلى | تحاليل الكلى | اطمن على الكلى | اطمئن على الكلى | kidney | kidneys | renal"
   },
   {
     "id": 131,
@@ -1045,7 +1045,7 @@
     "arabic_name": "تصفية الكرياتينين",
     "market_name": "Creatinine Clearance",
     "customer_price": null,
-    "search_text": "Creatinine Clearance تصفية الكرياتينين creatinine clearance تصفية الكرياتينين creatinine clearance تحليل تصفية الكرياتينين creatinineclearance crcl creatinine clearance test"
+    "search_text": "Creatinine Clearance تصفية الكرياتينين creatinine clearance تصفية الكرياتينين creatinine clearance تحليل تصفية الكرياتينين creatinineclearance crcl creatinine clearance test | الكلى | الكليتين | كلى | كلية | وظائف الكلى | تحاليل الكلى | اطمن على الكلى | اطمئن على الكلى | kidney | kidneys | renal"
   },
   {
     "id": 132,
@@ -1069,7 +1069,7 @@
     "arabic_name": "تحليل الجلطات D-Dimer",
     "market_name": "D-Dimer",
     "customer_price": null,
-    "search_text": "D-Dimer تحليل الجلطات D-Dimer d dimer تحليل الجلطات d dimer d dimer تحليل تحليل الجلطات D-Dimer d dimer ddimer"
+    "search_text": "D-Dimer تحليل الجلطات D-Dimer d dimer تحليل الجلطات d dimer d dimer تحليل تحليل الجلطات D-Dimer d dimer ddimer | الرئة | الرئه | الرئتين | رئة | رئه | التنفس | الجهاز التنفسي | تحاليل الرئة | اطمن على الرئة | lung | lungs | pulmonary | respiratory"
   },
   {
     "id": 135,
@@ -1077,7 +1077,7 @@
     "arabic_name": "هرمون DHEA",
     "market_name": "DHEA",
     "customer_price": null,
-    "search_text": "DHEA هرمون DHEA dhea هرمون dhea dhea تحليل هرمون DHEA"
+    "search_text": "DHEA هرمون DHEA dhea هرمون dhea dhea تحليل هرمون DHEA | الغدة الكظرية | الغده الكظريه | الكظرية | الكظريه | كظرية | adrenal"
   },
   {
     "id": 136,
@@ -1085,7 +1085,7 @@
     "arabic_name": "هرمون DHEA-S",
     "market_name": "DHEA-S",
     "customer_price": null,
-    "search_text": "DHEA-S هرمون DHEA-S dhea s هرمون dhea s dhea s تحليل هرمون DHEA-S dhea s dheas"
+    "search_text": "DHEA-S هرمون DHEA-S dhea s هرمون dhea s dhea s تحليل هرمون DHEA-S dhea s dheas | الغدة الكظرية | الغده الكظريه | الكظرية | الكظريه | كظرية | adrenal"
   },
   {
     "id": 137,
@@ -1181,7 +1181,7 @@
     "arabic_name": "هرمون الإستراديول",
     "market_name": "Estradiol E2",
     "customer_price": null,
-    "search_text": "Estradiol (E2) هرمون الإستراديول Estradiol E2 estradiol e2 هرمون الاستراديول estradiol e2 تحليل هرمون الإستراديول estradiole2 e2 oestradiol"
+    "search_text": "Estradiol (E2) هرمون الإستراديول Estradiol E2 estradiol e2 هرمون الاستراديول estradiol e2 تحليل هرمون الإستراديول estradiole2 e2 oestradiol | المبيض | المبايض | مبيض | مبايض | مخزون المبيض | تحاليل المبايض | اطمن على المبايض | ovary | ovaries | ovarian | الرحم | رحم | عنق الرحم | تحاليل الرحم | اطمن على الرحم | uterus | uterine | cervix | cervical"
   },
   {
     "id": 149,
@@ -1221,7 +1221,7 @@
     "arabic_name": "هرمون FSH",
     "market_name": "FSH",
     "customer_price": null,
-    "search_text": "FSH هرمون FSH fsh هرمون fsh fsh تحليل هرمون FSH follicle stimulating hormone follicle-stimulating hormone"
+    "search_text": "FSH هرمون FSH fsh هرمون fsh fsh تحليل هرمون FSH follicle stimulating hormone follicle-stimulating hormone | المبيض | المبايض | مبيض | مبايض | مخزون المبيض | تحاليل المبايض | اطمن على المبايض | ovary | ovaries | ovarian | الرحم | رحم | عنق الرحم | تحاليل الرحم | اطمن على الرحم | uterus | uterine | cervix | cervical | الغدة النخامية | الغده النخاميه | النخامية | النخاميه | نخامية | pituitary | الخصية | الخصيه | الخصيتين | خصية | خصيه | تحاليل الخصية | اطمن على الخصية | testis | testicle | testicular | male fertility"
   },
   {
     "id": 154,
@@ -1285,7 +1285,7 @@
     "arabic_name": "هرمون الغدة الدرقية الحر T3",
     "market_name": "Free T3",
     "customer_price": null,
-    "search_text": "Free T3 هرمون الغدة الدرقية الحر T3 free t3 هرمون الغدة الدرقية الحر t3 free t3 تحليل هرمون الغدة الدرقية الحر T3 freet3 t3 free ft3 free triiodothyronine"
+    "search_text": "Free T3 هرمون الغدة الدرقية الحر T3 free t3 هرمون الغدة الدرقية الحر t3 free t3 تحليل هرمون الغدة الدرقية الحر T3 freet3 t3 free ft3 free triiodothyronine | الغدة الدرقية | الغده الدرقيه | الدرقية | درقية | وظائف الغدة الدرقية | اطمن على الغدة الدرقية | thyroid"
   },
   {
     "id": 162,
@@ -1293,7 +1293,7 @@
     "arabic_name": "هرمون الغدة الدرقية الحر T4",
     "market_name": "Free T4",
     "customer_price": null,
-    "search_text": "Free T4 هرمون الغدة الدرقية الحر T4 free t4 هرمون الغدة الدرقية الحر t4 free t4 تحليل هرمون الغدة الدرقية الحر T4 freet4 t4 free ft4 free thyroxine"
+    "search_text": "Free T4 هرمون الغدة الدرقية الحر T4 free t4 هرمون الغدة الدرقية الحر t4 free t4 تحليل هرمون الغدة الدرقية الحر T4 freet4 t4 free ft4 free thyroxine | الغدة الدرقية | الغده الدرقيه | الدرقية | درقية | وظائف الغدة الدرقية | اطمن على الغدة الدرقية | thyroid"
   },
   {
     "id": 163,
@@ -1309,7 +1309,7 @@
     "arabic_name": "فركتوز السائل المنوي",
     "market_name": "Fructose سائل منوي",
     "customer_price": null,
-    "search_text": "Fructose In Semen فركتوز السائل المنوي Fructose سائل منوي fructose in semen فركتوز السايل المنوي fructose سايل منوي تحليل فركتوز السائل المنوي fructoseinsemen"
+    "search_text": "Fructose In Semen فركتوز السائل المنوي Fructose سائل منوي fructose in semen فركتوز السايل المنوي fructose سايل منوي تحليل فركتوز السائل المنوي fructoseinsemen | الخصية | الخصيه | الخصيتين | خصية | خصيه | تحاليل الخصية | اطمن على الخصية | testis | testicle | testicular | male fertility"
   },
   {
     "id": 165,
@@ -1333,7 +1333,7 @@
     "arabic_name": "إنزيم GGT",
     "market_name": "GGT",
     "customer_price": null,
-    "search_text": "GGT إنزيم GGT ggt انزيم ggt ggt تحليل إنزيم GGT gamma gt gamma glutamyl transferase gamma-glutamyl transferase ggt enzyme"
+    "search_text": "GGT إنزيم GGT ggt انزيم ggt ggt تحليل إنزيم GGT gamma gt gamma glutamyl transferase gamma-glutamyl transferase ggt enzyme | الكبد | كبد | وظائف الكبد | انزيمات الكبد | إنزيمات الكبد | تحاليل الكبد | اطمن على الكبد | اطمئن على الكبد | liver | hepatic"
   },
   {
     "id": 168,
@@ -1341,7 +1341,7 @@
     "arabic_name": "هرمون الجاسترين",
     "market_name": "Gastrin",
     "customer_price": null,
-    "search_text": "Gastrin Level هرمون الجاسترين Gastrin gastrin level هرمون الجاسترين gastrin تحليل هرمون الجاسترين gastrinlevel"
+    "search_text": "Gastrin Level هرمون الجاسترين Gastrin gastrin level هرمون الجاسترين gastrin تحليل هرمون الجاسترين gastrinlevel | المعدة | المعده | معدة | معده | تحاليل المعدة | جرثومة المعدة | اطمن على المعدة | stomach | gastric"
   },
   {
     "id": 169,
@@ -1349,7 +1349,7 @@
     "arabic_name": "سكر عشوائي",
     "market_name": "سكر عشوائي",
     "customer_price": null,
-    "search_text": "Glucose Random سكر عشوائي glucose random سكر عشوايي سكر عشوايي تحليل سكر عشوائي glucoserandom random glucose rbg rbs rg random blood glucose random blood sugar random sugar سكر عشوائى"
+    "search_text": "Glucose Random سكر عشوائي glucose random سكر عشوايي سكر عشوايي تحليل سكر عشوائي glucoserandom random glucose rbg rbs rg random blood glucose random blood sugar random sugar سكر عشوائى | البنكرياس | بنكرياس | وظائف البنكرياس | تحاليل البنكرياس | اطمن على البنكرياس | pancreas | pancreatic"
   },
   {
     "id": 170,
@@ -1357,7 +1357,7 @@
     "arabic_name": "السكر التراكمي",
     "market_name": "HbA1c السكر التراكمي",
     "customer_price": null,
-    "search_text": "Glycated Haemoglobin (HbA1c) السكر التراكمي HbA1c السكر التراكمي glycated haemoglobin hba1c السكر التراكمي hba1c السكر التراكمي تحليل السكر التراكمي glycated haemoglobin hba1c glycatedhaemoglobinhba1c hba1c hb a1c a1c hgb a1c glycosylated hemoglobin glycosylated haemoglobin glycated hemoglobin سكر تراكمي تحليل سكر تراكمي"
+    "search_text": "Glycated Haemoglobin (HbA1c) السكر التراكمي HbA1c السكر التراكمي glycated haemoglobin hba1c السكر التراكمي hba1c السكر التراكمي تحليل السكر التراكمي glycated haemoglobin hba1c glycatedhaemoglobinhba1c hba1c hb a1c a1c hgb a1c glycosylated hemoglobin glycosylated haemoglobin glycated hemoglobin سكر تراكمي تحليل سكر تراكمي | البنكرياس | بنكرياس | وظائف البنكرياس | تحاليل البنكرياس | اطمن على البنكرياس | pancreas | pancreatic"
   },
   {
     "id": 171,
@@ -1365,7 +1365,7 @@
     "arabic_name": "هرمون النمو",
     "market_name": "Growth Hormone",
     "customer_price": null,
-    "search_text": "Growth Hormone (Basal) هرمون النمو Growth Hormone growth hormone basal هرمون النمو growth hormone تحليل هرمون النمو growth hormone basal growthhormonebasal growthhormone gh somatotropin"
+    "search_text": "Growth Hormone (Basal) هرمون النمو Growth Hormone growth hormone basal هرمون النمو growth hormone تحليل هرمون النمو growth hormone basal growthhormonebasal growthhormone gh somatotropin | الغدة النخامية | الغده النخاميه | النخامية | النخاميه | نخامية | pituitary"
   },
   {
     "id": 172,
@@ -1373,7 +1373,7 @@
     "arabic_name": "جرثومة المعدة IgG",
     "market_name": "H. Pylori IgG",
     "customer_price": null,
-    "search_text": "H. Pylori IgG جرثومة المعدة IgG h pylori igg جرثومة المعدة igg h pylori igg تحليل جرثومة المعدة IgG h pylori igg hpyloriigg helicobacter pylori igg h pylori antibody igg hpylori igg"
+    "search_text": "H. Pylori IgG جرثومة المعدة IgG h pylori igg جرثومة المعدة igg h pylori igg تحليل جرثومة المعدة IgG h pylori igg hpyloriigg helicobacter pylori igg h pylori antibody igg hpylori igg | المعدة | المعده | معدة | معده | تحاليل المعدة | جرثومة المعدة | اطمن على المعدة | stomach | gastric"
   },
   {
     "id": 173,
@@ -1381,7 +1381,7 @@
     "arabic_name": "جرثومة المعدة IgM",
     "market_name": "H. Pylori IgM",
     "customer_price": null,
-    "search_text": "H. Pylori IgM جرثومة المعدة IgM h pylori igm جرثومة المعدة igm h pylori igm تحليل جرثومة المعدة IgM h pylori igm hpyloriigm helicobacter pylori igm h pylori antibody igm hpylori igm"
+    "search_text": "H. Pylori IgM جرثومة المعدة IgM h pylori igm جرثومة المعدة igm h pylori igm تحليل جرثومة المعدة IgM h pylori igm hpyloriigm helicobacter pylori igm h pylori antibody igm hpylori igm | المعدة | المعده | معدة | معده | تحاليل المعدة | جرثومة المعدة | اطمن على المعدة | stomach | gastric"
   },
   {
     "id": 174,
@@ -1389,7 +1389,7 @@
     "arabic_name": "جرثومة المعدة في البراز",
     "market_name": "H. Pylori Ag براز",
     "customer_price": null,
-    "search_text": "H. Pylori Ag (in stool) جرثومة المعدة في البراز H. Pylori Ag براز h pylori ag in stool جرثومة المعدة في البراز h pylori ag براز تحليل جرثومة المعدة في البراز h pylori ag in stool hpyloriaginstool stool h pylori ag in h pylori ag stool stool h pylori ag h pylori ag براز h pylori stool antigen helicobacter pylori stool antigen hpylori stool ag جرثومة المعدة براز"
+    "search_text": "H. Pylori Ag (in stool) جرثومة المعدة في البراز H. Pylori Ag براز h pylori ag in stool جرثومة المعدة في البراز h pylori ag براز تحليل جرثومة المعدة في البراز h pylori ag in stool hpyloriaginstool stool h pylori ag in h pylori ag stool stool h pylori ag h pylori ag براز h pylori stool antigen helicobacter pylori stool antigen hpylori stool ag جرثومة المعدة براز | المعدة | المعده | معدة | معده | تحاليل المعدة | جرثومة المعدة | اطمن على المعدة | stomach | gastric"
   },
   {
     "id": 175,
@@ -1477,7 +1477,7 @@
     "arabic_name": "مستضد فيروس B",
     "market_name": "HBs Ag",
     "customer_price": null,
-    "search_text": "HBs Ag مستضد فيروس B hbs ag مستضد فيروس b hbs ag تحليل مستضد فيروس B hbsag hepatitis b surface antigen hepatitis b antigen hbv surface antigen"
+    "search_text": "HBs Ag مستضد فيروس B hbs ag مستضد فيروس b hbs ag تحليل مستضد فيروس B hbsag hepatitis b surface antigen hepatitis b antigen hbv surface antigen | الكبد | كبد | وظائف الكبد | انزيمات الكبد | إنزيمات الكبد | تحاليل الكبد | اطمن على الكبد | اطمئن على الكبد | liver | hepatic"
   },
   {
     "id": 186,
@@ -1485,7 +1485,7 @@
     "arabic_name": "الأجسام المضادة لفيروس C",
     "market_name": "HCV Ab",
     "customer_price": null,
-    "search_text": "HCV Ab الأجسام المضادة لفيروس C hcv ab الاجسام المضادة لفيروس c hcv ab تحليل الأجسام المضادة لفيروس C hcvab hcv antibody hepatitis c antibody anti hcv hcv antibodies"
+    "search_text": "HCV Ab الأجسام المضادة لفيروس C hcv ab الاجسام المضادة لفيروس c hcv ab تحليل الأجسام المضادة لفيروس C hcvab hcv antibody hepatitis c antibody anti hcv hcv antibodies | الكبد | كبد | وظائف الكبد | انزيمات الكبد | إنزيمات الكبد | تحاليل الكبد | اطمن على الكبد | اطمئن على الكبد | liver | hepatic"
   },
   {
     "id": 187,
@@ -1509,7 +1509,7 @@
     "arabic_name": "الكوليسترول النافع",
     "market_name": "HDL",
     "customer_price": null,
-    "search_text": "HDL الكوليسترول النافع hdl الكوليسترول النافع hdl تحليل الكوليسترول النافع hdl c hdl-c good cholesterol"
+    "search_text": "HDL الكوليسترول النافع hdl الكوليسترول النافع hdl تحليل الكوليسترول النافع hdl c hdl-c good cholesterol | القلب | قلب | عضلة القلب | عضله القلب | انزيمات القلب | إنزيمات القلب | تحاليل القلب | فحص القلب | اطمن على القلب | اطمئن على القلب | عايز اطمن على القلب | عاوز اطمن على القلب | heart | cardiac | cardiology"
   },
   {
     "id": 190,
@@ -1589,7 +1589,7 @@
     "arabic_name": "مؤشر مقاومة الإنسولين",
     "market_name": "HOMA-IR مقاومة الإنسولين",
     "customer_price": null,
-    "search_text": "Homa-IR مؤشر مقاومة الإنسولين HOMA-IR مقاومة الإنسولين homa ir موشر مقاومة الانسولين homa ir مقاومة الانسولين تحليل مؤشر مقاومة الإنسولين homa ir homair homa ir مقاومة الإنسولين insulin resistance index مقاومة الانسولين مقاومة الإنسولين"
+    "search_text": "Homa-IR مؤشر مقاومة الإنسولين HOMA-IR مقاومة الإنسولين homa ir موشر مقاومة الانسولين homa ir مقاومة الانسولين تحليل مؤشر مقاومة الإنسولين homa ir homair homa ir مقاومة الإنسولين insulin resistance index مقاومة الانسولين مقاومة الإنسولين | البنكرياس | بنكرياس | وظائف البنكرياس | تحاليل البنكرياس | اطمن على البنكرياس | pancreas | pancreatic"
   },
   {
     "id": 200,
@@ -1597,7 +1597,7 @@
     "arabic_name": "الهوموسيستين",
     "market_name": "Homocysteine",
     "customer_price": null,
-    "search_text": "Homocysteine الهوموسيستين homocysteine الهوموسيستين homocysteine تحليل الهوموسيستين"
+    "search_text": "Homocysteine الهوموسيستين homocysteine الهوموسيستين homocysteine تحليل الهوموسيستين | القلب | قلب | عضلة القلب | عضله القلب | انزيمات القلب | إنزيمات القلب | تحاليل القلب | فحص القلب | اطمن على القلب | اطمئن على القلب | عايز اطمن على القلب | عاوز اطمن على القلب | heart | cardiac | cardiology"
   },
   {
     "id": 201,
@@ -1629,7 +1629,7 @@
     "arabic_name": "حساسية مسببات الاستنشاق",
     "market_name": "حساسية استنشاق",
     "customer_price": null,
-    "search_text": "IgE Specific (Inhalant Allergens) RAST حساسية مسببات الاستنشاق حساسية استنشاق ige specific inhalant allergens rast حساسية مسببات الاستنشاق حساسية استنشاق تحليل حساسية مسببات الاستنشاق ige specific inhalant allergens rast igespecificinhalantallergensrast"
+    "search_text": "IgE Specific (Inhalant Allergens) RAST حساسية مسببات الاستنشاق حساسية استنشاق ige specific inhalant allergens rast حساسية مسببات الاستنشاق حساسية استنشاق تحليل حساسية مسببات الاستنشاق ige specific inhalant allergens rast igespecificinhalantallergensrast | الرئة | الرئه | الرئتين | رئة | رئه | التنفس | الجهاز التنفسي | تحاليل الرئة | اطمن على الرئة | lung | lungs | pulmonary | respiratory"
   },
   {
     "id": 205,
@@ -1669,7 +1669,7 @@
     "arabic_name": "إنسولين عشوائي",
     "market_name": "Insulin Random",
     "customer_price": null,
-    "search_text": "Insulin (Random) إنسولين عشوائي Insulin Random insulin random انسولين عشوايي insulin random تحليل إنسولين عشوائي insulinrandom random insulin"
+    "search_text": "Insulin (Random) إنسولين عشوائي Insulin Random insulin random انسولين عشوايي insulin random تحليل إنسولين عشوائي insulinrandom random insulin | البنكرياس | بنكرياس | وظائف البنكرياس | تحاليل البنكرياس | اطمن على البنكرياس | pancreas | pancreatic"
   },
   {
     "id": 210,
@@ -1685,7 +1685,7 @@
     "arabic_name": "إنسولين صائم",
     "market_name": "Insulin Fasting",
     "customer_price": null,
-    "search_text": "Insulin Level (Fasting) إنسولين صائم Insulin Fasting insulin level fasting انسولين صايم insulin fasting تحليل إنسولين صائم insulin level fasting insulinlevelfasting fasting insulin level insulinfasting fasting insulin"
+    "search_text": "Insulin Level (Fasting) إنسولين صائم Insulin Fasting insulin level fasting انسولين صايم insulin fasting تحليل إنسولين صائم insulin level fasting insulinlevelfasting fasting insulin level insulinfasting fasting insulin | البنكرياس | بنكرياس | وظائف البنكرياس | تحاليل البنكرياس | اطمن على البنكرياس | pancreas | pancreatic"
   },
   {
     "id": 212,
@@ -1701,7 +1701,7 @@
     "arabic_name": "عامل النمو IGF-1",
     "market_name": "IGF-1",
     "customer_price": null,
-    "search_text": "Insulin Like Growth Factor-1 (IGF-1) عامل النمو IGF-1 IGF-1 insulin like growth factor 1 igf 1 عامل النمو igf 1 igf 1 تحليل عامل النمو IGF-1 insulin like growth factor 1 igf 1 insulinlikegrowthfactor1igf1 igf 1 igf1 insulin like growth factor 1"
+    "search_text": "Insulin Like Growth Factor-1 (IGF-1) عامل النمو IGF-1 IGF-1 insulin like growth factor 1 igf 1 عامل النمو igf 1 igf 1 تحليل عامل النمو IGF-1 insulin like growth factor 1 igf 1 insulinlikegrowthfactor1igf1 igf 1 igf1 insulin like growth factor 1 | الغدة النخامية | الغده النخاميه | النخامية | النخاميه | نخامية | pituitary"
   },
   {
     "id": 214,
@@ -1733,7 +1733,7 @@
     "arabic_name": "إنزيم LDH",
     "market_name": "LDH",
     "customer_price": null,
-    "search_text": "LDH (Lactate Dehydrogenase) إنزيم LDH LDH ldh lactate dehydrogenase انزيم ldh ldh تحليل إنزيم LDH ldh lactate dehydrogenase ldhlactatedehydrogenase lactate dehydrogenase ldh enzyme"
+    "search_text": "LDH (Lactate Dehydrogenase) إنزيم LDH LDH ldh lactate dehydrogenase انزيم ldh ldh تحليل إنزيم LDH ldh lactate dehydrogenase ldhlactatedehydrogenase lactate dehydrogenase ldh enzyme | القلب | قلب | عضلة القلب | عضله القلب | انزيمات القلب | إنزيمات القلب | تحاليل القلب | فحص القلب | اطمن على القلب | اطمئن على القلب | عايز اطمن على القلب | عاوز اطمن على القلب | heart | cardiac | cardiology | العضلات | عضلات | عضلة | عضله | تحاليل العضلات | muscle | muscles"
   },
   {
     "id": 218,
@@ -1749,7 +1749,7 @@
     "arabic_name": "الكوليسترول الضار",
     "market_name": "LDL Cholesterol",
     "customer_price": null,
-    "search_text": "LDL Cholesterol الكوليسترول الضار ldl cholesterol الكوليسترول الضار ldl cholesterol تحليل الكوليسترول الضار ldlcholesterol ldl c ldl-c bad cholesterol"
+    "search_text": "LDL Cholesterol الكوليسترول الضار ldl cholesterol الكوليسترول الضار ldl cholesterol تحليل الكوليسترول الضار ldlcholesterol ldl c ldl-c bad cholesterol | القلب | قلب | عضلة القلب | عضله القلب | انزيمات القلب | إنزيمات القلب | تحاليل القلب | فحص القلب | اطمن على القلب | اطمئن على القلب | عايز اطمن على القلب | عاوز اطمن على القلب | heart | cardiac | cardiology"
   },
   {
     "id": 220,
@@ -1757,7 +1757,7 @@
     "arabic_name": "هرمون LH",
     "market_name": "LH",
     "customer_price": null,
-    "search_text": "LH هرمون LH lh هرمون lh lh تحليل هرمون LH luteinizing hormone luteinising hormone"
+    "search_text": "LH هرمون LH lh هرمون lh lh تحليل هرمون LH luteinizing hormone luteinising hormone | المبيض | المبايض | مبيض | مبايض | مخزون المبيض | تحاليل المبايض | اطمن على المبايض | ovary | ovaries | ovarian | الرحم | رحم | عنق الرحم | تحاليل الرحم | اطمن على الرحم | uterus | uterine | cervix | cervical | الغدة النخامية | الغده النخاميه | النخامية | النخاميه | نخامية | pituitary | الخصية | الخصيه | الخصيتين | خصية | خصيه | تحاليل الخصية | اطمن على الخصية | testis | testicle | testicular | male fertility"
   },
   {
     "id": 221,
@@ -1789,7 +1789,7 @@
     "arabic_name": "إنزيم الليبيز",
     "market_name": "Lipase",
     "customer_price": null,
-    "search_text": "Lipase إنزيم الليبيز lipase انزيم الليبيز lipase تحليل إنزيم الليبيز"
+    "search_text": "Lipase إنزيم الليبيز lipase انزيم الليبيز lipase تحليل إنزيم الليبيز | البنكرياس | بنكرياس | وظائف البنكرياس | تحاليل البنكرياس | اطمن على البنكرياس | pancreas | pancreatic"
   },
   {
     "id": 225,
@@ -1837,7 +1837,7 @@
     "arabic_name": "ميكروألبومين بول 24 ساعة",
     "market_name": "Microalbumin 24 Hrs",
     "customer_price": null,
-    "search_text": "Micro Albumin in 24 hrs ميكروألبومين بول 24 ساعة Microalbumin 24 Hrs micro albumin in 24 hrs ميكروالبومين بول 24 ساعة microalbumin 24 hrs تحليل ميكروألبومين بول 24 ساعة microalbuminin24hrs microalbumin24hrs microalbumin 24 hour urine urine microalbumin 24 hrs microalbuminuria 24 hour"
+    "search_text": "Micro Albumin in 24 hrs ميكروألبومين بول 24 ساعة Microalbumin 24 Hrs micro albumin in 24 hrs ميكروالبومين بول 24 ساعة microalbumin 24 hrs تحليل ميكروألبومين بول 24 ساعة microalbuminin24hrs microalbumin24hrs microalbumin 24 hour urine urine microalbumin 24 hrs microalbuminuria 24 hour | الكلى | الكليتين | كلى | كلية | وظائف الكلى | تحاليل الكلى | اطمن على الكلى | اطمئن على الكلى | kidney | kidneys | renal"
   },
   {
     "id": 231,
@@ -1845,7 +1845,7 @@
     "arabic_name": "ميكروألبومين عشوائي",
     "market_name": "Microalbumin Random",
     "customer_price": null,
-    "search_text": "Micro Albumin Random ميكروألبومين عشوائي Microalbumin Random micro albumin random ميكروالبومين عشوايي microalbumin random تحليل ميكروألبومين عشوائي microalbuminrandom random micro albumin random microalbumin random urine microalbumin urine microalbumin random microalbuminuria random mau random"
+    "search_text": "Micro Albumin Random ميكروألبومين عشوائي Microalbumin Random micro albumin random ميكروالبومين عشوايي microalbumin random تحليل ميكروألبومين عشوائي microalbuminrandom random micro albumin random microalbumin random urine microalbumin urine microalbumin random microalbuminuria random mau random | الكلى | الكليتين | كلى | كلية | وظائف الكلى | تحاليل الكلى | اطمن على الكلى | اطمئن على الكلى | kidney | kidneys | renal"
   },
   {
     "id": 232,
@@ -1869,7 +1869,7 @@
     "arabic_name": "دم خفي بالبراز",
     "market_name": "Occult Blood Stool",
     "customer_price": null,
-    "search_text": "Occult Blood in Stool دم خفي بالبراز Occult Blood Stool occult blood in stool دم خفي بالبراز occult blood stool تحليل دم خفي بالبراز occultbloodinstool stool occult blood in stool occult blood occultbloodstool fobt ob stool fecal occult blood test faecal occult blood test دم خفي براز"
+    "search_text": "Occult Blood in Stool دم خفي بالبراز Occult Blood Stool occult blood in stool دم خفي بالبراز occult blood stool تحليل دم خفي بالبراز occultbloodinstool stool occult blood in stool occult blood occultbloodstool fobt ob stool fecal occult blood test faecal occult blood test دم خفي براز | القولون | قولون | الأمعاء | الامعاء | أمعاء | امعاء | تحاليل القولون | اطمن على القولون | colon | bowel | intestine | intestinal"
   },
   {
     "id": 235,
@@ -1901,7 +1901,7 @@
     "arabic_name": "هرمون البرولاكتين",
     "market_name": "Prolactin (PRL)",
     "customer_price": null,
-    "search_text": "PRL هرمون البرولاكتين Prolactin (PRL) prl هرمون البرولاكتين prolactin prl تحليل هرمون البرولاكتين prolactin prl prolactinprl prolactin prolactin hormone"
+    "search_text": "PRL هرمون البرولاكتين Prolactin (PRL) prl هرمون البرولاكتين prolactin prl تحليل هرمون البرولاكتين prolactin prl prolactinprl prolactin prolactin hormone | الغدة النخامية | الغده النخاميه | النخامية | النخاميه | نخامية | pituitary | الثدي | ثدي | تحاليل الثدي | اطمن على الثدي | breast"
   },
   {
     "id": 239,
@@ -1909,7 +1909,7 @@
     "arabic_name": "مستضد البروستاتا الحر",
     "market_name": "PSA Free",
     "customer_price": null,
-    "search_text": "PSA (Free) مستضد البروستاتا الحر PSA Free psa free مستضد البروستاتا الحر psa free تحليل مستضد البروستاتا الحر psafree free psa fpsa"
+    "search_text": "PSA (Free) مستضد البروستاتا الحر PSA Free psa free مستضد البروستاتا الحر psa free تحليل مستضد البروستاتا الحر psafree free psa fpsa | البروستاتا | بروستاتا | تحاليل البروستاتا | اطمن على البروستاتا | prostate"
   },
   {
     "id": 240,
@@ -1917,7 +1917,7 @@
     "arabic_name": "مستضد البروستاتا الكلي",
     "market_name": "PSA Total",
     "customer_price": null,
-    "search_text": "PSA (Total) مستضد البروستاتا الكلي PSA Total psa total مستضد البروستاتا الكلي psa total تحليل مستضد البروستاتا الكلي psatotal total psa tpsa"
+    "search_text": "PSA (Total) مستضد البروستاتا الكلي PSA Total psa total مستضد البروستاتا الكلي psa total تحليل مستضد البروستاتا الكلي psatotal total psa tpsa | البروستاتا | بروستاتا | تحاليل البروستاتا | اطمن على البروستاتا | prostate"
   },
   {
     "id": 241,
@@ -1925,7 +1925,7 @@
     "arabic_name": "هرمون الغدة الجار درقية",
     "market_name": "PTH",
     "customer_price": null,
-    "search_text": "PTH هرمون الغدة الجار درقية pth هرمون الغدة الجار درقية pth تحليل هرمون الغدة الجار درقية parathyroid hormone intact pth ipth pth intact"
+    "search_text": "PTH هرمون الغدة الجار درقية pth هرمون الغدة الجار درقية pth تحليل هرمون الغدة الجار درقية parathyroid hormone intact pth ipth pth intact | العظام | عظام | صحة العظام | تحاليل العظام | اطمن على العظام | bone | bones"
   },
   {
     "id": 242,
@@ -1941,7 +1941,7 @@
     "arabic_name": "فوسفور",
     "market_name": "Phosphorus",
     "customer_price": null,
-    "search_text": "Phosphorous فوسفور Phosphorus phosphorous فوسفور phosphorus تحليل فوسفور"
+    "search_text": "Phosphorous فوسفور Phosphorus phosphorous فوسفور phosphorus تحليل فوسفور | الكلى | الكليتين | كلى | كلية | وظائف الكلى | تحاليل الكلى | اطمن على الكلى | اطمئن على الكلى | kidney | kidneys | renal | العظام | عظام | صحة العظام | تحاليل العظام | اطمن على العظام | bone | bones"
   },
   {
     "id": 244,
@@ -1957,7 +1957,7 @@
     "arabic_name": "بوتاسيوم",
     "market_name": "Potassium",
     "customer_price": null,
-    "search_text": "Potassium (K) بوتاسيوم Potassium potassium k بوتاسيوم potassium تحليل بوتاسيوم potassium k potassiumk k serum potassium potassium serum"
+    "search_text": "Potassium (K) بوتاسيوم Potassium potassium k بوتاسيوم potassium تحليل بوتاسيوم potassium k potassiumk k serum potassium potassium serum | الكلى | الكليتين | كلى | كلية | وظائف الكلى | تحاليل الكلى | اطمن على الكلى | اطمئن على الكلى | kidney | kidneys | renal"
   },
   {
     "id": 246,
@@ -1989,7 +1989,7 @@
     "arabic_name": "هرمون البروجستيرون",
     "market_name": "Progesterone",
     "customer_price": null,
-    "search_text": "Progesterone هرمون البروجستيرون progesterone هرمون البروجستيرون progesterone تحليل هرمون البروجستيرون"
+    "search_text": "Progesterone هرمون البروجستيرون progesterone هرمون البروجستيرون progesterone تحليل هرمون البروجستيرون | المبيض | المبايض | مبيض | مبايض | مخزون المبيض | تحاليل المبايض | اطمن على المبايض | ovary | ovaries | ovarian | الرحم | رحم | عنق الرحم | تحاليل الرحم | اطمن على الرحم | uterus | uterine | cervix | cervical"
   },
   {
     "id": 250,
@@ -2021,7 +2021,7 @@
     "arabic_name": "زمن البروثرومبين",
     "market_name": "PT",
     "customer_price": null,
-    "search_text": "Prothrombin Time & Conc زمن البروثرومبين PT prothrombin time conc زمن البروثرومبين pt تحليل زمن البروثرومبين prothrombin time and conc prothrombintimeandconc protime prothrombin time pt conc pt concentration inr"
+    "search_text": "Prothrombin Time & Conc زمن البروثرومبين PT prothrombin time conc زمن البروثرومبين pt تحليل زمن البروثرومبين prothrombin time and conc prothrombintimeandconc protime prothrombin time pt conc pt concentration inr | الكبد | كبد | وظائف الكبد | انزيمات الكبد | إنزيمات الكبد | تحاليل الكبد | اطمن على الكبد | اطمئن على الكبد | liver | hepatic"
   },
   {
     "id": 254,
@@ -2045,7 +2045,7 @@
     "arabic_name": "بروتين البول العشوائي",
     "market_name": "Urine Protein Random",
     "customer_price": null,
-    "search_text": "Protein in Urine Random بروتين البول العشوائي Urine Protein Random protein in urine random بروتين البول العشوايي urine protein random تحليل بروتين البول العشوائي proteininurinerandom random protein in urine protein random urine urineproteinrandom random urine protein"
+    "search_text": "Protein in Urine Random بروتين البول العشوائي Urine Protein Random protein in urine random بروتين البول العشوايي urine protein random تحليل بروتين البول العشوائي proteininurinerandom random protein in urine protein random urine urineproteinrandom random urine protein | الكلى | الكليتين | كلى | كلية | وظائف الكلى | تحاليل الكلى | اطمن على الكلى | اطمئن على الكلى | kidney | kidneys | renal"
   },
   {
     "id": 257,
@@ -2141,7 +2141,7 @@
     "arabic_name": "مزرعة السائل المنوي",
     "market_name": "Semen Culture",
     "customer_price": null,
-    "search_text": "Semen C/S مزرعة السائل المنوي Semen Culture semen c s مزرعة السايل المنوي semen culture تحليل مزرعة السائل المنوي semen c s semencs semenculture semen cs semen c&s semen culture sensitivity semen culture and sensitivity seminal fluid culture"
+    "search_text": "Semen C/S مزرعة السائل المنوي Semen Culture semen c s مزرعة السايل المنوي semen culture تحليل مزرعة السائل المنوي semen c s semencs semenculture semen cs semen c&s semen culture sensitivity semen culture and sensitivity seminal fluid culture | الخصية | الخصيه | الخصيتين | خصية | خصيه | تحاليل الخصية | اطمن على الخصية | testis | testicle | testicular | male fertility"
   },
   {
     "id": 269,
@@ -2149,7 +2149,7 @@
     "arabic_name": "تحليل السائل المنوي",
     "market_name": "Semen Analysis",
     "customer_price": null,
-    "search_text": "Semen Analysis تحليل السائل المنوي semen analysis تحليل السايل المنوي semen analysis تحليل تحليل السائل المنوي semenanalysis sperm analysis seminal fluid analysis sfa semen exam تحليل سائل منوي"
+    "search_text": "Semen Analysis تحليل السائل المنوي semen analysis تحليل السايل المنوي semen analysis تحليل تحليل السائل المنوي semenanalysis sperm analysis seminal fluid analysis sfa semen exam تحليل سائل منوي | الخصية | الخصيه | الخصيتين | خصية | خصيه | تحاليل الخصية | اطمن على الخصية | testis | testicle | testicular | male fertility"
   },
   {
     "id": 270,
@@ -2157,7 +2157,7 @@
     "arabic_name": "تحليل السائل المنوي بالكمبيوتر",
     "market_name": "Semen Analysis CASA",
     "customer_price": null,
-    "search_text": "Semen Analysis with CASA تحليل السائل المنوي بالكمبيوتر Semen Analysis CASA semen analysis with casa تحليل السايل المنوي بالكمبيوتر semen analysis casa تحليل تحليل السائل المنوي بالكمبيوتر semenanalysiswithcasa semenanalysiscasa casa semen analysis computer assisted semen analysis computerized semen analysis"
+    "search_text": "Semen Analysis with CASA تحليل السائل المنوي بالكمبيوتر Semen Analysis CASA semen analysis with casa تحليل السايل المنوي بالكمبيوتر semen analysis casa تحليل تحليل السائل المنوي بالكمبيوتر semenanalysiswithcasa semenanalysiscasa casa semen analysis computer assisted semen analysis computerized semen analysis | الخصية | الخصيه | الخصيتين | خصية | خصيه | تحاليل الخصية | اطمن على الخصية | testis | testicle | testicular | male fertility"
   },
   {
     "id": 271,
@@ -2181,7 +2181,7 @@
     "arabic_name": "صوديوم",
     "market_name": "Sodium",
     "customer_price": null,
-    "search_text": "Sodium (Na) صوديوم Sodium sodium na صوديوم sodium تحليل صوديوم sodium na sodiumna na serum sodium sodium serum"
+    "search_text": "Sodium (Na) صوديوم Sodium sodium na صوديوم sodium تحليل صوديوم sodium na sodiumna na serum sodium sodium serum | الكلى | الكليتين | كلى | كلية | وظائف الكلى | تحاليل الكلى | اطمن على الكلى | اطمئن على الكلى | kidney | kidneys | renal"
   },
   {
     "id": 274,
@@ -2197,7 +2197,7 @@
     "arabic_name": "مزرعة بلغم",
     "market_name": "Sputum Culture",
     "customer_price": null,
-    "search_text": "Sputum C/S مزرعة بلغم Sputum Culture sputum c s مزرعة بلغم sputum culture تحليل مزرعة بلغم sputum c s sputumcs sputumculture sputum cs sputum c&s sputum culture sensitivity sputum culture and sensitivity"
+    "search_text": "Sputum C/S مزرعة بلغم Sputum Culture sputum c s مزرعة بلغم sputum culture تحليل مزرعة بلغم sputum c s sputumcs sputumculture sputum cs sputum c&s sputum culture sensitivity sputum culture and sensitivity | الرئة | الرئه | الرئتين | رئة | رئه | التنفس | الجهاز التنفسي | تحاليل الرئة | اطمن على الرئة | lung | lungs | pulmonary | respiratory"
   },
   {
     "id": 276,
@@ -2213,7 +2213,7 @@
     "arabic_name": "تحليل براز",
     "market_name": "Stool Analysis",
     "customer_price": null,
-    "search_text": "Stool Analysis تحليل براز stool analysis تحليل براز stool analysis تحليل براز stoolanalysis analysis stool stool exam stool examination stool routine stool r/e stool re تحليل براز كامل"
+    "search_text": "Stool Analysis تحليل براز stool analysis تحليل براز stool analysis تحليل براز stoolanalysis analysis stool stool exam stool examination stool routine stool r/e stool re تحليل براز كامل | القولون | قولون | الأمعاء | الامعاء | أمعاء | امعاء | تحاليل القولون | اطمن على القولون | colon | bowel | intestine | intestinal"
   },
   {
     "id": 278,
@@ -2221,7 +2221,7 @@
     "arabic_name": "مزرعة براز",
     "market_name": "Stool Culture",
     "customer_price": null,
-    "search_text": "Stool C/S مزرعة براز Stool Culture stool c s مزرعة براز stool culture تحليل مزرعة براز stool c s stoolcs c s stool stoolculture culture stool stool cs stool c&s stool culture sensitivity stool culture and sensitivity"
+    "search_text": "Stool C/S مزرعة براز Stool Culture stool c s مزرعة براز stool culture تحليل مزرعة براز stool c s stoolcs c s stool stoolculture culture stool stool cs stool c&s stool culture sensitivity stool culture and sensitivity | القولون | قولون | الأمعاء | الامعاء | أمعاء | امعاء | تحاليل القولون | اطمن على القولون | colon | bowel | intestine | intestinal"
   },
   {
     "id": 279,
@@ -2261,7 +2261,7 @@
     "arabic_name": "كوانتيفيرون للدرن",
     "market_name": "Quantiferon TB Gold",
     "customer_price": null,
-    "search_text": "T.B Gold (QuantiFERON) كوانتيفيرون للدرن Quantiferon TB Gold t b gold quantiferon كوانتيفيرون للدرن quantiferon tb gold تحليل كوانتيفيرون للدرن t b gold quantiferon tbgoldquantiferon quantiferontbgold igra quantiferon quantiferon tb tb gold interferon gamma release assay"
+    "search_text": "T.B Gold (QuantiFERON) كوانتيفيرون للدرن Quantiferon TB Gold t b gold quantiferon كوانتيفيرون للدرن quantiferon tb gold تحليل كوانتيفيرون للدرن t b gold quantiferon tbgoldquantiferon quantiferontbgold igra quantiferon quantiferon tb tb gold interferon gamma release assay | الرئة | الرئه | الرئتين | رئة | رئه | التنفس | الجهاز التنفسي | تحاليل الرئة | اطمن على الرئة | lung | lungs | pulmonary | respiratory"
   },
   {
     "id": 284,
@@ -2269,7 +2269,7 @@
     "arabic_name": "درن PCR",
     "market_name": "TB PCR",
     "customer_price": null,
-    "search_text": "T.B DNA by PCR درن PCR TB PCR t b dna by pcr درن pcr tb pcr تحليل درن PCR t b dna by pcr tbdnabypcr tbpcr"
+    "search_text": "T.B DNA by PCR درن PCR TB PCR t b dna by pcr درن pcr tb pcr تحليل درن PCR t b dna by pcr tbdnabypcr tbpcr | الرئة | الرئه | الرئتين | رئة | رئه | التنفس | الجهاز التنفسي | تحاليل الرئة | اطمن على الرئة | lung | lungs | pulmonary | respiratory"
   },
   {
     "id": 285,
@@ -2277,7 +2277,7 @@
     "arabic_name": "هرمون الغدة الدرقية T3",
     "market_name": "T3",
     "customer_price": null,
-    "search_text": "T3 هرمون الغدة الدرقية T3 t3 هرمون الغدة الدرقية t3 t3 تحليل هرمون الغدة الدرقية T3 total t3 triiodothyronine t3 total"
+    "search_text": "T3 هرمون الغدة الدرقية T3 t3 هرمون الغدة الدرقية t3 t3 تحليل هرمون الغدة الدرقية T3 total t3 triiodothyronine t3 total | الغدة الدرقية | الغده الدرقيه | الدرقية | درقية | وظائف الغدة الدرقية | اطمن على الغدة الدرقية | thyroid"
   },
   {
     "id": 286,
@@ -2285,7 +2285,7 @@
     "arabic_name": "هرمون الغدة الدرقية T4",
     "market_name": "T4",
     "customer_price": null,
-    "search_text": "T4 هرمون الغدة الدرقية T4 t4 هرمون الغدة الدرقية t4 t4 تحليل هرمون الغدة الدرقية T4 total t4 thyroxine t4 total"
+    "search_text": "T4 هرمون الغدة الدرقية T4 t4 هرمون الغدة الدرقية t4 t4 تحليل هرمون الغدة الدرقية T4 total t4 thyroxine t4 total | الغدة الدرقية | الغده الدرقيه | الدرقية | درقية | وظائف الغدة الدرقية | اطمن على الغدة الدرقية | thyroid"
   },
   {
     "id": 287,
@@ -2333,7 +2333,7 @@
     "arabic_name": "هرمون الغدة الدرقية المحفز",
     "market_name": "TSH",
     "customer_price": null,
-    "search_text": "TSH هرمون الغدة الدرقية المحفز tsh هرمون الغدة الدرقية المحفز tsh تحليل هرمون الغدة الدرقية المحفز thyroid stimulating hormone thyrotropin tsh hormone"
+    "search_text": "TSH هرمون الغدة الدرقية المحفز tsh هرمون الغدة الدرقية المحفز tsh تحليل هرمون الغدة الدرقية المحفز thyroid stimulating hormone thyrotropin tsh hormone | الغدة الدرقية | الغده الدرقيه | الدرقية | درقية | وظائف الغدة الدرقية | اطمن على الغدة الدرقية | thyroid | الغدة النخامية | الغده النخاميه | النخامية | النخاميه | نخامية | pituitary"
   },
   {
     "id": 293,
@@ -2357,7 +2357,7 @@
     "arabic_name": "التستوستيرون الحر",
     "market_name": "Free Testosterone",
     "customer_price": null,
-    "search_text": "Testosterone Free التستوستيرون الحر Free Testosterone testosterone free التستوستيرون الحر free testosterone تحليل التستوستيرون الحر testosteronefree freetestosterone"
+    "search_text": "Testosterone Free التستوستيرون الحر Free Testosterone testosterone free التستوستيرون الحر free testosterone تحليل التستوستيرون الحر testosteronefree freetestosterone | الخصية | الخصيه | الخصيتين | خصية | خصيه | تحاليل الخصية | اطمن على الخصية | testis | testicle | testicular | male fertility"
   },
   {
     "id": 296,
@@ -2365,7 +2365,7 @@
     "arabic_name": "التستوستيرون الكلي",
     "market_name": "Total Testosterone",
     "customer_price": null,
-    "search_text": "Testosterone Total التستوستيرون الكلي Total Testosterone testosterone total التستوستيرون الكلي total testosterone تحليل التستوستيرون الكلي testosteronetotal totaltestosterone"
+    "search_text": "Testosterone Total التستوستيرون الكلي Total Testosterone testosterone total التستوستيرون الكلي total testosterone تحليل التستوستيرون الكلي testosteronetotal totaltestosterone | الخصية | الخصيه | الخصيتين | خصية | خصيه | تحاليل الخصية | اطمن على الخصية | testis | testicle | testicular | male fertility"
   },
   {
     "id": 297,
@@ -2413,7 +2413,7 @@
     "arabic_name": "بروتين كلي",
     "market_name": "Total Protein",
     "customer_price": null,
-    "search_text": "Total Protein بروتين كلي total protein بروتين كلي total protein تحليل بروتين كلي totalprotein protein total"
+    "search_text": "Total Protein بروتين كلي total protein بروتين كلي total protein تحليل بروتين كلي totalprotein protein total | الكبد | كبد | وظائف الكبد | انزيمات الكبد | إنزيمات الكبد | تحاليل الكبد | اطمن على الكبد | اطمئن على الكبد | liver | hepatic"
   },
   {
     "id": 303,
@@ -2461,7 +2461,7 @@
     "arabic_name": "الدهون الثلاثية",
     "market_name": "Triglycerides",
     "customer_price": null,
-    "search_text": "Triglyceride الدهون الثلاثية Triglycerides triglyceride الدهون الثلاثية triglycerides تحليل الدهون الثلاثية tg دهون ثلاثية"
+    "search_text": "Triglyceride الدهون الثلاثية Triglycerides triglyceride الدهون الثلاثية triglycerides تحليل الدهون الثلاثية tg دهون ثلاثية | القلب | قلب | عضلة القلب | عضله القلب | انزيمات القلب | إنزيمات القلب | تحاليل القلب | فحص القلب | اطمن على القلب | اطمئن على القلب | عايز اطمن على القلب | عاوز اطمن على القلب | heart | cardiac | cardiology"
   },
   {
     "id": 309,
@@ -2469,7 +2469,7 @@
     "arabic_name": "تروبونين نوعي",
     "market_name": "Troponin I Qualitative",
     "customer_price": null,
-    "search_text": "Troponin I (Qualitative) تروبونين نوعي Troponin I Qualitative troponin i qualitative تروبونين نوعي troponin i qualitative تحليل تروبونين نوعي troponiniqualitative qualitative troponin i tni qualitative trop i qualitative"
+    "search_text": "Troponin I (Qualitative) تروبونين نوعي Troponin I Qualitative troponin i qualitative تروبونين نوعي troponin i qualitative تحليل تروبونين نوعي troponiniqualitative qualitative troponin i tni qualitative trop i qualitative | القلب | قلب | عضلة القلب | عضله القلب | انزيمات القلب | إنزيمات القلب | تحاليل القلب | فحص القلب | اطمن على القلب | اطمئن على القلب | عايز اطمن على القلب | عاوز اطمن على القلب | heart | cardiac | cardiology"
   },
   {
     "id": 310,
@@ -2477,7 +2477,7 @@
     "arabic_name": "تروبونين كمي",
     "market_name": "Troponin I Quantitative",
     "customer_price": null,
-    "search_text": "Troponin I (Quantitative) تروبونين كمي Troponin I Quantitative troponin i quantitative تروبونين كمي troponin i quantitative تحليل تروبونين كمي troponiniquantitative quantitative troponin i tni quantitative trop i quantitative"
+    "search_text": "Troponin I (Quantitative) تروبونين كمي Troponin I Quantitative troponin i quantitative تروبونين كمي troponin i quantitative تحليل تروبونين كمي troponiniquantitative quantitative troponin i tni quantitative trop i quantitative | القلب | قلب | عضلة القلب | عضله القلب | انزيمات القلب | إنزيمات القلب | تحاليل القلب | فحص القلب | اطمن على القلب | اطمئن على القلب | عايز اطمن على القلب | عاوز اطمن على القلب | heart | cardiac | cardiology"
   },
   {
     "id": 311,
@@ -2485,7 +2485,7 @@
     "arabic_name": "أجسام مضادة للغدة الدرقية",
     "market_name": "Thyroid Antibodies (TPO Ab)",
     "customer_price": null,
-    "search_text": "Thyroid Ab (Anti-Microsomal / Peroxidase Ab) أجسام مضادة للغدة الدرقية Thyroid Antibodies (TPO Ab) thyroid ab anti microsomal peroxidase ab اجسام مضادة للغدة الدرقية thyroid antibodies tpo ab تحليل أجسام مضادة للغدة الدرقية thyroid ab anti microsomal peroxidase ab thyroidabantimicrosomalperoxidaseab thyroid antibodies tpo ab thyroidantibodiestpoab anti tpo tpo ab tpo antibody thyroid peroxidase antibody anti microsomal antibody"
+    "search_text": "Thyroid Ab (Anti-Microsomal / Peroxidase Ab) أجسام مضادة للغدة الدرقية Thyroid Antibodies (TPO Ab) thyroid ab anti microsomal peroxidase ab اجسام مضادة للغدة الدرقية thyroid antibodies tpo ab تحليل أجسام مضادة للغدة الدرقية thyroid ab anti microsomal peroxidase ab thyroidabantimicrosomalperoxidaseab thyroid antibodies tpo ab thyroidantibodiestpoab anti tpo tpo ab tpo antibody thyroid peroxidase antibody anti microsomal antibody | الغدة الدرقية | الغده الدرقيه | الدرقية | درقية | وظائف الغدة الدرقية | اطمن على الغدة الدرقية | thyroid"
   },
   {
     "id": 312,
@@ -2493,7 +2493,7 @@
     "arabic_name": "حمض اليوريك",
     "market_name": "Uric Acid",
     "customer_price": null,
-    "search_text": "Uric Acid حمض اليوريك uric acid حمض اليوريك uric acid تحليل حمض اليوريك uricacid serum uric acid uric acid blood"
+    "search_text": "Uric Acid حمض اليوريك uric acid حمض اليوريك uric acid تحليل حمض اليوريك uricacid serum uric acid uric acid blood | الكلى | الكليتين | كلى | كلية | وظائف الكلى | تحاليل الكلى | اطمن على الكلى | اطمئن على الكلى | kidney | kidneys | renal"
   },
   {
     "id": 313,
@@ -2589,7 +2589,7 @@
     "arabic_name": "ألفا 1 أنتي تربسين",
     "market_name": "Alpha-1 Antitrypsin Serum",
     "customer_price": null,
-    "search_text": "Alpha 1 Antitrypsin (Serum) ألفا 1 أنتي تربسين Alpha-1 Antitrypsin Serum alpha 1 antitrypsin serum الفا 1 انتي تربسين alpha 1 antitrypsin serum تحليل ألفا 1 أنتي تربسين alpha 1 antitrypsin serum alpha1antitrypsinserum serum alpha 1 antitrypsin alpha 1 antitryps serum serum alpha 1 antitryps"
+    "search_text": "Alpha 1 Antitrypsin (Serum) ألفا 1 أنتي تربسين Alpha-1 Antitrypsin Serum alpha 1 antitrypsin serum الفا 1 انتي تربسين alpha 1 antitrypsin serum تحليل ألفا 1 أنتي تربسين alpha 1 antitrypsin serum alpha1antitrypsinserum serum alpha 1 antitrypsin alpha 1 antitryps serum serum alpha 1 antitryps | الرئة | الرئه | الرئتين | رئة | رئه | التنفس | الجهاز التنفسي | تحاليل الرئة | اطمن على الرئة | lung | lungs | pulmonary | respiratory"
   },
   {
     "id": 325,
@@ -2597,7 +2597,7 @@
     "arabic_name": "بيليروبين غير مباشر",
     "market_name": "Bilirubin Indirect",
     "customer_price": null,
-    "search_text": "Bilirubin (Indirect) بيليروبين غير مباشر Bilirubin Indirect bilirubin indirect بيليروبين غير مباشر bilirubin indirect تحليل بيليروبين غير مباشر bilirubinindirect indirect bilirubin i bilirubin indirect bili"
+    "search_text": "Bilirubin (Indirect) بيليروبين غير مباشر Bilirubin Indirect bilirubin indirect بيليروبين غير مباشر bilirubin indirect تحليل بيليروبين غير مباشر bilirubinindirect indirect bilirubin i bilirubin indirect bili | الكبد | كبد | وظائف الكبد | انزيمات الكبد | إنزيمات الكبد | تحاليل الكبد | اطمن على الكبد | اطمئن على الكبد | liver | hepatic"
   },
   {
     "id": 326,
@@ -2605,7 +2605,7 @@
     "arabic_name": "معدل الترشيح الكبيبي للكلى",
     "market_name": "eGFR",
     "customer_price": null,
-    "search_text": "eGFR معدل الترشيح الكبيبي للكلى egfr معدل الترشيح الكبيبي للكلي egfr تحليل معدل الترشيح الكبيبي للكلى estimated gfr estimated glomerular filtration rate glomerular filtration rate"
+    "search_text": "eGFR معدل الترشيح الكبيبي للكلى egfr معدل الترشيح الكبيبي للكلي egfr تحليل معدل الترشيح الكبيبي للكلى estimated gfr estimated glomerular filtration rate glomerular filtration rate | الكلى | الكليتين | كلى | كلية | وظائف الكلى | تحاليل الكلى | اطمن على الكلى | اطمئن على الكلى | kidney | kidneys | renal"
   },
   {
     "id": 327,
@@ -2645,6 +2645,6 @@
     "arabic_name": "فيتامين د",
     "market_name": "Vitamin D3 (25-OH Vitamin D)",
     "customer_price": null,
-    "search_text": "Vit D3 (25 Hydroxycholecalciferol) فيتامين د Vitamin D3 (25-OH Vitamin D) vit d3 25 hydroxycholecalciferol فيتامين د vitamin d3 25 oh vitamin d تحليل فيتامين د vit d3 25 hydroxycholecalciferol vitd325hydroxycholecalciferol vitamin d3 25 oh vitamin d vitamind325ohvitamind vit d vitamin d vitamin d3 25 oh vitamin d 25-oh vitamin d 25 hydroxy vitamin d 25 hydroxycholecalciferol 25ohd 25 ohd vit d3"
+    "search_text": "Vit D3 (25 Hydroxycholecalciferol) فيتامين د Vitamin D3 (25-OH Vitamin D) vit d3 25 hydroxycholecalciferol فيتامين د vitamin d3 25 oh vitamin d تحليل فيتامين د vit d3 25 hydroxycholecalciferol vitd325hydroxycholecalciferol vitamin d3 25 oh vitamin d vitamind325ohvitamind vit d vitamin d vitamin d3 25 oh vitamin d 25-oh vitamin d 25 hydroxy vitamin d 25 hydroxycholecalciferol 25ohd 25 ohd vit d3 | العظام | عظام | صحة العظام | تحاليل العظام | اطمن على العظام | bone | bones"
   }
 ]

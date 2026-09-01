@@ -6010,8 +6010,9 @@ class LabTestsViewModel(application: Application) : AndroidViewModel(application
             val unmatchedQueries = mutableListOf<String>()
             for (q in queries) {
                 val directMatches = repository.searchTests(q)
-                // V142: a natural/clinical phrase is accepted for each item too.
-                val allMatches = if (directMatches.isNotEmpty()) directMatches else repository.smartSearchTests(q)
+                val smartMatches = repository.smartSearchTests(q)
+                // V143: semantic organ matches must NEVER be hidden by one literal match.
+                val allMatches = (smartMatches + directMatches).distinctBy { it.id }
                 // V69: when the user typed a full catalogue name/abbreviation, show only
                 // that exact test instead of related substring results. This is especially
                 // important for pasted multi-line price inquiries.
