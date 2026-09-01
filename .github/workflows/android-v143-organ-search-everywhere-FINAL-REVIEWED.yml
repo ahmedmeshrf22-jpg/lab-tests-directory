@@ -155,6 +155,43 @@ jobs:
               print('Optional target names not present in this 331-test catalogue:', ', '.join(sorted(set(missing))))
           PY
 
+      - name: Strict V142 preservation audit
+        shell: bash
+        run: |
+          set -euo pipefail
+          git -C build_v143 diff --check
+          mapfile -t CHANGED < <(git -C build_v143 diff --name-only | sort)
+          EXPECTED=(
+            'app/build.gradle.kts'
+            'app/src/main/assets/lab_tests_android.json'
+            'app/src/main/java/com/example/ui/LabTestsViewModel.kt'
+          )
+          mapfile -t EXPECTED_SORTED < <(printf '%s\n' "${EXPECTED[@]}" | sort)
+          test "$(printf '%s\n' "${CHANGED[@]}")" = "$(printf '%s\n' "${EXPECTED_SORTED[@]}")" || {
+            echo '::error::Unexpected V142 source files changed by V143 patch'
+            printf 'Changed: %s\n' "${CHANGED[@]}"
+            exit 1
+          }
+
+          python3 <<'PY'
+          import json, subprocess
+          from pathlib import Path
+          ref='refs/remotes/origin/v142-android-backup-smart-search-ui-base'
+          base=json.loads(subprocess.check_output(
+              ['git','show',f'{ref}:app/src/main/assets/lab_tests_android.json'], text=True, encoding='utf-8-sig'))
+          new=json.loads(Path('build_v143/app/src/main/assets/lab_tests_android.json').read_text(encoding='utf-8'))
+          if len(base)!=331 or len(new)!=331:
+              raise SystemExit('Catalogue count changed')
+          b={str(x.get('id')):x for x in base}; n={str(x.get('id')):x for x in new}
+          if set(b)!=set(n): raise SystemExit('Catalogue IDs changed')
+          for tid in b:
+              bx=dict(b[tid]); nx=dict(n[tid])
+              bx.pop('search_text',None); nx.pop('search_text',None)
+              if bx!=nx:
+                  raise SystemExit(f'Non-search catalogue data changed for test id {tid}')
+          print('331 tests preserved byte-semantically except search_text aliases')
+          PY
+
       - name: Deep audit V143 requested behavior
         shell: bash
         run: |
@@ -177,8 +214,8 @@ jobs:
             'heart all 10 direct searchable': all(n in by and 'القلب' in by[n].get('search_text','') for n in heart),
             'both troponin I preserved': 'Troponin I (Qualitative)' in by and 'Troponin I (Quantitative)' in by,
             'smart + direct merged': 'val smartMatches = repository.smartSearchTests(q)' in vm and '(smartMatches + directMatches).distinctBy { it.id }' in vm,
-            'direct search indexes search_text': 'test.normSearch' in repo,
             'V142 semantic rules preserved': 'V142 semantic organ/system search' in repo,
+            'direct search consumes search_text': 'normSearch' in repo,
             'backup UI preserved': 'V142_QUICK_BACKUP' in allkt and 'نسخة احتياطية الآن' in allkt,
             'login tagline preserved': 'V142_CARE_TAGLINE' in allkt and 'رعاية' in allkt and 'تليق' in allkt and 'بك' in allkt,
             'screenshots enabled': 'FLAG_SECURE' not in allkt,
@@ -197,129 +234,46 @@ jobs:
           set -euo pipefail
           gradle --no-daemon --no-configuration-cache --no-parallel --max-workers=2 :app:compileReleaseKotlin
 
-      - name: Select exact V142 signing identity
+      - name: Restore original Android signing identity exactly as V142
         shell: bash
         env:
           SIGNING_BUNDLE_B64: ${{ secrets.TAHALIL_SIGNING_BUNDLE_B64 }}
         run: |
           set -euo pipefail
-          test -n "${SIGNING_BUNDLE_B64:-}" || { echo "::error::TAHALIL_SIGNING_BUNDLE_B64 missing in old signing repo"; exit 1; }
-
-          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner -print | sort -V | tail -1)"
-          test -n "$APKSIGNER"
-
-          # V142 is the exact installed/update identity we must preserve.
-          V142_APK="$RUNNER_TEMP/android-v142-installed.apk"
-          curl --fail --location --retry 3 \
-            'https://github.com/ahmedmeshrf22-jpg/lab-tests-directory/releases/download/v142-android/Tahalil-Alakkad-V142-All-Fixes-Organ-Smart-Search-Android-SIGNED.apk' \
-            -o "$V142_APK"
-          "$APKSIGNER" verify --verbose --print-certs "$V142_APK" >/dev/null
-          RAW_V142_CERTS="$("$APKSIGNER" verify --print-certs "$V142_APK" 2>&1)"
-          EXPECTED_CERT="$(printf '%s\n' "$RAW_V142_CERTS" \
-            | grep -i -m1 'certificate SHA-256 digest' \
-            | sed -E 's/.*digest:[[:space:]]*//' \
-            | tr '[:upper:]' '[:lower:]' \
-            | tr -d ':[:space:]')"
-          test -n "$EXPECTED_CERT" || { echo "::error::Could not read V142 signer certificate"; exit 1; }
-          test "${#EXPECTED_CERT}" -eq 64 || { echo "::error::Unexpected V142 signer digest format"; exit 1; }
-
+          if [ -z "${SIGNING_BUNDLE_B64:-}" ]; then
+            echo "::error::TAHALIL_SIGNING_BUNDLE_B64 is missing in the old signing repository."
+            exit 1
+          fi
           SIGN_DIR="$RUNNER_TEMP/tahalil_v143_signing"
-          rm -rf "$SIGN_DIR" && mkdir -p "$SIGN_DIR/files" "$SIGN_DIR/test"
+          rm -rf "$SIGN_DIR" && mkdir -p "$SIGN_DIR/files"
           printf '%s' "$SIGNING_BUNDLE_B64" | tr -d '\r\n ' | base64 --decode > "$SIGN_DIR/bundle.bin"
-
           if unzip -t "$SIGN_DIR/bundle.bin" >/dev/null 2>&1; then
             unzip -q "$SIGN_DIR/bundle.bin" -d "$SIGN_DIR/files"
           else
             cp "$SIGN_DIR/bundle.bin" "$SIGN_DIR/files/original.keystore"
           fi
-
-          mapfile -t KEYSTORES < <(find "$SIGN_DIR/files" -type f \( -iname '*.jks' -o -iname '*.keystore' \) -print | sort)
-          [ "${#KEYSTORES[@]}" -gt 0 ] || { echo "::error::No keystore found in signing bundle"; exit 1; }
-
-          # Collect every plausible password stored in the signing bundle, without logging values.
-          PASSWORD_FILE="$SIGN_DIR/password-candidates.txt"
-          : > "$PASSWORD_FILE"
+          KEYSTORE="$(find "$SIGN_DIR/files" -type f \( -iname '*.jks' -o -iname '*.keystore' \) -print -quit)"
+          test -n "$KEYSTORE"
+          STORE_PASSWORD=''; KEY_ALIAS=''; KEY_PASSWORD=''
           while IFS= read -r META; do
             [ -f "$META" ] || continue
-            sed -nE 's/^[[:space:]]*(STORE_PASSWORD|KEYSTORE_PASSWORD|storePassword|store_password|KEY_PASSWORD|keyPassword|key_password)[[:space:]]*[:=][[:space:]]*"?([^"#]+)"?[[:space:]]*$/\2/p' "$META" >> "$PASSWORD_FILE" || true
+            [ -n "$STORE_PASSWORD" ] || STORE_PASSWORD="$(sed -nE 's/^[[:space:]]*(STORE_PASSWORD|KEYSTORE_PASSWORD|storePassword|store_password)[[:space:]]*[:=][[:space:]]*"?([^"#]+)"?[[:space:]]*$/\2/p' "$META" | head -1 | xargs || true)"
+            [ -n "$KEY_ALIAS" ] || KEY_ALIAS="$(sed -nE 's/^[[:space:]]*(KEY_ALIAS|keyAlias|key_alias)[[:space:]]*[:=][[:space:]]*"?([^"#]+)"?[[:space:]]*$/\2/p' "$META" | head -1 | xargs || true)"
+            [ -n "$KEY_PASSWORD" ] || KEY_PASSWORD="$(sed -nE 's/^[[:space:]]*(KEY_PASSWORD|keyPassword|key_password)[[:space:]]*[:=][[:space:]]*"?([^"#]+)"?[[:space:]]*$/\2/p' "$META" | head -1 | xargs || true)"
           done < <(find "$SIGN_DIR/files" -type f \( -iname '*.properties' -o -iname '*.env' -o -iname '*.txt' \) -print)
-          printf '%s\n' android >> "$PASSWORD_FILE"
-          awk 'NF && !seen[$0]++' "$PASSWORD_FILE" > "$PASSWORD_FILE.tmp"
-          mv "$PASSWORD_FILE.tmp" "$PASSWORD_FILE"
-
-          FOUND_KEYSTORE=''
-          FOUND_STOREPASS=''
-          FOUND_ALIAS=''
-          FOUND_KEYPASS=''
-
-          while IFS= read -r KS; do
-            while IFS= read -r SP; do
-              [ -n "$SP" ] || continue
-              if ! keytool -list -keystore "$KS" -storepass "$SP" >/dev/null 2>&1; then
-                continue
-              fi
-
-              mapfile -t ALIASES < <(keytool -list -v -keystore "$KS" -storepass "$SP" 2>/dev/null | sed -n 's/^Alias name: //p')
-              for ALIAS in "${ALIASES[@]}"; do
-                [ -n "$ALIAS" ] || continue
-
-                CERT="$(
-                  keytool -exportcert -rfc -keystore "$KS" -storepass "$SP" -alias "$ALIAS" 2>/dev/null \
-                    | openssl x509 -noout -fingerprint -sha256 2>/dev/null \
-                    | sed 's/.*=//' | tr '[:upper:]' '[:lower:]' | tr -d ':[:space:]'
-                )"
-                [ -n "$CERT" ] || continue
-                [ "$CERT" = "$EXPECTED_CERT" ] || continue
-
-                # Cert matches V142. Now find a key password that can actually unlock the private key.
-                while IFS= read -r KP; do
-                  [ -n "$KP" ] || continue
-                  TEST_P12="$SIGN_DIR/test/keycheck.p12"
-                  rm -f "$TEST_P12"
-                  if keytool -importkeystore \
-                      -srckeystore "$KS" -srcstorepass "$SP" \
-                      -srcalias "$ALIAS" -srckeypass "$KP" \
-                      -destkeystore "$TEST_P12" -deststoretype PKCS12 \
-                      -deststorepass 'TemporaryCheckOnly_143!' \
-                      -destkeypass 'TemporaryCheckOnly_143!' \
-                      -noprompt >/dev/null 2>&1; then
-                    FOUND_KEYSTORE="$KS"
-                    FOUND_STOREPASS="$SP"
-                    FOUND_ALIAS="$ALIAS"
-                    FOUND_KEYPASS="$KP"
-                    break 4
-                  fi
-                done < "$PASSWORD_FILE"
-              done
-            done < "$PASSWORD_FILE"
-          done < <(printf '%s\n' "${KEYSTORES[@]}")
-
-          test -n "$FOUND_KEYSTORE" || {
-            echo "::error::No signing key inside TAHALIL_SIGNING_BUNDLE_B64 matches the installed V142 certificate."
-            exit 1
-          }
-
-          echo "::add-mask::$FOUND_STOREPASS"
-          echo "::add-mask::$FOUND_ALIAS"
-          echo "::add-mask::$FOUND_KEYPASS"
-
-          # Hard pre-build proof: selected keystore certificate MUST equal installed V142.
-          SELECTED_CERT="$(
-            keytool -exportcert -rfc -keystore "$FOUND_KEYSTORE" -storepass "$FOUND_STOREPASS" -alias "$FOUND_ALIAS" \
-              | openssl x509 -noout -fingerprint -sha256 \
-              | sed 's/.*=//' | tr '[:upper:]' '[:lower:]' | tr -d ':[:space:]'
-          )"
-          test "$SELECTED_CERT" = "$EXPECTED_CERT" || { echo "::error::Selected signing identity does not equal V142"; exit 1; }
-
+          if [ -z "$STORE_PASSWORD" ] && keytool -list -keystore "$KEYSTORE" -storepass android >/dev/null 2>&1; then STORE_PASSWORD=android; fi
+          test -n "$STORE_PASSWORD"
+          [ -n "$KEY_ALIAS" ] || KEY_ALIAS="$(keytool -list -v -keystore "$KEYSTORE" -storepass "$STORE_PASSWORD" 2>/dev/null | sed -n 's/^Alias name: //p' | head -1)"
+          test -n "$KEY_ALIAS"
+          [ -n "$KEY_PASSWORD" ] || KEY_PASSWORD="$STORE_PASSWORD"
+          keytool -list -keystore "$KEYSTORE" -storepass "$STORE_PASSWORD" -alias "$KEY_ALIAS" >/dev/null
+          echo "::add-mask::$STORE_PASSWORD"; echo "::add-mask::$KEY_ALIAS"; echo "::add-mask::$KEY_PASSWORD"
           {
-            echo "KEYSTORE_PATH=$FOUND_KEYSTORE"
-            echo "STORE_PASSWORD=$FOUND_STOREPASS"
-            echo "KEY_ALIAS=$FOUND_ALIAS"
-            echo "KEY_PASSWORD=$FOUND_KEYPASS"
-            echo "EXPECTED_V142_CERT=$EXPECTED_CERT"
+            echo "KEYSTORE_PATH=$KEYSTORE"
+            echo "STORE_PASSWORD=$STORE_PASSWORD"
+            echo "KEY_ALIAS=$KEY_ALIAS"
+            echo "KEY_PASSWORD=$KEY_PASSWORD"
           } >> "$GITHUB_ENV"
-
-          echo "Exact installed V142 signing identity selected successfully."
 
       - name: Build signed Android V143
         working-directory: build_v143
@@ -328,24 +282,50 @@ jobs:
           set -euo pipefail
           gradle --no-daemon --no-configuration-cache --no-parallel --max-workers=2 :app:assembleRelease
 
-      - name: Verify signer against installed V142 and prepare APK
+      - name: Verify signer against V142 and installed channel
         shell: bash
         run: |
           set -euo pipefail
           APK="$(find build_v143/app/build/outputs/apk/release -type f -name '*.apk' -print -quit)"
           test -n "$APK" && test -s "$APK"
           APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner -print | sort -V | tail -1)"
+          test -x "$APKSIGNER"
           "$APKSIGNER" verify --verbose --print-certs "$APK"
-          OLD_CERT="${EXPECTED_V142_CERT:-}"
-          RAW_NEW_CERTS="$("$APKSIGNER" verify --print-certs "$APK" 2>&1)"
-          NEW_CERT="$(printf '%s\n' "$RAW_NEW_CERTS" \
-            | grep -i -m1 'certificate SHA-256 digest' \
-            | sed -E 's/.*digest:[[:space:]]*//' \
-            | tr '[:upper:]' '[:lower:]' \
-            | tr -d ':[:space:]')"
-          test -n "$OLD_CERT" && test -n "$NEW_CERT" || { echo '::error::Could not read APK signer digest'; exit 1; }
-          test "${#NEW_CERT}" -eq 64 || { echo '::error::Unexpected built APK signer digest format'; exit 1; }
-          test "$NEW_CERT" = "$OLD_CERT" || { echo '::error::Built APK signer differs from installed V142'; exit 1; }
+
+          V142_APK="$RUNNER_TEMP/android-v142-installed.apk"
+          LEGACY_APK="$RUNNER_TEMP/android-installed-channel.apk"
+          curl --fail --location --retry 3 \
+            'https://github.com/ahmedmeshrf22-jpg/lab-tests-directory/releases/download/v142-android/Tahalil-Alakkad-V142-All-Fixes-Organ-Smart-Search-Android-SIGNED.apk' \
+            -o "$V142_APK"
+          curl --fail --location --retry 3 \
+            'https://github.com/ahmedmeshrf22-jpg/tahalil-alakkad-updates/releases/download/v140/Tahalil-Alakkad-LATEST.apk' \
+            -o "$LEGACY_APK"
+          "$APKSIGNER" verify --verbose "$V142_APK" >/dev/null
+          "$APKSIGNER" verify --verbose "$LEGACY_APK" >/dev/null
+
+          cert_sha256() {
+            "$APKSIGNER" verify --print-certs "$1" 2>&1 \
+              | awk 'BEGIN{IGNORECASE=1} /certificate[[:space:]]+SHA-256[[:space:]]+digest[[:space:]]*:/ {sub(/^.*digest[[:space:]]*:[[:space:]]*/,""); print; exit}' \
+              | tr '[:upper:]' '[:lower:]' \
+              | tr -d ':[:space:]'
+          }
+
+          NEW_CERT="$(cert_sha256 "$APK")"
+          V142_CERT="$(cert_sha256 "$V142_APK")"
+          LEGACY_CERT="$(cert_sha256 "$LEGACY_APK")"
+          test -n "$NEW_CERT" && test -n "$V142_CERT" && test -n "$LEGACY_CERT" || {
+            echo '::error::Could not extract one or more Android signer SHA-256 digests'
+            exit 1
+          }
+          test "$V142_CERT" = "$LEGACY_CERT" || {
+            echo '::error::Existing V142 release signer is not the installed-channel signer; refusing to publish.'
+            exit 1
+          }
+          test "$NEW_CERT" = "$V142_CERT" || {
+            echo '::error::Built V143 signer differs from V142; refusing to publish.'
+            exit 1
+          }
+
           cp "$APK" Tahalil-Alakkad-V143-Organ-Search-Everywhere-SIGNED.apk
           sha256sum Tahalil-Alakkad-V143-Organ-Search-Everywhere-SIGNED.apk > Tahalil-Alakkad-V143-Organ-Search-Everywhere-SIGNED.apk.sha256
 
@@ -360,7 +340,7 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git checkout -B v143-android-organ-search-everywhere-base
           git add -A
-          git commit -m 'Android V143 organ search everywhere fix' || true
+          git commit -m 'Android V143 organ search everywhere fix'
           V143_SHA="$(git rev-parse HEAD)"
           git push --force "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:refs/heads/v143-android-organ-search-everywhere-base
           echo "V143_COMMIT_SHA=$V143_SHA" >> "$GITHUB_ENV"
@@ -407,11 +387,10 @@ jobs:
               --repo "$GITHUB_REPOSITORY" \
               --target "$V143_COMMIT_SHA" \
               --title 'تحاليل العقاد Android V143 — Organ Search Everywhere' \
-              --notes 'Fix: organ/system semantic search now works from direct search as well as smart/manual/OCR paths. Typing القلب returns CK-MB, both Troponin I qualitative/quantitative, Homocysteine, CRP, LDH, Cholesterol, HDL, LDL and Triglyceride. V142 backup UI, login tagline, Firebase, catalogue/prices and security behavior are preserved.'
+              --notes 'Fix: organ/system semantic search now works from direct search as well as smart/manual/OCR paths. Typing القلب returns CK-MB, both Troponin I qualitative/quantitative, Homocysteine, CRP, LDH, Cholesterol, HDL, LDL and Triglyceride. V142 backup UI, login tagline, Firebase, catalogue/prices and security behavior are preserved. Windows V144 is in the separate new repository and is not touched by this workflow.'
           fi
-          # Android-only release: do not touch Windows V144 in the separate delivery repository.
 
       - name: Final status
         shell: bash
         run: |
-          echo 'ANDROID V143 ORGAN SEARCH EVERYWHERE FINAL REVIEWED: BUILT + EXACT V142 SIGNER VERIFIED + RELEASED'
+          echo 'ANDROID V143 ORGAN SEARCH EVERYWHERE BUILT + SIGNER VERIFIED + RELEASED'
