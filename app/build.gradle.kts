@@ -20,8 +20,8 @@ android {
     applicationId = "com.aistudio.labtestsdirectory.egypt"
     minSdk = 24
     targetSdk = 36
-    versionCode = 142
-    versionName = "5.62-backup-smart-search-ui-v142"
+    versionCode = 143
+    versionName = "5.63-organ-search-everywhere-v143"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
