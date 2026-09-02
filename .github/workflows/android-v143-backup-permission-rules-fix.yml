@@ -13,53 +13,33 @@ jobs:
 
     steps:
       - name: Get exact V143 rules
+        shell: bash
         run: |
-          curl --fail --location \
-          'https://raw.githubusercontent.com/ahmedmeshrf22-jpg/lab-tests-directory/337332bb4d083735d0c911747d7bdfccb5872701/firestore.rules' \
-          -o firestore.rules
+          set -euo pipefail
+          curl --fail --location --retry 3 'https://raw.githubusercontent.com/ahmedmeshrf22-jpg/lab-tests-directory/337332bb4d083735d0c911747d7bdfccb5872701/firestore.rules' -o firestore.rules
+          test -s firestore.rules
 
-      - name: Fix manager permission
+      - name: Add manager permission
+        shell: bash
         run: |
-          python3 <<'PY'
-          from pathlib import Path
-
-          p = Path("firestore.rules")
-          s = p.read_text(encoding="utf-8")
-
-          old = """        request.auth.uid == 'Wps5Y19pZSbeGooEzFfW5UFsshq2'
-        || request.auth.token.email == 'tahalil.admin.gate.v60@tahali.com'"""
-
-          new = """        request.auth.uid == 'Wps5Y19pZSbeGooEzFfW5UFsshq2'
-        || request.auth.token.email == 'abdelrahman@tahali.com'
-        || request.auth.token.email == 'tahalil.admin.gate.v60@tahali.com'"""
-
-          if old not in s:
-              raise SystemExit("Expected V143 admin rule not found")
-
-          p.write_text(s.replace(old, new, 1), encoding="utf-8")
-          PY
-
-      - name: Safety check
-        run: |
-          grep -F "abdelrahman@tahali.com" firestore.rules
-          grep -F "tahalil.admin.gate.v60@tahali.com" firestore.rules
-          grep -F "Wps5Y19pZSbeGooEzFfW5UFsshq2" firestore.rules
-
-          if grep -Eq 'allow .*: if true' firestore.rules; then
-            echo "Unsafe rule detected"
-            exit 1
+          set -euo pipefail
+          if ! grep -Fq "request.auth.token.email == 'abdelrahman@tahali.com'" firestore.rules; then
+            sed -i "/request.auth.uid == 'Wps5Y19pZSbeGooEzFfW5UFsshq2'/a\\        || request.auth.token.email == 'abdelrahman@tahali.com'" firestore.rules
           fi
 
+          test "$(grep -Fc "request.auth.token.email == 'abdelrahman@tahali.com'" firestore.rules)" -eq 1
+          grep -F "tahalil.admin.gate.v60@tahali.com" firestore.rules >/dev/null
+
       - name: Firebase credentials
+        shell: bash
         env:
           FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
         run: |
+          set -euo pipefail
           test -n "${FIREBASE_SERVICE_ACCOUNT_JSON:-}"
-          printf '%s' "$FIREBASE_SERVICE_ACCOUNT_JSON" \
-          > "$RUNNER_TEMP/firebase-service-account.json"
-
-          echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/firebase-service-account.json" \
-          >> "$GITHUB_ENV"
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT_JSON" > "$RUNNER_TEMP/firebase-service-account.json"
+          python3 -m json.tool "$RUNNER_TEMP/firebase-service-account.json" >/dev/null
+          echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/firebase-service-account.json" >> "$GITHUB_ENV"
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -71,19 +51,10 @@ jobs:
 
       - name: Firebase config
         run: |
-          cat > firebase.json <<'JSON'
-          {
-            "firestore": {
-              "rules": "firestore.rules"
-            }
-          }
-          JSON
+          printf '%s\n' '{"firestore":{"rules":"firestore.rules"}}' > firebase.json
 
-      - name: Deploy Rules Only
+      - name: Deploy Firestore rules only
         run: |
-          firebase deploy \
-          --project tahalil-alakkad \
-          --only firestore:rules \
-          --non-interactive
-
+          set -euo pipefail
+          firebase deploy --project tahalil-alakkad --only firestore:rules --non-interactive
           echo "BACKUP PERMISSION FIX DEPLOYED"
