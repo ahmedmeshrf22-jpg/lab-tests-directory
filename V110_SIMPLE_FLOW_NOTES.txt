@@ -1,0 +1,6 @@
+V110 SIMPLE LAB FLOW
+Lab UI: only 3 work stages: طلبات جديدة / جاري التنفيذ / النتائج المرسلة.
+Per request: one primary stage action + تعديل + مشاركة + حذف.
+Result button: camera / paper scan / image or PDF, then send.
+No extra workflow screens or duplicate actions were added.
+Existing clinic/lab notifications, audit history, settings and no-price lab receipt are preserved.

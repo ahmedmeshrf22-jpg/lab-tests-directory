@@ -1,0 +1,4 @@
+V115 FIX2
+- Fixed Kotlin compile error in LabOperatorScreen.kt.
+- Added missing import: androidx.compose.runtime.LaunchedEffect
+- Keeps V115 version and all V115 features unchanged.

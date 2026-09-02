@@ -1,0 +1,6 @@
+V23 - Android system back navigation
+
+- Android hardware/gesture Back now follows the same one-level navigation behavior as the in-app back controls.
+- Full-screen Compose Dialogs now allow platform back dispatch.
+- Nested screens (reports/admin/customer/order/settings) route Back to the previous internal level before closing the parent screen.
+- All V22 report PDF and V20 device authorization features are preserved.

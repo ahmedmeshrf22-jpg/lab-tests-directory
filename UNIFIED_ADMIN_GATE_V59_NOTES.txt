@@ -1,0 +1,11 @@
+V59 Unified Admin Gate
+
+- Same daily UI/services for every authenticated account.
+- Administrative access is granted only by verifying the real admin Firebase password.
+- Removed manager-account bypass from hasAdminAccess/privilegedFirestore.
+- Admin session is locked whenever the app goes to background.
+- Lab2Lab/admin price cache is cleared whenever admin is locked.
+- Every account uses device authorization. A pending/revoked device can be approved with the admin password from the device screen.
+- Removed misleading per-staff daily permission switches; legacy fields are normalized to daily access = true.
+- Removed switch-user UI route from the unified workspace.
+- Updated stale Robolectric/instrumented test expectations.

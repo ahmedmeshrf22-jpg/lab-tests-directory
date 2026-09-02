@@ -1,0 +1,13 @@
+Tahalil Alakkad V70 — Price Results Actions
+
+Built on V69. No V69 search behavior removed.
+
+New actions after a resolved multi-test price inquiry:
+- Add all results to the active order.
+- Start customer selection with all results already selected.
+- Start PDF / Image flow with all results already selected.
+- If a customer is already linked, PDF / Image continues directly to checkout.
+- Output still uses the saved order so customer history, QR and order records remain consistent.
+
+versionCode = 70
+versionName = 4.37-price-results-actions-v70

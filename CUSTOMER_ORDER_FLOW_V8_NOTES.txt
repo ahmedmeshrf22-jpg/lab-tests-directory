@@ -1,0 +1,7 @@
+V8 Customer Order Flow
+- Search -> selected tests -> choose customer (existing/new) -> save order
+- Customer file -> start new order -> returns to search with customer preselected
+- Selected customer is shown in selected-tests panel
+- PDF includes customer name/file/phone when a customer is linked
+- Existing customer rules from V6/V7 remain compatible
+- versionCode 12

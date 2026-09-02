@@ -1,0 +1,4 @@
+V66 BUILD FIX
+=============
+Build failure after V66 changes was caused by MainActivity using DeviceAuthorizationScreen without importing com.example.ui.DeviceAuthorizationScreen.
+This archive adds the missing import only. V66 feature behavior is otherwise unchanged.

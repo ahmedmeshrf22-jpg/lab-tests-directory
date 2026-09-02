@@ -1,0 +1,12 @@
+Tahalil Alakkad V39 — QR Import & Share
+
+- Keeps V38 optional order output: save only, customer PDF/PNG, lab PDF/PNG.
+- Customer QR remains stable V2 and unique by customer Firestore document ID.
+- Customer files screen now supports two QR inputs:
+  1) Camera scan for paper / another screen.
+  2) Select image or PDF from the same phone.
+- Image/PDF QR reading uses ZXing locally; PDF pages are rendered and scanned automatically.
+- Android Share target added for image/* and application/pdf.
+  Sharing a receipt image/PDF to Tahalil Alakkad queues it, opens Customer Files after authentication/unlock,
+  reads the QR, then opens the matching customer profile directly.
+- V37/V38 QR payloads remain compatible through findCustomerByQrPayload().

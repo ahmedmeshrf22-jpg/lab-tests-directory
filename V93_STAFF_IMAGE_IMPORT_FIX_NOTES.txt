@@ -1,0 +1,16 @@
+V93 STAFF IMAGE IMPORT FIX
+
+Goal:
+- Prescription image search is available to every approved app user, not only Abdelrahman/admin.
+- Preserve all V92/V90 services and administration gates.
+
+Fix:
+1. Added role-independent launchTestsImagePicker() used by Test Inquiry and New Order image import.
+2. Added externalPickerActive state in LabTestsViewModel.
+3. MainActivity no longer auto-locks the operational UI while the Android system image/document picker is open.
+4. Picker state clears on both success and cancellation.
+5. No administration privilege is granted by this change; admin/Lab2Lab remain protected.
+
+Version:
+versionCode = 93
+versionName = 5.13-staff-image-import-fix-v93

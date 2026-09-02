@@ -1,0 +1,15 @@
+V24 - Manager UI cleanup
+
+- Manager registered display name changed to: Abdelrahman
+- Manager profile header now shows:
+  Abdelrahman
+  General Manager
+- Removed wording "لوحة عبدالرحمن" from the manager home.
+- Manager profile is merged into Firestore with display_name = Abdelrahman on manager login.
+- Removed repeated manager shortcut cards from the New Order/search screen.
+- Dashboard is split into clear sections: نظرة سريعة / الأقسام الرئيسية.
+- Summary cards no longer repeat action icons.
+- Dashboard action icons are now single, clean icon tiles with no nested decorative circles.
+- Preserves V23 Android system Back behavior, V22 report PDF behavior, and V20 device authorization.
+- versionCode 29
+- versionName 4.0-manager-ui-v24

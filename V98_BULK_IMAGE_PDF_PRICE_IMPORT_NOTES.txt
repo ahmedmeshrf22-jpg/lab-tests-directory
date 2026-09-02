@@ -1,0 +1,11 @@
+V98 - Bulk Price Update from Image / PDF
+
+Added to Manager Dashboard > Bulk price update:
+- Paste many test names + prices at once.
+- Upload image or PDF containing test names and prices.
+- Existing OCR/Smart Vision extracts text locally/cloud fallback.
+- Extracted text remains editable before applying.
+- Preview shows matched/unmatched counts and sample matched prices.
+- Apply all updates matched customer prices in one action.
+
+Version: 98 / 5.18-bulk-image-pdf-v98

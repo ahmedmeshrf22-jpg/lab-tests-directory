@@ -1,0 +1,9 @@
+Tahalil Alakkad V89 — Four Core Flow
+
+- Home reduced to exactly four primary service icons: Test inquiry, New order, Customers, Test guide.
+- Test inquiry supports manual names or prescription image and shows batch total immediately without adding to an order.
+- New order starts customer-first, then tests, instant total, payment details, optional notes, then customer payment receipt.
+- Customer receipt includes clinic identity, customer data, tests/prices, payment summary and a unique functional customer QR.
+- Test guide remains the catalogue with price and detailed test/tube guidance.
+- Customer records remain available from the Customers service.
+- Workspace service-strip clutter removed.

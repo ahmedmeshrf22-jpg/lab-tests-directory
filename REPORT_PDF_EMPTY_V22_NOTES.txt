@@ -1,0 +1,9 @@
+V22 - REPORT PDF EMPTY RESULTS FIX
+
+- PDF button remains available whenever report loading is complete, even when there are zero results.
+- Removed empty-results guard from report PDF generator.
+- Zero-result reports still generate a valid Arabic PDF with selected period, zero metrics, and a clear no-orders message.
+- Button label: طباعة / حفظ / مشاركة التقرير PDF
+- Based on V21; V20 device authorization retained.
+- versionCode 27
+- versionName 3.8-report-pdf-empty-v22

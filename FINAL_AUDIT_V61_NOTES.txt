@@ -1,0 +1,20 @@
+Tahalil Alakkad V61 - Final Audit Cleanup
+
+Scope: fixes only; no new service/UI workflow added.
+
+1. Splash copyright restored exactly:
+   2026 A.M 🍃
+   All Rights Reserved
+2. Firestore order rules now permit active staff to update workflow_status, restricted to:
+   new / sent_to_lab / processing / ready / delivered.
+3. Legacy customer-price ranges such as 1250/1500 no longer become 0 in saved orders.
+   The first listed amount is used consistently with the existing screen/PDF total behavior.
+4. Customer QR import from PDF now copies validated provider streams to private cache before PdfRenderer,
+   improving WhatsApp/Drive/Files compatibility; temp files are deleted afterward.
+5. PDF lab-test OCR now uses the same robust handwriting preprocessing used for images
+   (full page + high contrast + enlarged overlapping bands).
+6. Android share intent now accepts HEIC / HEIF / AVIF in addition to JPEG / PNG / WEBP / PDF.
+7. Codemagic workflow syntax cleaned up and V61 verification added.
+
+Important: firestore.rules is server-side configuration. Deploy the included V61 rules to Firebase
+for staff workflow-status writes to be accepted by the live backend.

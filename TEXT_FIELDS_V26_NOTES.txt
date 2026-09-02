@@ -1,0 +1,9 @@
+V26 - Arabic text fields visibility fix
+
+- Corrects internal text metrics, not only box height.
+- Enables font padding for Arabic glyph ascenders/descenders.
+- bodyLarge line height increased to 26sp.
+- Single-line OutlinedTextField minimum height increased from 64dp to 72dp.
+- Multiline fields previously 96dp increased to 112dp.
+- Keeps V25/V24/V23/V22/V20 functionality.
+- versionCode 31, versionName 4.2-text-metrics-v26.

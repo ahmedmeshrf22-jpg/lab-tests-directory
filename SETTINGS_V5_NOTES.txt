@@ -1,0 +1,11 @@
+Tahalil Alakkad V5 SETTINGS
+- Manager-only settings button tied to existing manager account.
+- Security lock toggle and auto-lock timing.
+- Dark mode and font size controls.
+- Search name visibility controls.
+- Customer/Lab2Lab display controls.
+- PDF controls: lab name, price columns, totals, contact info.
+- Manual Firebase price sync with last sync time.
+- Manager dashboard shortcut, account info, logout and app version.
+- Settings persist locally on device.
+- versionCode 9.

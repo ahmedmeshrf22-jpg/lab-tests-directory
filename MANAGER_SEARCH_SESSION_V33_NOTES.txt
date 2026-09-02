@@ -1,0 +1,20 @@
+V33 - Manager Search + Persistent User Mode
+
+1) Manager user-switch session persistence
+- If Abdelrahman switches to another user and the app is closed/reopened without Firebase logout, the same acting user is restored.
+- Explicit logout or Return to Abdelrahman clears the remembered acting-user session.
+- Firebase Auth remains the manager account; only UI/permission mode is restored.
+
+2) Manager default landing page
+- Abdelrahman now lands directly on a dedicated lab-test search screen.
+- The manager dashboard is still accessible from the Home icon.
+- Dashboard also has a dedicated Test Search action separate from New Order.
+
+3) Focused search screen
+- Manager search is standalone, not layered over dashboard/order UI.
+- It hides customer/order/cart sections and the Add to List action.
+- Search results still show relevant test names/prices and manager price editing.
+- Online sync banner is hidden while healthy; it appears only when offline or pending sync needs attention.
+
+Version code: 38
+Version name: 4.9-manager-search-session-v33

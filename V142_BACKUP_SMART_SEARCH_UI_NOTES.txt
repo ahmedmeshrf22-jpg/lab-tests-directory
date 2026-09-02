@@ -1,0 +1,11 @@
+Android V142 — Backup + Smart Search + UI
+- Visible Backup Now + backup status and latest file.
+- Missed 04:00 catch-up on next app open.
+- Larger administration/user-access icons.
+- Login phrase: رعاية تليق بك, word-by-word.
+- Universal multi-test text separators + side-by-side abbreviation detection.
+- Image/PDF OCR uses the same smart medical search path.
+- Expanded common test abbreviations and clinic wording.
+- Semantic organ/system search: heart, liver, kidneys, thyroid, pancreas, prostate, ovaries, uterus, pituitary, adrenal, bones, muscles, stomach, colon, lungs, breast and testis.
+- Natural phrases such as عايز اطمن على القلب return related tests, including both Troponin I qualitative and quantitative.
+- Preserves Android V141 architecture and security.

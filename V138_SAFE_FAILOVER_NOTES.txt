@@ -1,0 +1,9 @@
+V138 Safe Failover
+- Keeps Firebase authoritative when healthy.
+- Falls back to local Firestore cache after primary read failure.
+- Falls back to authenticated Supabase shadow reads when server/cache data is unavailable.
+- Shadow reads require current Firebase session + an approved backed-up device.
+- Core fallback coverage: customers, customer orders, daily/archive orders, manager/customer prices, lab orders.
+- Existing Firestore offline persistence/pending sync remains unchanged for writes.
+- No Supabase secret in APK. No Firebase Rules changes.
+- Supabase remains read-only emergency source; primary writes continue to Firebase/local Firestore queue.

@@ -1,0 +1,16 @@
+Tahalil Alakkad V41 — Focused Workspace
+
+Version: 4.17-focused-workspace-v41
+Version code: 46
+
+Changes:
+- The active daily task now owns the main screen (Focused Workspace).
+- New Order workspace keeps customer selection, customer records/QR, test search, image/PDF test reading, selected tests and save flow together.
+- Price Inquiry is a standalone focused workspace for search, OCR import and price results.
+- Available Tests is a standalone focused catalogue workspace.
+- Secondary tasks are moved to a collapsed "More / المزيد" section at the bottom of each workspace.
+- Manager Home keeps only the four daily tasks visible; Switch User and Manager Panel are collapsed under "More & administration".
+- Staff can switch between New Order, Price Inquiry and Available Tests from the bottom More section without cluttering the current task.
+- Customer records remain a full-screen workspace with name/phone/QR search and customer history.
+- Choosing a customer no longer forces checkout automatically; the user stays in the order workspace until Save is pressed.
+- V38 optional PDF/PNG output, V39 QR import/share and V40 test OCR import remain preserved.

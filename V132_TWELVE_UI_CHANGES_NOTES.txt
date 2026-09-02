@@ -1,0 +1,27 @@
+TAHALIL AL AKKAD V132 — COMPLETE 12 UI CHANGES
+
+Base: V131 UI_POLISH_FIX (latest confirmed V131 source).
+
+Implemented in one release:
+1. Customers displayed in an organized horizontally scrollable data table.
+2. Customer data/profile presentation cleaned and organized.
+3. New Order shows large icon choices for Existing Customer / New Customer.
+4. Tapping an analysis/test card opens its details directly.
+5. Tapping the same card again closes the details.
+6. Customer price is the first detail and is large/clear.
+7. Tube color is shown prominently.
+8. Result turnaround time is shown prominently.
+9. Remaining analysis guide/details are shown in the expanded card.
+10. Order History / Orders Hub layout and icons improved.
+11. Test Guide and Settings icon organization improved.
+12. External Login screen presentation improved.
+
+Safety / preserved behavior:
+- Same applicationId/package.
+- Firebase authoritative behavior unchanged.
+- Supabase shadow backup/recovery code unchanged.
+- Offline resilience unchanged.
+- Notifications unchanged.
+- Result open/share/download/revision actions unchanged.
+- Original Android signing flow unchanged.
+- No Cloudflare introduced.

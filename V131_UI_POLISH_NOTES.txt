@@ -1,0 +1,12 @@
+V131 UI POLISH
+
+UI-only release based on V130.
+- Customers list reorganized into a readable table-style layout.
+- Existing/New Customer choices are icon-first cards; customer profile has New Order/Edit quick actions.
+- Test Guide cards expand/collapse on tap; customer price is first and large, followed by tube color, turnaround, specimen, overview, why/when, preparation and notes.
+- Test Guide detail sections use real visual icons instead of number badges.
+- Orders Hub cards use clearer status/customer/date/tests/total icons and layout.
+- App Settings rows include clearer leading icons.
+- Login screen receives a cleaner Tahalil Alakkad branded visual hierarchy.
+
+No Firebase/Supabase/offline/failover/business-logic changes.

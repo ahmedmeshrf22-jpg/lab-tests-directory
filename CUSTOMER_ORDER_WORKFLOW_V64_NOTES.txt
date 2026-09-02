@@ -1,0 +1,40 @@
+V64 CUSTOMER ORDER WORKFLOW
+===========================
+
+Scope: fix the real daily workflow after importing and saving a batch of lab tests.
+
+1) Saved customer orders are surfaced near the top of the customer file.
+   - Order history appears immediately after customer summary.
+   - Loading state is explicit, so the screen no longer briefly says there are no orders while Firestore is still fetching them.
+   - Each order card shows test count, total, status, and sample test names.
+   - Opening an order keeps all existing details/payment/workflow actions.
+   - Saved order documents can be reopened later for PDF/PNG and direct Android printing.
+
+2) Saving from the main order workspace keeps the customer linked.
+   - Selected tests are cleared after save, but the active customer is not discarded.
+   - After closing the document output dialog, a clear save confirmation shows test count + total.
+   - The confirmation can open that exact customer file directly.
+
+3) Newly saved orders are inserted into the in-memory customer order list immediately on successful save,
+   then refreshed from Firestore for authoritative state.
+
+4) Order total is now shown BEFORE the potentially long selected-tests list.
+   - Shows selected test count and customer total prominently.
+   - Lab-to-lab total remains manager/settings controlled.
+
+5) Scrolling fixes.
+   - Main search/order result LazyColumn is constrained to the remaining workspace height with weight(1f).
+   - Checkout dialog has a bounded height and a real scrollable LazyColumn.
+   - Saved-output dialog is vertically scrollable so print/export controls remain reachable.
+
+6) Direct print.
+   - Customer receipt PDF can be printed from Android Print Manager.
+   - Lab request PDF can be printed from Android Print Manager.
+   - Default media size requested is A5.
+
+Unchanged:
+- V62 Firebase AI Logic smart medical vision.
+- V63 add-one/add-all recognized tests behavior.
+- Login/admin PIN model.
+- Firestore security rules.
+- Existing customer/order/payment data model and PDFs.

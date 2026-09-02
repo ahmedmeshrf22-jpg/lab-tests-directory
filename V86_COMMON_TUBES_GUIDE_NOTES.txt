@@ -1,0 +1,7 @@
+V86 COMMON TUBES GUIDE
+
+- Test Guide now prioritizes only common routine tube colors.
+- Main visible palette: Gold SST, Lavender EDTA, Light Blue Citrate, Gray Fluoride, Green Heparin, Black ESR when applicable.
+- Rare specialty colors such as Royal Blue and Pink are no longer shown as routine visual guidance.
+- Specialty tests display a neutral special-tube instruction and direct staff to the lab SOP.
+- V85 stability/security/commercial features retained.

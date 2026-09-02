@@ -1,0 +1,23 @@
+Tahalil Alakkad V37 - Customer QR Search + PDF Identity Layout
+
+1) Stable per-customer QR
+- Customer receipt QR is generated from the Firestore customer document ID plus clinic file number.
+- Payload format: TAHALIL_ALAKKAD_CUSTOMER|V=1|ID=<customerId>|FILE=<fileNumber>
+- The same customer keeps the same QR as long as the same customer record/file is used.
+
+2) Scan QR inside Customer Files
+- Added Google Code Scanner (QR only, auto zoom).
+- No direct CAMERA permission is required; scanning is delegated to Google Play services.
+- Customer Files now has a visible "بحث بـ QR العميل" action.
+- Scan -> resolve customer -> open customer file -> load orders + activity.
+- Local cache is checked first. When necessary and online, Firestore is queried by customer ID/file number.
+
+3) PDF layout refresh
+- Clinic header now uses almost the full A5 width with logo + clinic identity in one structured card.
+- Footer now spans the full page width.
+- WhatsApp and phone are balanced on one row with icons.
+- Full clinic address is placed underneath as one aligned RTL block.
+- Applies to both customer receipt and lab request PDF.
+
+Version: 4.13-qr-customer-v37
+Version code: 42

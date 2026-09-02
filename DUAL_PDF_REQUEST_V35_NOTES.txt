@@ -1,0 +1,10 @@
+V35 DUAL PDF REQUEST
+
+- Every saved order can generate two separate PDF files.
+- Customer PDF: clinic logo/name/contact/address + patient data + English test names + customer prices + final total.
+- Lab Request PDF: clinic logo/name/contact/address + heading بيانات الحالة + name/age/date/gender + heading التحاليل المطلوبة + English test names only, no prices.
+- WhatsApp: 01102233167
+- Phone: 01107072134
+- Address: 59 شارع فيصل الرئيسي - ناصية شارع الوفاء والامل - امام اسماك عروس البحر وعنتر الكبابجي - فيصل - الجيزة
+- After creation, a dedicated dialog provides separate buttons to send the lab request or the customer PDF.
+- Existing V34 home/session/security/offline/admin features are preserved.

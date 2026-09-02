@@ -1,0 +1,10 @@
+V25 - Readable input fields
+
+- Increased minimum height for all text-entry fields across the app.
+- Single-line fields: minimum 64dp.
+- Multi-line fields: minimum 72-96dp.
+- Applied to login, PIN, customer forms, reports, admin/users, manager settings, search, pricing and order fields.
+- Prevents typed Arabic/English text and labels from appearing vertically clipped, including with larger in-app font size.
+- All V24 and earlier functionality is preserved.
+- versionCode = 30
+- versionName = 4.1-readable-fields-v25

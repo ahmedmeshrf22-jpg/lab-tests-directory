@@ -1,0 +1,14 @@
+V96 - Editable Lab Test Catalog
+
+Manager catalogue controls added inside Manager Dashboard:
+- Add a new lab test.
+- Edit English, Arabic and market/common names.
+- Edit extra search keywords.
+- Edit customer price and Lab 2 Lab price in the same screen.
+- Delete a test with confirmation.
+- Added/edited/deleted catalogue entries are persisted locally and merged over the bundled JSON catalogue.
+- Search automatically uses the effective editable catalogue.
+- Existing customer and Lab2Lab price synchronization continues through Firestore.
+- Custom test IDs start at 100000 to avoid collisions with the bundled catalogue.
+
+Version: 96 / 5.16-editable-catalog-v96

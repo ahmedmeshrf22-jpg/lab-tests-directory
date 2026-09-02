@@ -1,0 +1,36 @@
+TAHALIL ALAKKAD V75 — GLOW QUICK IMAGE
+=======================================
+VersionCode: 75
+VersionName: 4.42-glow-quick-image-v75
+
+Daily home cleanup:
+- Three main bright/glowing 3D service cards:
+  1) Test Catalog: browse/search tests, customer price, More/Test Guide.
+  2) Quick Image: select tests and create a PNG immediately; customer name/WhatsApp optional and not saved to customer records.
+  3) New Order: complete customer/order workflow.
+- Customer records and QR/Image reading remain direct daily services.
+- Admin / Prices + Lab 2 Lab / General Settings remain isolated at the bottom.
+
+Quick Image:
+- Select one or more tests.
+- Shows selected count and customer-price total.
+- Optional customer name and WhatsApp only.
+- Save PNG directly to Pictures/Tahalil Alakkad or share it.
+- No customer record is required for a quick image.
+
+Test Guide:
+- “More — Test Guide” remains hologram styled.
+- Adds Save Guide Image and Share Guide Image.
+- Guide PNG includes overview, why/when, specimen, tube name/color, preparation, turnaround, notes, sources, and SOP disclaimer.
+
+UI:
+- Stronger cyan glow around primary cards.
+- New 3D quick-image drawable with no PDF label.
+- Regular daily surfaces do not expose Lab 2 Lab pricing.
+
+Preserved from V74:
+- Changeable admin PIN and lockout protection.
+- Protected management/Lab 2 Lab area.
+- Direct image save/share.
+- Minimal customer workflow and payment validation.
+- Original release signing compatibility.

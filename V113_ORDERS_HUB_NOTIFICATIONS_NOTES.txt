@@ -1,0 +1,13 @@
+V113 — Orders Hub & Notifications
+
+- New main-home icon: سجل الطلبات / Orders Hub.
+- Default range: last 7 days; quick previous/next week and calendar date range.
+- Search by order number, customer name, phone or file number.
+- Simple statuses only: قيد التنفيذ / مكتمل / تم الإلغاء.
+- sent_to_lab + processing map to قيد التنفيذ.
+- ready + delivered map to مكتمل automatically when lab sends a result/report.
+- In-app notification center with unread result badge.
+- Opening a new result marks it read locally on the device.
+- Order details reuse the normal order view: customer, tests, prices, payments, report links.
+- Staff can edit and cancel; permanent delete is admin-only.
+- Existing Android system notifications remain enabled.

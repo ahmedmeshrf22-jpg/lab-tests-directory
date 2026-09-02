@@ -1,0 +1,10 @@
+Tahalil Alakkad V117 - GitHub + Firebase Spark only
+
+- Keeps Firebase Auth, Firestore, customers, orders, permissions, realtime, lab workflow, and search unchanged.
+- Does NOT require Blaze, Firebase Storage, Cloud Functions, Supabase, OneSignal, or any external backend.
+- Result images/PDFs are split into safe Firestore-sized chunks and reconstructed locally when opened.
+- Existing http(s) result links remain supported.
+- Result chunks use the already-allowed customer activity subcollection but omit created_at_ms, so they do not appear in the normal customer activity timeline.
+- Max individual result file: 6 MB. Typical one-page PDF should use only a few Firestore documents.
+- Background notifications remain realtime while the app process is alive plus Android JobScheduler safety checks when backgrounded. A fully force-stopped app cannot receive guaranteed instant push without a server.
+- Abdelrahman one-way user switching and V116 production/search improvements are preserved.

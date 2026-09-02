@@ -1,0 +1,7 @@
+Manager Dashboard V4 Fix
+- Fixed the Manager Dashboard card: it is now clickable.
+- Tapping it opens a real full-screen manager dashboard.
+- Dashboard shows all analyses, search, current customer price, Lab 2 Lab price, and Edit action.
+- Existing per-test price editor and Firebase saving remain unchanged.
+- Manager UID matching now uses the exact Firebase UID.
+- versionCode: 8

@@ -1,0 +1,4 @@
+V45 RECOVERY 54
+- Application source/features are unchanged from V45 AndroidX-fixed build.
+- versionCode raised from 50 to 54 only so Android accepts installation over prior V46/V47/V48 builds (51/52/53).
+- versionName changed to 4.21-security-hardening-v45-recovery54 for identification.

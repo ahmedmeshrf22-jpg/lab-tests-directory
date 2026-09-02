@@ -1,0 +1,251 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() { return request.auth != null; }
+
+    function isPrivilegedAdmin() {
+      return signedIn() && (
+        request.auth.uid == 'Wps5Y19pZSbeGooEzFfW5UFsshq2'
+        || request.auth.token.email == 'tahalil.admin.gate.v60@tahali.com'
+      );
+    }
+
+    function profileExists() {
+      return signedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function profile() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function activeUser() {
+      return isPrivilegedAdmin() || (profileExists() && profile().enabled == true);
+    }
+
+    function isLabOperator() {
+      return activeUser() && !isPrivilegedAdmin() && profile().role == 'lab_operator';
+    }
+
+    function clinicUser() { return activeUser() && !isLabOperator(); }
+
+    function canEditCustomers() {
+      return isPrivilegedAdmin() || (clinicUser() && profile().can_edit_customers == true);
+    }
+    function canDiscount() {
+      return isPrivilegedAdmin() || (clinicUser() && profile().can_discount == true);
+    }
+    function canCollectPayments() {
+      return isPrivilegedAdmin() || (clinicUser() && profile().can_collect_payments == true);
+    }
+    function canViewReports() {
+      return isPrivilegedAdmin() || (clinicUser() && profile().can_view_sales_reports == true);
+    }
+
+    function customerIsActive(customerId) {
+      let customer = get(/databases/$(database)/documents/customers/$(customerId)).data;
+      return customer.is_blacklisted != true && customer.is_archived != true;
+    }
+
+    function validOrderFinancialState() {
+      return request.resource.data.subtotal_customer_price is number
+        && request.resource.data.discount_amount is number
+        && request.resource.data.discount_percent is number
+        && request.resource.data.total_customer_price is number
+        && request.resource.data.paid_amount is number
+        && request.resource.data.remaining_amount is number
+        && request.resource.data.subtotal_customer_price >= 0
+        && request.resource.data.discount_amount >= 0
+        && request.resource.data.discount_amount <= request.resource.data.subtotal_customer_price
+        && request.resource.data.discount_percent >= 0
+        && request.resource.data.discount_percent <= 100
+        && request.resource.data.total_customer_price == request.resource.data.subtotal_customer_price - request.resource.data.discount_amount
+        && request.resource.data.paid_amount >= 0
+        && request.resource.data.paid_amount <= request.resource.data.total_customer_price
+        && request.resource.data.remaining_amount == request.resource.data.total_customer_price - request.resource.data.paid_amount
+        && request.resource.data.payment_status in ['unpaid','partial','paid'];
+    }
+
+    function validCustomerStaffUpdate() {
+      let changed = request.resource.data.diff(resource.data).affectedKeys();
+      return changed.hasOnly([
+        'name','name_search','phone','phone_normalized','alternate_phone','alternate_phone_normalized',
+        'age','birth_date','gender','address','address_search','notes','important_alert','tags','tags_search',
+        'default_discount_percent','updated_at_ms','updated_at','updated_by_uid','updated_by_email'
+      ])
+      && (!changed.hasAny(['default_discount_percent']) || canDiscount())
+      && request.resource.data.updated_by_uid == request.auth.uid;
+    }
+
+    function validOrderStaffUpdate() {
+      let changed = request.resource.data.diff(resource.data).affectedKeys();
+      return changed.hasOnly([
+        'items','tests_count','subtotal_customer_price','discount_amount','discount_percent','total_customer_price',
+        'payment_status','paid_amount','remaining_amount','notes','workflow_status','status_history',
+        'customer_name','customer_phone','customer_age','customer_gender','edit_count',
+        'updated_at_ms','updated_at','updated_by_uid','updated_by_email',
+        'is_voided','void_reason','voided_at_ms','voided_by_uid','voided_by_email'
+      ])
+      && (!changed.hasAny(['discount_amount','discount_percent']) || canDiscount())
+      && (!changed.hasAny(['payment_status','paid_amount','remaining_amount']) || canCollectPayments())
+      && (!changed.hasAny(['workflow_status']) || request.resource.data.workflow_status in ['new','sent_to_lab','processing','ready','delivered','cancelled'])
+      && validOrderFinancialState()
+      && request.resource.data.updated_by_uid == request.auth.uid;
+    }
+
+    function validLabOrderUpdate() {
+      let changed = request.resource.data.diff(resource.data).affectedKeys();
+      return changed.hasOnly([
+        'workflow_status','status_history','customer_name','customer_phone','customer_age','customer_gender','notes','edit_count',
+        'result_urls','result_names','result_sent_at_ms','result_sent_at','result_uploaded_by_uid','result_uploaded_by_email',
+        'updated_at_ms','updated_at','updated_by_uid','updated_by_email',
+        'is_voided','void_reason','voided_at_ms','voided_by_uid','voided_by_email'
+      ])
+      && (!changed.hasAny(['workflow_status']) || request.resource.data.workflow_status in ['processing','ready','cancelled'])
+      && request.resource.data.updated_by_uid == request.auth.uid;
+    }
+
+    function labMirrorHasNoFinance() {
+      return !request.resource.data.keys().hasAny([
+        'subtotal_customer_price','discount_amount','discount_percent','total_customer_price',
+        'payment_status','paid_amount','remaining_amount','customer_price','lab_to_lab_price'
+      ]);
+    }
+
+    function validLabMirrorClinicUpdate() {
+      let changed = request.resource.data.diff(resource.data).affectedKeys();
+      return labMirrorHasNoFinance() && changed.hasOnly([
+        'items','tests_count','workflow_status','status_history','customer_name','customer_phone','customer_age','customer_gender','notes',
+        'result_urls','result_names','result_sent_at_ms','result_sent_at','result_uploaded_by_uid','result_uploaded_by_email',
+        'updated_at_ms','updated_at','updated_by_uid','updated_by_email','edit_count',
+        'is_voided','void_reason','voided_at_ms','voided_by_uid','voided_by_email','privacy_schema'
+      ]) && request.resource.data.updated_by_uid == request.auth.uid;
+    }
+
+    function validLabMirrorLabUpdate() {
+      let changed = request.resource.data.diff(resource.data).affectedKeys();
+      return labMirrorHasNoFinance() && changed.hasOnly([
+        'workflow_status','status_history','customer_name','customer_phone','customer_age','customer_gender','notes','edit_count',
+        'result_urls','result_names','result_sent_at_ms','result_sent_at','result_uploaded_by_uid','result_uploaded_by_email',
+        'updated_at_ms','updated_at','updated_by_uid','updated_by_email',
+        'is_voided','void_reason','voided_at_ms','voided_by_uid','voided_by_email','privacy_schema'
+      ]) && (!changed.hasAny(['workflow_status']) || request.resource.data.workflow_status in ['processing','ready','cancelled'])
+         && request.resource.data.updated_by_uid == request.auth.uid;
+    }
+
+    match /users/{uid} {
+      allow read: if isPrivilegedAdmin() || (signedIn() && request.auth.uid == uid);
+      allow create: if isPrivilegedAdmin();
+      allow update: if isPrivilegedAdmin() || (activeUser() && request.auth.uid == uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['email','display_name','last_seen_at_ms','last_seen_at']));
+      allow delete: if false;
+
+      match /devices/{deviceId} {
+        allow read: if isPrivilegedAdmin() || (activeUser() && request.auth.uid == uid);
+        allow create: if activeUser() && request.auth.uid == uid
+          && request.resource.data.uid == uid && request.resource.data.status == 'pending';
+        allow update: if isPrivilegedAdmin();
+        allow delete: if false;
+      }
+
+      match /fcm_tokens/{tokenId} {
+        allow read, create, update, delete: if activeUser() && request.auth.uid == uid;
+      }
+    }
+
+    match /{path=**}/devices/{deviceId} { allow read: if isPrivilegedAdmin(); }
+
+    match /lab_catalog_overrides/{document=**} {
+      allow read: if activeUser();
+      allow create, update, delete: if isPrivilegedAdmin();
+    }
+
+    match /customer_price_overrides/{document=**} {
+      allow read: if clinicUser();
+      allow write: if isPrivilegedAdmin();
+    }
+
+    match /lab2lab_prices/{document=**} { allow read, write: if isPrivilegedAdmin(); }
+
+    match /phone_registry/{phoneKey} {
+      allow read: if clinicUser();
+      allow create, update, delete: if canEditCustomers();
+    }
+
+    // Sanitized operational mirror. Lab accounts never read the private financial order document.
+    match /lab_orders/{orderId} {
+      allow read: if isLabOperator() || isPrivilegedAdmin();
+      allow create: if clinicUser()
+        && request.resource.data.created_by_uid == request.auth.uid
+        && request.resource.data.privacy_schema == 1
+        && labMirrorHasNoFinance();
+      allow update: if isPrivilegedAdmin()
+        || (isLabOperator() && validLabMirrorLabUpdate())
+        || (clinicUser() && validLabMirrorClinicUpdate());
+      allow delete: if isPrivilegedAdmin();
+    }
+
+    match /customers/{customerId} {
+      allow read: if clinicUser();
+      allow create: if canEditCustomers() && request.resource.data.created_by_uid == request.auth.uid;
+      allow update: if isPrivilegedAdmin() || (canEditCustomers() && validCustomerStaffUpdate());
+      allow delete: if false;
+
+      match /activity/{activityId} {
+        // Lab can fetch only the exact result-file meta/chunks needed to open a result.
+        // Operational/audit activity (which may contain financial text) remains clinic/admin only.
+        allow read: if clinicUser() || isPrivilegedAdmin()
+          || (isLabOperator() && resource.data.type in ['result_file_meta','result_file_chunk']);
+        allow create: if isPrivilegedAdmin()
+          || (clinicUser() && request.resource.data.actor_uid == request.auth.uid)
+          || (isLabOperator() && request.resource.data.actor_uid == request.auth.uid
+              && request.resource.data.type in ['result_file_meta','result_file_chunk']);
+        allow update: if isPrivilegedAdmin()
+          && request.resource.data.type in ['result_file_meta','result_file_chunk'];
+        allow delete: if false;
+      }
+
+      match /orders/{orderId} {
+        allow read: if clinicUser();
+        allow create: if clinicUser()
+          && customerIsActive(customerId)
+          && request.resource.data.created_by_uid == request.auth.uid
+          && validOrderFinancialState()
+          && (request.resource.data.discount_amount <= 0 || canDiscount())
+          && (request.resource.data.payment_status == 'unpaid' || canCollectPayments())
+          && (request.resource.data.paid_amount <= 0 || canCollectPayments());
+
+        // Lab has write-only operational access to the private order path; it cannot read financial fields.
+        allow update: if isPrivilegedAdmin()
+          || (isLabOperator() && validLabOrderUpdate())
+          || (clinicUser() && validOrderStaffUpdate());
+        allow delete: if isPrivilegedAdmin();
+
+        match /payments/{paymentId} {
+          allow read: if clinicUser();
+          allow create: if canCollectPayments()
+            && request.resource.data.created_by_uid == request.auth.uid
+            && request.resource.data.customer_id == customerId
+            && request.resource.data.order_id == orderId
+            && request.resource.data.amount is number
+            && request.resource.data.amount > 0;
+          allow update: if false;
+          allow delete: if isPrivilegedAdmin();
+        }
+      }
+    }
+
+    match /{path=**}/orders/{orderId} {
+      allow read: if clinicUser();
+    }
+
+    match /audit_logs/{logId} {
+      allow read: if isPrivilegedAdmin();
+      allow create: if activeUser() && request.resource.data.actor_uid == request.auth.uid;
+      allow update, delete: if false;
+    }
+
+    match /{document=**} { allow read, write: if false; }
+  }
+}

@@ -1,0 +1,18 @@
+Tahalil Alakkad V68 - Arabic Fuzzy Search
+
+Goal
+- Search no longer requires an exact Arabic spelling.
+- Examples such as فيروس / فيرس / فروس / الفيرس / فيروسات / فيرسات resolve to the same virus-related catalogue entries.
+
+What changed
+- Preserved V66 aliases and V67 daily workflow.
+- Added conservative Levenshtein typo matching for Arabic and longer Latin words.
+- Kept short medical abbreviations exact-only to avoid ALT/AST/HCV/HBV collisions.
+- Added Arabic article tolerance, regular plural suffix tolerance (ات / ون / ين), and candidate-side attached-prefix tolerance for forms such as لفيروس.
+- Existing clinic aliases are now typo-tolerant too, e.g. وظايف كلي can still resolve the kidney-function alias.
+- Exact/substring results always outrank fuzzy results.
+- When the query is typo-only, only the nearest fuzzy score band is returned to reduce unrelated lookalike results.
+
+Version
+- versionCode 68
+- versionName 4.35-fuzzy-search-v68

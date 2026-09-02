@@ -1,0 +1,10 @@
+V72 — Test Information Guide / Hologram
+
+- Adds a "المزيد — دليل التحليل" button under test cards.
+- Opens a full-screen hologram-style educational panel.
+- Shows: what the test is, when/why it is ordered, specimen type, tube name, cap color, illustrated tube, preparation, and approximate turnaround time.
+- Medical content is educational and source-labelled.
+- Dedicated source links are used for common tests where available (MedlinePlus / CDC).
+- Blood collection guidance references WHO phlebotomy guidance and BD Vacutainer tube specifications.
+- Tube color is never presented as a substitute for the laboratory SOP; special/variable tests are explicitly flagged.
+- V72 versionCode 72 / versionName 4.39-test-guide-hologram-v72.

@@ -1,0 +1,6 @@
+V103
+- New clinic orders are saved directly as sent_to_lab.
+- Lab account sees the same receipt data without prices.
+- Lab queue receives new orders immediately after refresh/realtime load.
+- Firebase function added to notify lab operators on order creation.
+- Existing flow preserved: accept -> processing -> upload image/PDF -> ready.

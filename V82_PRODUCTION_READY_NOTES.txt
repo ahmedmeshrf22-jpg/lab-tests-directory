@@ -1,0 +1,58 @@
+تحاليل العقاد — V82 Production Ready
+versionCode 82
+versionName 5.2-production-ready-v82
+
+هدف النسخة
+- تثبيت V81 البصري والوظيفي وتحويله لنسخة تشغيل فعلية أكثر أمانا واستمرارية.
+- لم تتم إضافة "سيرفر وهمي" داخل التطبيق. الـ Backend الفعلي هو Firebase Auth + Cloud Firestore المُدار من Google؛ تم تقوية طبقة الاتصال والصلاحيات والعمل Offline/Online.
+
+مراجعة الخدمات المحفوظة
+- بحث عربي/إنجليزي + fuzzy search + HBsAg variants + batch paste.
+- كتالوج التحاليل والأسعار، صورة سريعة، طلب جديد، سجلات العملاء، QR/قراءة صورة.
+- حفظ/مشاركة الصور للعميل وللمعمل، بدون PDF في واجهة التشغيل.
+- دليل التحليل + صورة الدليل.
+- العملاء/الطلبات/التحصيل/المتبقي/حالات التشغيل.
+- الإدارة، تغيير Admin PIN، إدارة المستخدمين، الأجهزة، التقارير، سلامة البيانات، System Health.
+- Lab 2 Lab داخل الإدارة فقط.
+
+V82 Security Hardening
+- Fail-closed user provisioning: Firebase Auth وحده لا يفتح النظام؛ لازم profile مفعّل من الإدارة.
+- الجهاز لازم تكون حالته approved قبل فتح بيانات التشغيل.
+- إلغاء fail-open القديم في Firestore rules.
+- صلاحيات حقيقية حسب المستخدم وليست UI فقط: تعديل العملاء / الخصومات / التحصيل / التقارير.
+- Password policy للحسابات الجديدة: 10+ أحرف مع Upper + Lower + Digit + Symbol.
+- PIN التطبيق الجديد: 6 أرقام + PBKDF2-HMAC-SHA256 / 120,000 rounds + random salt.
+- حماية PIN التطبيق من brute force: 5 محاولات ثم 60 ثانية.
+- حماية شاشة Login محليا: 5 محاولات فاشلة ثم 60 ثانية (مع استمرار حماية Firebase نفسها).
+- Admin PIN lockout موجود: 5 محاولات ثم 60 ثانية.
+- App lock إجباري + Device credential/Biometric أو PIN.
+- FLAG_SECURE + منع overlay windows على Android 12+.
+- allowBackup=false + usesCleartextTraffic=false.
+- Firebase App Check Play Integrity مثبت داخل التطبيق. التفعيل الإجباري يتم من Firebase Console بعد تسجيل SHA-256 للنسخة الموقعة.
+
+Server / Reliability
+- Firestore managed cloud backend.
+- Server-first reads للعملاء والطلبات والأسعار مع Cache fallback عند تعذر السيرفر.
+- Persistent Firestore cache = 300 MB.
+- Offline writes + Pending Sync + System Health + Audit/Integrity tools محفوظة.
+- لا يتم استخدام بيانات حساسة قبل اعتماد الحساب والجهاز.
+
+User roles الجاهزة
+- Staff: تشغيل يومي + تعديل عميل + تحصيل، بدون خصومات/تقارير.
+- Reception: تعديل العملاء، بدون تحصيل/خصومات/تقارير.
+- Cashier: تعديل العملاء + التحصيل، بدون خصومات/تقارير.
+- Technician: متابعة حالة التشغيل فقط؛ بدون تعديل عملاء/خصم/تحصيل/تقارير.
+- Supervisor: كل صلاحيات التشغيل والتقارير.
+- Manager: كل الصلاحيات + يحتاج Admin PIN للخدمات الحساسة.
+- Super Admin: الحساب الأساسي.
+- يمكن تعديل الأربع صلاحيات يدويا لكل حساب من إدارة المستخدمين.
+- كل جهاز جديد للمستخدم يحتاج اعتماد الإدارة، واعتماد جهاز جديد يلغي اعتماد الجهاز القديم لذلك المستخدم.
+
+مهم قبل الاستخدام الفعلي متعدد المستخدمين
+1) Build الـ APK من GitHub Actions ويفضل نجاح signature verification.
+2) انشر firestore.rules المرفقة V82 في Firebase Console. الـ APK لا يستطيع نشر server rules بنفسه.
+3) بعد تثبيت النسخة الموقعة والتأكد من تسجيل SHA-256 في Firebase، فعّل App Check enforcement لـ Firestore وAuth حسب إعدادات Firebase المتاحة.
+4) أنشئ حسابات الموظفين من داخل الإدارة بكلمات مرور قوية، ثم اعتمد جهاز كل مستخدم.
+
+ملاحظة
+- تم تنفيذ static production audit داخل workflow قبل مرحلة compilation. نجاح GitHub Actions باللون الأخضر هو إثبات الـ compile/signature النهائي لهذه النسخة.

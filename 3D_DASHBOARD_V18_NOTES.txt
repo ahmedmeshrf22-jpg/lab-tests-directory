@@ -1,0 +1,7 @@
+V18 - 3D Dashboard Icons
+
+- Manager dashboard main 6 action icons redesigned with layered gradient, highlight, depth and shadow.
+- Keeps the same 6 uncluttered actions and permissions from V17.
+- No Firestore Rules change.
+- versionCode 23
+- versionName 3.4-3d-dashboard-v18

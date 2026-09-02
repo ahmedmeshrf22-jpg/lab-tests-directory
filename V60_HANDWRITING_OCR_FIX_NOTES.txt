@@ -1,0 +1,7 @@
+V60 HANDWRITING OCR FIX
+- Image OCR now combines original, high-contrast grayscale, and enlarged overlapping band passes.
+- Keeps PDF reader fix unchanged.
+- OCR parser now recognizes common handwritten lab abbreviations and compact/spaced variants.
+- Adds conservative mappings for CBC, CRP, ESR, RBS, HbA1c, INR/PT, ALT/SGPT, AST/SGOT,
+  Albumin, Bilirubin fractions, Creatinine, Urea, HBV/HBsAg, HCV, HIV, ABO/Rh.
+- No changes to login, manager/staff PIN rules, customer data, pricing, orders, PDF output, or admin services.

@@ -1,0 +1,5 @@
+V111 PROFESSIONAL POLISH
+- Keeps the same simple 3-stage lab workflow.
+- Adds one search box only: order number, customer name, phone, or file number.
+- Existing counters, fixed order number, online/offline state, realtime sync, notifications, audit history, edit/delete/share and result capture remain unchanged.
+- No extra workflow screens or unnecessary steps added.

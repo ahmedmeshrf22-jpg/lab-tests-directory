@@ -1,0 +1,7 @@
+V60 PDF reader fix
+- Kept the existing V60 login/admin PIN behavior unchanged.
+- PDF import now copies validated content:// PDFs to private app cache before PdfRenderer.
+  This fixes providers that expose non-seekable/pipe file descriptors (Drive/WhatsApp/etc.).
+- PDF pages use the same best-rotation OCR pass used for phone images.
+- Added clearer errors for password-protected/encrypted/invalid PDFs.
+- Temporary PDF is deleted after import.

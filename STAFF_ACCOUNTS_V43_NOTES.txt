@@ -1,0 +1,10 @@
+V43 - Comfortable Staff Accounts
+
+- Dedicated Staff Accounts screen with clear header and refresh.
+- Summary counters: all / active / disabled.
+- Search by name, email, or role.
+- Clean staff cards with role, status, and compact permission summary.
+- Full-width account editor dialog for easier phone use.
+- Account status, role, daily permissions, and Reset PIN are grouped clearly.
+- Full-width Add Staff Account dialog.
+- Existing V42 smart daily workflow and all prior QR/OCR/PDF/PNG features preserved.

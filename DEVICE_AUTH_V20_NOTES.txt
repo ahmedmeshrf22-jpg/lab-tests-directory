@@ -1,0 +1,11 @@
+V20 - Device Authorization
+
+- App name remains: تحاليل العقاد
+- versionCode 25 / versionName 3.6-device-authorization-v20
+- Abdulrahman account bypasses device approval so the admin can never be locked out.
+- Every non-manager account registers the current Android device on first login.
+- New devices remain pending until Abdulrahman approves them from Administration > الأجهزة المصرح بها.
+- Approving a new device automatically revokes any previously approved device for that same user.
+- Rejected/revoked devices cannot reach the app home screen.
+- Device identity uses a local SHA-256 hash of Android ID + package name; raw Android ID is not stored.
+- Publish FIRESTORE_RULES_V20_DEVICE_AUTH.txt before testing staff devices.

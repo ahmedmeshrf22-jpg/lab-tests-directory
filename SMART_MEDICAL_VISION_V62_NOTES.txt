@@ -1,0 +1,13 @@
+V62 SMART MEDICAL VISION
+
+- Replaces OCR-only document reading with Firebase AI Logic multimodal vision when online.
+- Uses gemini-3.6-flash with gemini-3.5-flash fallback.
+- Sends downscaled prescription/request images (or first PDF pages rendered as images) plus noisy local OCR as a hint.
+- Prompt is constrained to explicit laboratory tests only; no diagnosis, recommendations, patient identity, medications, or non-lab investigations.
+- Keeps bundled ML Kit OCR as offline/service-failure fallback.
+- Unions smart-vision transcription with local OCR before matching against the local lab catalogue.
+- UI explicitly reports smart-vision vs local fallback mode.
+- No change to login, admin PIN, permissions, customer/order flows, PDFs, QR, pricing, or Firestore rules.
+
+IMPORTANT: Firebase Console > AI Services > AI Logic must be enabled for the app's Firebase project.
+No Gemini API key is embedded in the APK; the existing Firebase AI Logic SDK + App Check path is used.

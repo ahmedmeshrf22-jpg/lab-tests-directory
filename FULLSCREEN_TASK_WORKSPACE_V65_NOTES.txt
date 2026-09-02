@@ -1,0 +1,23 @@
+V65 FULLSCREEN TASK WORKSPACE
+=============================
+
+User-requested workflow correction only. Existing login/admin, Firebase AI Logic,
+customer/order persistence, totals, PDFs, QR, OCR and security behavior remain intact.
+
+Changes:
+1) Home is now only the launcher for daily tasks.
+2) Opening Test price inquiry, New order, or Available tests switches to a dedicated
+   full-screen temporary workspace.
+3) The temporary workspace has a clear Back button; Android Back also returns to Home.
+4) The settings gear remains available in the temporary workspace header.
+5) Unrelated "More" navigation is removed from the active work screen.
+6) New order no longer reserves most of the screen for fixed header/customer/search blocks.
+   Customer selector + search/import are now part of the SAME LazyColumn as selected tests,
+   detected tests and search results, so the whole page scrolls as one continuous screen.
+7) Test results and selected tests can therefore use the full available height instead of
+   appearing inside a small lower viewport.
+8) Offline/sync status is hidden during a task unless it actually needs attention.
+
+Version:
+versionCode 65
+versionName 4.32-fullscreen-task-workspace-v65

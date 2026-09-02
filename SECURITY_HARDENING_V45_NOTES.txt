@@ -1,0 +1,24 @@
+V45 SECURITY HARDENING
+
+Purpose:
+Defense-in-depth against malicious apps, tampered/hostile file inputs, data exposure, and common Android UI attacks.
+No Android app can guarantee protection from every malware infection on a compromised/rooted device.
+
+Added in V45:
+1. HIDE_OVERLAY_WINDOWS + Window.setHideOverlayWindows(true) on Android 12+ to reduce overlay/tapjacking attacks.
+2. External share surface narrowed from image/* to JPG/JPEG/PNG/WEBP plus PDF only.
+3. Shared URIs must use content://; file:// and unsupported schemes are rejected.
+4. SecureFileGuard validates every imported image/PDF before OCR or QR processing:
+   - actual magic/signature check, not just extension/MIME
+   - MIME/content mismatch rejection
+   - max image size 20 MB
+   - max PDF size 30 MB
+   - bounded filename metadata
+5. Safe image decode with dimension/pixel/memory limits to reduce decompression-bomb/OOM abuse.
+6. QR and OCR imports both pass through the same file security gate.
+7. Customer QR payload has a strict maximum length and rejects control characters.
+8. Existing protections preserved: FLAG_SECURE, no backups, no cleartext HTTP, system CA trust only,
+   narrow FileProvider, R8/minification, non-debuggable release, Firebase App Check Play Integrity provider.
+
+Console action still required:
+Register the release signing SHA-256 in Firebase/Google Play and enable Firebase App Check enforcement after validating release traffic.

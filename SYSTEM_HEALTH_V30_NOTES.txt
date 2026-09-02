@@ -1,0 +1,11 @@
+V30 - System Health
+
+- Manager-only System Health page inside Administration.
+- Shows current internet connectivity.
+- Performs explicit Firestore SERVER probe against manager profile and measures round-trip latency.
+- Shows pending offline sync count and last completed sync timestamp.
+- Shows V29 local cache size (200 MB) and paging policy.
+- Manual refresh.
+- Arabic / English supported.
+- No Firestore rules change required.
+- This is a client-side health panel, not Firebase global infrastructure monitoring.

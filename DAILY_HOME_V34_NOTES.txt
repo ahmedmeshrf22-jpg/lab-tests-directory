@@ -1,0 +1,28 @@
+V34 - Daily Home + Focused Screens
+
+1) Persistent switched-user session from V33 is preserved.
+- Closing/reopening without Logout restores the same acting user.
+- Explicit Logout or Return to Abdelrahman clears the acting-user session.
+
+2) Abdelrahman now lands on a compact daily-use home, not on test search.
+Main icons only:
+- Test price inquiry
+- Customer records
+- Available tests
+- New order
+- Switch user
+- Manager panel
+
+3) Secondary/administrative functions stay inside Manager Panel / Settings.
+- Reports, debts, users, devices, alerts, data integrity, system health and audit are not occupying the daily home.
+
+4) Test price inquiry stays standalone.
+- It opens only after tapping its home icon.
+- No dashboard/customer/order content sits behind or above it.
+
+5) Available Tests has its own standalone searchable catalog.
+- Shows English, Arabic and market/common names.
+- It is separate from price inquiry and new order.
+
+Version code: 39
+Version name: 4.10-daily-home-v34

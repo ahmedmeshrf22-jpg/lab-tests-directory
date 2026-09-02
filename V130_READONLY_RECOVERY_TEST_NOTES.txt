@@ -1,0 +1,10 @@
+Tahalil Alakkad V130 — Read-Only Recovery Test
+
+- Firebase remains the only production backend and authority.
+- Supabase shadow backup remains standby-only; no failover is enabled.
+- Adds a manager-only recovery test under Sync & Data.
+- The test sends the current Firebase ID token to a dedicated Supabase Edge Function.
+- The function verifies the Firebase token, reads recent shadow metadata for that Firebase UID, and compares it to current Firestore document update times.
+- No customer/order payload is returned to the Android app by the recovery probe.
+- The recovery probe performs no write to Firebase and no write to Supabase.
+- A failed Supabase recovery test never affects Firebase, login, orders, results, notifications, or the application UI.

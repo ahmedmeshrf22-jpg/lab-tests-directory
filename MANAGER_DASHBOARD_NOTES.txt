@@ -1,0 +1,8 @@
+Manager Dashboard V1
+- Manager account: abdelrahman@tahali.com
+- Search any test and tap "تعديل الأسعار".
+- Customer price overrides are stored in Firestore collection: customer_price_overrides.
+- Lab 2 Lab prices are stored separately in: lab2lab_prices.
+- Customer overrides are visible to authenticated staff; Lab 2 Lab remains manager-only.
+- PDF and selected-test totals use the effective customer override and manager Lab 2 Lab values.
+- IMPORTANT: deploy the included firestore.rules in Firebase Console before using price editing.

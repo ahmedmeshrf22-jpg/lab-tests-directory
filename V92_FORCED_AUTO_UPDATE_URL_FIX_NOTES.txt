@@ -1,0 +1,11 @@
+تحاليل العقاد V92 — إصلاح رابط التحديث الإجباري
+
+الإصلاح:
+- تصحيح اسم حساب GitHub داخل رابط latest.json من ahmedmeshr22-jpg إلى ahmedmeshrf22-jpg.
+- الإبقاء على نظام التحديث الإجباري كما هو.
+- versionCode = 92
+- applicationId لم يتغير.
+- كل وظائف V90/V91 محفوظة.
+
+رابط التحقق الصحيح:
+https://github.com/ahmedmeshrf22-jpg/lab-tests-directory/releases/latest/download/latest.json

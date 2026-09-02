@@ -1,0 +1,9 @@
+Tahalil Alakkad Android V118 Security
+
+- Keeps Firebase Spark / Firestore architecture and package/signing lineage.
+- Adds SHA-256 integrity metadata to every new result file and verifies it before opening.
+- Old V117 result files without a hash remain readable.
+- Cleans stale decrypted result-cache files.
+- Upgrades local 6-digit PIN hashing from PBKDF2 120k to PBKDF2-HMAC-SHA256 310k iterations after the next successful unlock.
+- Keeps FLAG_SECURE, overlay blocking, App Check integration, no cloud/device backup, TLS-only network config, R8/minification.
+- No Firebase Storage, no Cloud Functions, no Supabase, no Blaze requirement.

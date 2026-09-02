@@ -1,0 +1,15 @@
+Tahalil Alakkad V38 - Optional Output + QR Customer Search
+
+Version: 4.14-optional-output-qr-v38 (versionCode 43)
+
+1) Saving an order no longer creates or sends PDF files automatically.
+2) After a successful save, the user can close with Save Only.
+3) Optional outputs are available independently for Customer and Lab:
+   - PDF
+   - PNG image
+4) Customer receipt keeps patient contact data, unique customer QR, prices/totals and clinic footer.
+5) Lab request keeps patient name, age, gender, date and English test names without prices.
+6) New V2 QR payload is immutable per customer because it uses Firestore customer document ID only.
+7) Old V1 QR codes remain readable because QR lookup accepts the shared prefix and resolves ID/FILE fields.
+8) Customer Records has Search by customer QR button and helper text. Valid QR opens the customer profile directly.
+9) PNG is rendered from the same PDF layout so PDF and image stay visually identical.

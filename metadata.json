@@ -1,0 +1,6 @@
+{
+  "name": "دليل التحاليل والأسعار",
+  "description": "دليل أسعار التحاليل الطبية الشامل وسريع ويعمل بدون إنترنت للمختبرات الطبية",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

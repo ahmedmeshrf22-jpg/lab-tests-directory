@@ -1,0 +1,10 @@
+Tahalil Alakkad V60 - Image/PDF Reader Fix
+
+Only the image/PDF import path was changed.
+- Keeps the V60 login/admin-PIN behavior unchanged.
+- Fixes Android/cloud providers that report a valid file with size 0/unknown.
+- Adds HEIC/HEIF/AVIF signature support for modern phone photos.
+- Uses ImageDecoder on Android 9+ for modern image formats with safe memory sampling.
+- Retries image OCR with 0/90/270/180 orientation when needed.
+- Keeps the existing bounded file-security checks and PDF size/page limits.
+- Keeps bundled on-device ML Kit OCR; no order is auto-saved.

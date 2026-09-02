@@ -1,0 +1,22 @@
+Tahalil Alakkad Android V116 - Production Readiness
+
+Core changes
+- One-way user switching: only Abdelrahman can operate as another enabled non-manager user. No user can switch into Abdelrahman.
+- While Abdelrahman is acting as another user, operational permissions follow that user's profile and admin surfaces are blocked until he returns.
+- Wide unified test search: full catalogue browser, filtering from 2 characters, Arabic/English/market/search text, abbreviations, aliases, typo fallback, and conversational phrases.
+- Multi-test inquiry basket remains independent from customer creation and shows the running total.
+- Main home remains icon-first with no collapsed menu. The duplicate "Today's work" launcher was removed because Orders Hub already covers order tracking.
+- Prescription / clinic-request reading remains a visible daily-service icon.
+- Order archive/daily tracking moved from N+1 customer queries to indexed collection-group queries.
+- Realtime screen capacity increased to 500 recent updates; background fallback stays capped at 200 to avoid unnecessary Firestore reads because server-side FCM is the primary notification path.
+- Firestore rules now permit privileged-admin hard delete while normal staff keep soft cancellation only.
+- Lab cancellation writes timeline history. Storage allows the privileged manager to upload a result while temporarily operating as a lab user.
+- Notification backend batches FCM tokens in groups of 500, handles cancel/edit/result routing, and uses bounded Cloud Functions v2 scaling.
+- Firestore indexes cover created_at_ms and updated_at_ms collection-group queries.
+
+Release gate
+1) GitHub Android workflow must finish green and produce the signed V116 APK.
+2) Firebase backend workflow must finish green to deploy rules, indexes, storage rules and notification functions.
+3) Before live use, run one end-to-end smoke test:
+   clinic creates order -> lab sees it -> lab accepts -> lab sends result -> clinic sees completed/result.
+4) Test Abdelrahman -> staff and Abdelrahman -> lab switching, then return to Abdelrahman.

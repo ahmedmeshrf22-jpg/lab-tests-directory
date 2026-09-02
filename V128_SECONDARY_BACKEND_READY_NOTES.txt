@@ -1,0 +1,8 @@
+Tahalil Alakkad V128 — Secondary Backend Ready
+
+- Firebase remains the ONLY authoritative remote backend.
+- No production read/write/login/notification path is switched or mirrored in V128.
+- Added a compile-time secondary backend contract, registry, and hard FIREBASE_ONLY safety policy.
+- This prepares a future Supabase shadow-backup adapter without changing V127 behavior.
+- Automatic failover is intentionally NOT enabled until shadow synchronization and reconciliation are tested.
+- V127 offline grace, Firestore persistent cache, queued writes, encrypted backups, draggable icons, results, notifications, and original signing remain unchanged.

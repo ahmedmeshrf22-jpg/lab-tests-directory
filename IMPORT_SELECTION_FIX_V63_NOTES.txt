@@ -1,0 +1,17 @@
+Tahalil Alakkad V63 - Imported Tests Selection Fix
+
+Scope: fixes only the image/PDF detected-tests selection workflow on top of V62.
+
+Changes:
+1. Pressing "Add to List" no longer clears the whole search/import result set.
+2. The selected test is added to the selected-tests list while the remaining detected tests stay available.
+3. A detected-file summary shows total / added / remaining counts.
+4. Added "Add all detected tests" to add every remaining catalogue-matched test from the latest image/PDF in one tap.
+5. Queries for tests already selected are removed from the remaining results instead of appearing as unmatched.
+6. Manual typing clears the prior imported batch marker so stale detected tests cannot be batch-added later.
+
+Unchanged:
+- V62 Firebase AI Logic / Gemini smart vision.
+- Local OCR fallback.
+- Firebase App Check / Play Integrity code.
+- Login, manager/staff behavior, admin PIN, Firestore rules, customer/order/PDF/QR flows.

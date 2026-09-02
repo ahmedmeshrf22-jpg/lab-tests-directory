@@ -1,0 +1,9 @@
+Tahalil Alakkad V66 - Audit Fix
+
+Only the four issues found in the V65 service audit were changed:
+1. Manual search: common medical abbreviations/aliases and Arabic definite-article variants now resolve reliably (RBS, FBS, HbA1c, INR, liver/kidney functions, blood group, vitamin D/B12, ferritin, lipid profile, thyroid functions, etc.).
+2. Customer QR shortcut: opens the camera scanner immediately from Home. Customer Records continues to open the records screen normally.
+3. Device status enforcement: pending/new devices still follow the approved V60 no-login-gate behavior, but a device explicitly marked rejected or revoked is blocked immediately. It can be re-approved with the admin PIN or the user can log out.
+4. Android Share: HEIC, HEIF and AVIF are accepted by MainActivity in addition to JPEG/PNG/WebP/PDF.
+
+V61-V65 behavior is otherwise preserved.

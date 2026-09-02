@@ -1,0 +1,19 @@
+V95 - Public mandatory update channel
+
+Purpose:
+- Fix recurring 404 when the app checks mandatory updates from the private source repository.
+- Keep the source project private.
+- The app now reads update metadata from the dedicated public repository:
+  ahmedmeshrf22-jpg/tahalil-alakkad-updates
+- Only release assets are public: latest.json and Tahalil-Alakkad-LATEST.apk.
+- No GitHub token is embedded in the Android app.
+
+Update behavior:
+- If public latest.json reports a higher mandatory version, the app blocks normal use, downloads the APK, verifies SHA-256, package name, and signing certificate, then asks Android to install it.
+- If the update service itself cannot be reached before a newer version is confirmed, the current build still allows a retry/bypass to avoid bricking all devices during an outage.
+
+Preserved from V94:
+- Flexible search for all 331 tests and aliases/abbreviations.
+- Staff image import fix.
+- Four-core home flow and all administration/services preserved.
+- Same applicationId and release signature requirements.

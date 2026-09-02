@@ -1,0 +1,26 @@
+Tahalil Alakkad V112 - Simple Clinic Order Flow
+
+Goal:
+Make the clinic order flow obvious and remove workflow clutter.
+
+Clinic order flow:
+1. Choose/register customer.
+2. Choose tests.
+3. Continue to payment.
+4. Press one clear button: "حفظ وإرسال الطلب للمعمل".
+5. The order is saved with workflow_status = sent_to_lab and appears automatically to the lab.
+6. Clinic does not manually advance lab workflow stages.
+
+Clinic order tracking:
+- All
+- Sent to Lab
+- Processing
+- Result Ready
+The clinic sees status only; the lab controls operational progress.
+
+Lab screen remains:
+- طلبات جديدة
+- جاري التنفيذ
+- النتائج المرسلة
+
+Firebase data model remains compatible with V111 and Windows V111 FIX2.

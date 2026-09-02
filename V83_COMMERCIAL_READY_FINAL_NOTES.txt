@@ -1,0 +1,38 @@
+V83 COMMERCIAL READY FINAL — Tahalil Alakkad
+Version code: 83
+Version name: 5.3-commercial-ready-final-v83
+Package: com.aistudio.labtestsdirectory.egypt
+
+COMMERCIAL / PRODUCTION LAYER
+- Encrypted Backup & Restore for core operational Firestore data and portable lab settings.
+- AES-256-GCM backup protection with PBKDF2-HMAC-SHA256 password derivation.
+- Restore uses merge/upsert and does not mass-delete server data.
+- Firebase Crashlytics client integration with app version/build/user-id diagnostics only; no patient fields are attached by the V83 initialization code.
+- White-label identity: lab name, tagline, WhatsApp, phone, address and custom logo from manager settings.
+- Generated customer/lab/quick images use the configured lab identity.
+- Commercial Demo screen is isolated and uses fake showcase data only.
+- System Health shows commercial-readiness controls and current build version.
+
+RETAINED PRODUCTION CONTROLS
+- User profiles and role permissions.
+- New-device approval before access.
+- Admin PIN protection/change and lockout controls.
+- App PIN protection and security hardening.
+- Lab 2 Lab pricing remains privileged/admin-only.
+- Audit log and operational reports.
+- Data-integrity tools.
+- App Check / Play Integrity client integration.
+- FLAG_SECURE, overlay protection, no Android backup, no cleartext traffic.
+- Server-first Firestore reads with persistent cache/offline fallback.
+- Image-only customer/lab output in the operational workflow.
+
+UPDATE COMPATIBILITY
+- Uses the same applicationId and original release-signing pipeline.
+- Compatible with the permanent GitHub Actions workflow that selects the highest versionCode >= 82.
+- Install future signed APKs over the existing app; do not uninstall when preserving local app state.
+
+POST-BUILD ACCEPTANCE
+- GitHub Actions must complete green.
+- APK package/version/signature verification must pass.
+- Install over the previous release.
+- Test login, device approval, user permissions, search, batch search, customer/order/payment, quick image, customer/lab image, guide image, backup creation, backup restore on test data, audit log, system health and offline/online sync.

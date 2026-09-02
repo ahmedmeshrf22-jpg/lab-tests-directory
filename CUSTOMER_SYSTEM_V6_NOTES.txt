@@ -1,0 +1,17 @@
+Tahalil Alakkad - CUSTOMER SYSTEM V6
+versionCode: 10
+
+Added:
+- Real customer records in Firestore.
+- Customer file number generated automatically.
+- Search by customer name, mobile, or file number.
+- Add and edit customer data.
+- Duplicate mobile-number check.
+- Customer order history.
+- Save currently selected lab tests as a customer order.
+- Customer-price snapshot and total stored with each order.
+- Firestore disk persistence remains disabled for sensitive data.
+- Existing Manager V4, Settings V5, pricing, PDF, security and Lab2Lab behavior preserved.
+
+Firebase:
+Publish FIRESTORE_RULES_V6.txt before using customer save/order save.

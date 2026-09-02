@@ -1,0 +1,8 @@
+V10 Professional Dashboard UI
+- Financial dashboard cards in 2-column layout.
+- Discount by fixed amount or percentage.
+- Automatic conversion between discount amount and percentage.
+- Live subtotal, final total, paid and remaining cards.
+- Payment status chips/buttons retained.
+- Discount percentage stored with each customer order.
+- versionCode 14.
