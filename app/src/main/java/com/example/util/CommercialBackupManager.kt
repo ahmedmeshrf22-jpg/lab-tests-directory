@@ -238,8 +238,23 @@ object CommercialBackupManager {
                 }
 
                 fun simple(name: String): List<JSONObject> {
-                    val snap = Tasks.await(db.collection(name).get(), 45, TimeUnit.SECONDS)
+                    val snap = Tasks.await(db.collection(name).get(Source.SERVER), 45, TimeUnit.SECONDS)
                     return snap.documents.map { backupDoc(it.id, it.data.orEmpty()) }
+                }
+
+                // V141 backup permission fix:
+                // Core operational data remains mandatory. Security-archive collections are
+                // best-effort because Firestore may deliberately deny collection-wide reads
+                // even while the manager is allowed to back up customers/orders/finance.
+                // A denied security archive must NEVER abort the complete operational backup.
+                val securityArchiveWarnings = mutableListOf<String>()
+                fun optionalSecurity(name: String): List<JSONObject> {
+                    return try {
+                        simple(name)
+                    } catch (error: Exception) {
+                        securityArchiveWarnings += "$name:${error.javaClass.simpleName}"
+                        emptyList()
+                    }
                 }
 
                 val labOrders = simple("lab_orders")
@@ -247,22 +262,26 @@ object CommercialBackupManager {
                 val labPrices = simple("lab2lab_prices")
                 val phoneRegistry = simple("phone_registry")
                 val catalogOverrides = simple("lab_catalog_overrides")
-                val users = simple("users")
-                val auditLogs = simple("audit_logs")
+                val users = optionalSecurity("users")
+                val auditLogs = optionalSecurity("audit_logs")
 
                 val userDevices = mutableListOf<JSONObject>()
                 users.forEach { user ->
                     val uid = safeDocId(user.getString("id"))
-                    val snap = Tasks.await(
-                        db.collection("users").document(uid).collection("devices").get(),
-                        45, TimeUnit.SECONDS
-                    )
-                    snap.documents.forEach { deviceDoc ->
-                        userDevices += JSONObject().apply {
-                            put("user_id", uid)
-                            put("id", deviceDoc.id)
-                            put("data", jsonObjectFromMap(deviceDoc.data.orEmpty()))
+                    try {
+                        val snap = Tasks.await(
+                            db.collection("users").document(uid).collection("devices").get(Source.SERVER),
+                            45, TimeUnit.SECONDS
+                        )
+                        snap.documents.forEach { deviceDoc ->
+                            userDevices += JSONObject().apply {
+                                put("user_id", uid)
+                                put("id", deviceDoc.id)
+                                put("data", jsonObjectFromMap(deviceDoc.data.orEmpty()))
+                            }
                         }
+                    } catch (error: Exception) {
+                        securityArchiveWarnings += "devices/$uid:${error.javaClass.simpleName}"
                     }
                 }
 
@@ -286,6 +305,8 @@ object CommercialBackupManager {
                     put("user_devices", JSONArray(userDevices))
                     put("audit_logs", JSONArray(auditLogs))
                     put("security_archive_restore_mode", "manual_only")
+                    put("security_archive_complete", securityArchiveWarnings.isEmpty())
+                    put("security_archive_warnings", JSONArray(securityArchiveWarnings))
                 }
                 val encrypted = encrypt(root.toString().toByteArray(StandardCharsets.UTF_8), password)
                 ExportResult(
