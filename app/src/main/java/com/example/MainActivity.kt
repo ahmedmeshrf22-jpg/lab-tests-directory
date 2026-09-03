@@ -127,7 +127,7 @@ class MainActivity : FragmentActivity() {
                     ForcedUpdateGate {
                     var currentUser by remember { mutableStateOf(auth.currentUser) }
                     var isSplashActive by remember { mutableStateOf(true) }
-                    var isLocallyUnlocked by remember { mutableStateOf(false) }
+                    var isLocallyUnlocked by remember { mutableStateOf(auth.currentUser != null) }
                     var isLoading by remember { mutableStateOf(false) }
                     var errorMessage by remember { mutableStateOf<String?>(null) }
                     var failedLoginAttempts by remember { mutableStateOf(0) }
@@ -206,50 +206,20 @@ class MainActivity : FragmentActivity() {
                         }
                     }
 
-                    DisposableEffect(lifecycleOwner, appSettings.securityEnabled, appSettings.autoLockSeconds, appSettings.unlockMode, externalPickerActive) {
-                        val observer = LifecycleEventObserver { _, event ->
-                            if (event == Lifecycle.Event.ON_STOP) {
-                                if (auth.currentUser != null) {
-                                    viewModel.lockAdmin()
-                                }
-                                // V93: choosing a prescription image/document is a trusted system flow,
-                                // not the user leaving the app. Do not lock staff out mid-picker.
-                                if (!externalPickerActive && auth.currentUser != null && appSettings.securityEnabled) {
-                                    backgroundedAt = System.currentTimeMillis()
-                                    if (appSettings.autoLockSeconds == 0) {
-                                        isLocallyUnlocked = false
-                                    }
-                                }
-                            } else if (event == Lifecycle.Event.ON_START) {
-                                if (!externalPickerActive && auth.currentUser != null && appSettings.securityEnabled) {
-                                    val elapsedSeconds = if (backgroundedAt > 0L) {
-                                        (System.currentTimeMillis() - backgroundedAt) / 1000L
-                                    } else {
-                                        Long.MAX_VALUE
-                                    }
-                                    val timeoutReached = appSettings.autoLockSeconds == 0 ||
-                                        elapsedSeconds >= appSettings.autoLockSeconds
-                                    if (!isLocallyUnlocked || timeoutReached) {
-                                        isLocallyUnlocked = false
-                                        if (appSettings.unlockMode != "pin" && isSecurityConfiguredOnDevice()) {
-                                            launchBiometricPrompt(
-                                                onSuccess = {
-                                                    isLocallyUnlocked = true
-                                                    backgroundedAt = 0L
-                                                    unlockError = null
-                                                },
-                                                onError = { unlockError = it }
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        lifecycleOwner.lifecycle.addObserver(observer)
-                        onDispose {
-                            lifecycleOwner.lifecycle.removeObserver(observer)
-                        }
-                    }
+                    // V144_R3_NO_RELOCK: authenticated Firebase session stays open
+          // when the app goes to background and returns. Explicit Logout still signs out.
+          // Manager-only admin elevation is still cleared on background.
+          DisposableEffect(lifecycleOwner) {
+              val observer = LifecycleEventObserver { _, event ->
+                  if (event == Lifecycle.Event.ON_STOP && auth.currentUser != null) {
+                      viewModel.lockAdmin()
+                  }
+              }
+              lifecycleOwner.lifecycle.addObserver(observer)
+              onDispose {
+                  lifecycleOwner.lifecycle.removeObserver(observer)
+              }
+          }
 
                     when {
                         isSplashActive -> {

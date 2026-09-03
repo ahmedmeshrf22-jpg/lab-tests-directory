@@ -20,8 +20,8 @@ android {
     applicationId = "com.aistudio.labtestsdirectory.egypt"
     minSdk = 24
     targetSdk = 36
-    versionCode = 143
-    versionName = "5.63-organ-search-everywhere-v143"
+    versionCode = 144
+    versionName = "5.64-no-relock-v144-r3"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
