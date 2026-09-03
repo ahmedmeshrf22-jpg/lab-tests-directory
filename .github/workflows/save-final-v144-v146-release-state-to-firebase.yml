@@ -1,0 +1,127 @@
+name: Save Final V144/V146 Release State to Firebase
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  save-final-release-state:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Prepare Firebase service account
+        shell: bash
+        env:
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+        run: |
+          set -euo pipefail
+          test -n "${FIREBASE_SERVICE_ACCOUNT_JSON:-}"
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT_JSON" > "$RUNNER_TEMP/firebase-service-account.json"
+          python3 -m json.tool "$RUNNER_TEMP/firebase-service-account.json" >/dev/null
+          echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/firebase-service-account.json" >> "$GITHUB_ENV"
+
+      - name: Install Firebase Admin SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/release-state"
+          cd "$RUNNER_TEMP/release-state"
+          npm init -y >/dev/null 2>&1
+          npm install firebase-admin@13 --no-audit --no-fund
+
+      - name: Write and verify Firestore final release checkpoint
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/release-state"
+          cat > save-release-state.cjs <<'NODE'
+          const admin = require('firebase-admin');
+          const fs = require('fs');
+          const crypto = require('crypto');
+
+          const serviceAccount = JSON.parse(
+            fs.readFileSync(process.env.GOOGLE_APPLICATION_CREDENTIALS, 'utf8')
+          );
+
+          admin.initializeApp({
+            credential: admin.credential.cert(serviceAccount),
+            projectId: 'tahalil-alakkad'
+          });
+
+          const db = admin.firestore();
+
+          const state = {
+            checkpoint_key: 'current',
+            checkpoint_type: 'final_delivery_release_state',
+            android: {
+              version_code: 144,
+              version_name: '5.64-no-relock-v144-r3',
+              commit: 'cb81e5608a02103b5d4633063b44fffd21e082da',
+              release_tag: 'v144-android-no-relock-r3',
+              apk_sha256: 'b242200dbc4964bd3fa81245ae080183c6b2639a30fefdc1f17deb6282720aac'
+            },
+            windows: {
+              version_code: 146,
+              version_name: 'Windows V146 Android V144 R3 Full Parity No Re-Lock',
+              release_tag: 'v146-windows',
+              setup_sha256: '85d849242e091e1180f9c901664b31bdc5d968327abd022eafdfa1ffa16e3a67',
+              portable_sha256: '6db8f034895455e0361685c2a0c16804f49fb5817714d1b4e1793f6e2cf2fbc6'
+            },
+            backend: {
+              firebase_project_id: 'tahalil-alakkad',
+              supabase_project_ref: 'ogidyelgmigcvasizzuv',
+              edge_functions: {
+                'tahalil-shadow-mirror': 4,
+                'tahalil-recovery-probe': 2,
+                'tahalil-failover-read': 3,
+                'tahalil-result-failover': 1,
+                'tahalil-shadow-reconcile': 1
+              }
+            },
+            safety: {
+              firestore_rules_changed: false,
+              customer_data_changed: false,
+              backend_functions_redeployed: false
+            },
+            saved_at: admin.firestore.FieldValue.serverTimestamp()
+          };
+
+          const canonical = JSON.stringify({
+            android: state.android,
+            windows: state.windows,
+            backend: state.backend,
+            safety: state.safety
+          });
+          state.checkpoint_sha256 = crypto.createHash('sha256').update(canonical).digest('hex');
+
+          async function main() {
+            const ref = db.collection('system_release_state').doc('current');
+            await ref.set(state, { merge: false });
+            const snap = await ref.get();
+            if (!snap.exists) throw new Error('Firestore release checkpoint was not created');
+            const saved = snap.data();
+            if (saved.android?.version_code !== 144) throw new Error('Android version verification failed');
+            if (saved.windows?.version_code !== 146) throw new Error('Windows version verification failed');
+            if (saved.backend?.firebase_project_id !== 'tahalil-alakkad') throw new Error('Firebase project verification failed');
+            if (saved.backend?.supabase_project_ref !== 'ogidyelgmigcvasizzuv') throw new Error('Supabase project verification failed');
+            console.log('FINAL FIREBASE RELEASE CHECKPOINT SAVED AND VERIFIED');
+          }
+
+          main().then(() => process.exit(0)).catch((err) => {
+            console.error(err.message || err);
+            process.exit(1);
+          });
+          NODE
+
+          node save-release-state.cjs
+
+      - name: Final status
+        run: echo "Firebase checkpoint saved. Firestore rules and customer data were not modified."
