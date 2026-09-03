@@ -1,0 +1,777 @@
+name: Android V143 Organ Search + Backup Fix FINAL ONE RUN R3
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: tahalil-android-v143-organ-search-backup-final-one-run-r3
+  cancel-in-progress: false
+
+jobs:
+  build-v143:
+    name: Fix organ search + backup permissions + exact sign + release
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout old signing repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Preflight V143 delivery destination
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if gh release view v143-organ-search-backup-final-r3 --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo '::error::Release v143-organ-search-backup-final-r3 already exists; refusing to overwrite an existing delivery.'
+            exit 1
+          fi
+          if git ls-remote --exit-code --heads origin refs/heads/v143-android-organ-search-backup-final-r3-base >/dev/null 2>&1; then
+            echo '::error::Source branch v143-android-organ-search-backup-final-r3-base already exists; refusing to overwrite immutable source.'
+            exit 1
+          fi
+          echo 'V143 release tag and immutable source branch are free.'
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Gradle 8.11.1
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+
+      - name: Resolve exact V142 source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin '+refs/heads/*:refs/remotes/origin/*' '+refs/tags/*:refs/tags/*'
+          REF='refs/remotes/origin/v142-android-backup-smart-search-ui-base'
+          git rev-parse --verify "$REF^{commit}" >/dev/null
+          git show "$REF:app/build.gradle.kts" | grep -Fq 'versionCode = 142'
+          git show "$REF:app/src/main/java/com/example/data/repository/LabTestRepository.kt" | grep -Fq 'V142 semantic organ/system search'
+          rm -rf build_v143
+          git worktree add --detach build_v143 "$REF"
+
+          V142_BASE_SHA="$(git -C build_v143 rev-parse HEAD)"
+          V142_RULES_SHA="$(sha256sum build_v143/firestore.rules | awk '{print $1}')"
+          V142_GOOGLE_SHA="$(sha256sum build_v143/app/google-services.json | awk '{print $1}')"
+          test -n "$V142_BASE_SHA" && test -n "$V142_RULES_SHA" && test -n "$V142_GOOGLE_SHA"
+          {
+            echo "V142_BASE_SHA=$V142_BASE_SHA"
+            echo "V142_RULES_SHA=$V142_RULES_SHA"
+            echo "V142_GOOGLE_SHA=$V142_GOOGLE_SHA"
+          } >> "$GITHUB_ENV"
+          echo "Resolved exact V142 source commit: $V142_BASE_SHA"
+
+      - name: Apply V143 organ-search-everywhere fix
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 <<'PY'
+          from pathlib import Path
+          import json, re
+
+          root = Path('build_v143')
+          grad = root/'app/build.gradle.kts'
+          vmf = root/'app/src/main/java/com/example/ui/LabTestsViewModel.kt'
+          asset = root/'app/src/main/assets/lab_tests_android.json'
+
+          # Version bump: install directly over V142.
+          g = grad.read_text(encoding='utf-8')
+          g, n = re.subn(r'versionCode\s*=\s*142\b', 'versionCode = 143', g, count=1)
+          if n != 1:
+              raise SystemExit('Expected V142 versionCode marker not found')
+          g, n2 = re.subn(r'versionName\s*=\s*"[^"]+"', 'versionName = "5.63-organ-search-everywhere-v143"', g, count=1)
+          if n2 != 1:
+              raise SystemExit('versionName marker not found')
+          grad.write_text(g, encoding='utf-8')
+
+          # Fix grouped/manual/OCR path: never discard semantic matches just because
+          # one literal/direct match exists. Smart results are first, then direct,
+          # de-duplicated by test id.
+          vm = vmf.read_text(encoding='utf-8')
+          old = '''                val directMatches = repository.searchTests(q)\n                // V142: a natural/clinical phrase is accepted for each item too.\n                val allMatches = if (directMatches.isNotEmpty()) directMatches else repository.smartSearchTests(q)'''
+          new = '''                val directMatches = repository.searchTests(q)\n                val smartMatches = repository.smartSearchTests(q)\n                // V143: semantic organ matches must NEVER be hidden by one literal match.\n                val allMatches = (smartMatches + directMatches).distinctBy { it.id }'''
+          if old in vm:
+              vm = vm.replace(old, new, 1)
+          elif 'val allMatches = (smartMatches + directMatches).distinctBy { it.id }' not in vm:
+              raise SystemExit('V142 grouped-search fallback marker not found')
+          vmf.write_text(vm, encoding='utf-8')
+
+          tests = json.loads(asset.read_text(encoding='utf-8-sig'))
+          if len(tests) != 331:
+              raise SystemExit(f'Expected 331 tests, found {len(tests)}')
+
+          # These aliases are written into each related test's search_text so EVERY
+          # search surface (including literal/direct search) understands organs.
+          organ_rules = [
+              (["القلب","قلب","عضلة القلب","عضله القلب","انزيمات القلب","إنزيمات القلب","تحاليل القلب","فحص القلب","اطمن على القلب","اطمئن على القلب","عايز اطمن على القلب","عاوز اطمن على القلب","heart","cardiac","cardiology"],
+               ["CK-MB","Troponin I (Qualitative)","Troponin I (Quantitative)","Homocysteine","CRP","LDH (Lactate Dehydrogenase)","Cholesterol","HDL","LDL Cholesterol","Triglyceride"]),
+              (["الكبد","كبد","وظائف الكبد","انزيمات الكبد","إنزيمات الكبد","تحاليل الكبد","اطمن على الكبد","اطمئن على الكبد","liver","hepatic"],
+               ["ALT (SGPT)","AST (SGOT)","GGT","Alkaline Phosphatase","Bilirubin (Total)","Bilirubin (Direct)","Bilirubin (Indirect)","Albumin","Total Protein","Prothrombin Time & Conc","HBs Ag","HCV Ab","AFP"]),
+              (["الكلى","الكليتين","كلى","كلية","وظائف الكلى","تحاليل الكلى","اطمن على الكلى","اطمئن على الكلى","kidney","kidneys","renal"],
+               ["Creatinine","Blood Urea","BUN","eGFR","Creatinine Clearance","Albumin/Creatinine Ratio","Micro Albumin Random","Micro Albumin in 24 hrs","Protein in Urine Random","Sodium (Na)","Potassium (K)","Phosphorous","Uric Acid"]),
+              (["الغدة الدرقية","الغده الدرقيه","الدرقية","درقية","وظائف الغدة الدرقية","اطمن على الغدة الدرقية","thyroid"],
+               ["TSH","T3","T4","Free T3","Free T4","Anti Thyroid Ab","Thyroid Ab (Anti-Microsomal / Peroxidase Ab)"]),
+              (["البنكرياس","بنكرياس","وظائف البنكرياس","تحاليل البنكرياس","اطمن على البنكرياس","pancreas","pancreatic"],
+               ["Amylase","Amylase in urine","Lipase","Blood Glucose Fasting","Glucose Random","Blood Glucose 2 hrs P.P","Glycated Haemoglobin (HbA1c)","Insulin Level (Fasting)","Insulin (Random)","C-Peptide (Fasting)","C-Peptide (Random)","Homa-IR","Anti Islet Cells Antibody"]),
+              (["البروستاتا","بروستاتا","تحاليل البروستاتا","اطمن على البروستاتا","prostate"],
+               ["PSA (Total)","PSA (Free)"]),
+              (["المبيض","المبايض","مبيض","مبايض","مخزون المبيض","تحاليل المبايض","اطمن على المبايض","ovary","ovaries","ovarian"],
+               ["AMH","CA 125","FSH","LH","Estradiol (E2)","Progesterone"]),
+              (["الرحم","رحم","عنق الرحم","تحاليل الرحم","اطمن على الرحم","uterus","uterine","cervix","cervical"],
+               ["Beta HCG Quantitative","Progesterone","Estradiol (E2)","FSH","LH","CA 125","Cervical Swab C/S"]),
+              (["الغدة النخامية","الغده النخاميه","النخامية","النخاميه","نخامية","pituitary"],
+               ["ACTH AM","ACTH PM","FSH","LH","PRL","Growth Hormone (Basal)","Insulin Like Growth Factor-1 (IGF-1)","TSH"]),
+              (["الغدة الكظرية","الغده الكظريه","الكظرية","الكظريه","كظرية","adrenal"],
+               ["Cortisol AM","Cortisol PM","Cortisol Random","ACTH AM","ACTH PM","Aldosterone","Aldosterone / Renin Ratio","DHEA","DHEA-S"]),
+              (["العظام","عظام","صحة العظام","تحاليل العظام","اطمن على العظام","bone","bones"],
+               ["Vit D3 (25 Hydroxycholecalciferol)","Calcium (Total)","Calcium (Ionized)","Phosphorous","PTH","Alkaline Phosphatase"]),
+              (["العضلات","عضلات","عضلة","عضله","تحاليل العضلات","muscle","muscles"],
+               ["CK Total","LDH (Lactate Dehydrogenase)","AST (SGOT)"]),
+              (["المعدة","المعده","معدة","معده","تحاليل المعدة","جرثومة المعدة","اطمن على المعدة","stomach","gastric"],
+               ["H. Pylori IgG","H. Pylori IgM","H. Pylori Ag (in stool)","Gastrin Level"]),
+              (["القولون","قولون","الأمعاء","الامعاء","أمعاء","امعاء","تحاليل القولون","اطمن على القولون","colon","bowel","intestine","intestinal"],
+               ["Calprotectin in Stool","Occult Blood in Stool","CEA","Stool Analysis","Stool C/S"]),
+              (["الرئة","الرئه","الرئتين","رئة","رئه","التنفس","الجهاز التنفسي","تحاليل الرئة","اطمن على الرئة","lung","lungs","pulmonary","respiratory"],
+               ["D-Dimer","Alpha 1 Antitrypsin (Serum)","Sputum C/S","Acid Fast Bacilli (Sputum)","T.B Gold (QuantiFERON)","T.B DNA by PCR","IgE Specific (Inhalant Allergens) RAST"]),
+              (["الثدي","ثدي","تحاليل الثدي","اطمن على الثدي","breast"],
+               ["CA 15.3","PRL"]),
+              (["الخصية","الخصيه","الخصيتين","خصية","خصيه","تحاليل الخصية","اطمن على الخصية","testis","testicle","testicular","male fertility"],
+               ["Testosterone Total","Testosterone Free","FSH","LH","Semen Analysis","Semen Analysis with CASA","Semen C/S","Fructose In Semen","Anti Sperm Ab (Semen)"]),
+          ]
+
+          by_name = {str(t.get('english_name','')).strip().casefold(): t for t in tests}
+          touched = set()
+          missing = []
+          for aliases, targets in organ_rules:
+              for target in targets:
+                  t = by_name.get(target.casefold())
+                  if not t:
+                      missing.append(target)
+                      continue
+                  st = str(t.get('search_text','')).strip()
+                  parts = [part.strip() for part in st.split('|') if part.strip()]
+                  seen = {part.casefold() for part in parts}
+                  for alias in aliases:
+                      if alias.casefold() not in seen:
+                          parts.append(alias)
+                          seen.add(alias.casefold())
+                  t['search_text'] = ' | '.join(parts)
+                  touched.add(t.get('id'))
+
+          # Heart is the acceptance-critical requirement: all 10 must exist and be searchable by القلب.
+          heart_targets = organ_rules[0][1]
+          for name in heart_targets:
+              t = by_name.get(name.casefold())
+              if not t:
+                  raise SystemExit(f'Heart target missing from catalogue: {name}')
+              if 'القلب' not in str(t.get('search_text','')):
+                  raise SystemExit(f'Heart direct-search alias missing after patch: {name}')
+
+          asset.write_text(json.dumps(tests, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+          print(f'Organ aliases written into search_text for {len(touched)} catalogue entries')
+          if missing:
+              raise SystemExit('Required organ-search targets missing from 331-test catalogue: ' + ', '.join(sorted(set(missing))))
+          PY
+
+      - name: Restore proven V141 permission-safe commercial backup
+        shell: bash
+        run: |
+          set -euo pipefail
+          FILE='build_v143/app/src/main/java/com/example/util/CommercialBackupManager.kt'
+          BAD_V142_SHA='aab39abf98ccf7b39db0fad8404f034eb1f999b028cef25b9f389b4426e54599'
+          FIXED_SHA='0beed05a03d3c192a19b4e43b3aca04d358c1678dccd98eba9a85bf00c5fb3b6'
+          ACTUAL_SHA="$(sha256sum "$FILE" | awk '{print $1}')"
+          if [ "$ACTUAL_SHA" = "$BAD_V142_SHA" ]; then
+            cat > "$RUNNER_TEMP/CommercialBackupManager.fixed.gz.b64" <<'B64'
+          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
+          B64
+            tr -d '\r\n ' < "$RUNNER_TEMP/CommercialBackupManager.fixed.gz.b64" | base64 --decode | gzip -dc > "$FILE"
+          elif [ "$ACTUAL_SHA" = "$FIXED_SHA" ]; then
+            echo 'Permission-safe backup manager already present.'
+          else
+            echo "::error::Unexpected CommercialBackupManager baseline SHA256: $ACTUAL_SHA"
+            exit 1
+          fi
+          test "$(sha256sum "$FILE" | awk '{print $1}')" = "$FIXED_SHA" || { echo '::error::Backup manager replacement hash mismatch'; exit 1; }
+          grep -Fq 'fun optionalSecurity(name: String)' "$FILE"
+          grep -Fq 'optionalSecurity("users")' "$FILE"
+          grep -Fq 'optionalSecurity("audit_logs")' "$FILE"
+          grep -Fq 'securityArchiveWarnings += "devices/$uid:' "$FILE"
+          grep -Fq 'security_archive_complete' "$FILE"
+          grep -Fq 'security_archive_warnings' "$FILE"
+          echo 'V141 permission-safe backup behavior restored byte-for-byte over exact V142 source.'
+
+      - name: Deep audit V143 + full V142 preservation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 <<'PY'
+          from pathlib import Path
+          import hashlib, json, os, subprocess
+
+          root=Path('build_v143')
+          src=root/'app/src/main/java'
+          grad=(root/'app/build.gradle.kts').read_text(encoding='utf-8')
+          vm=(src/'com/example/ui/LabTestsViewModel.kt').read_text(encoding='utf-8')
+          repo=(src/'com/example/data/repository/LabTestRepository.kt').read_text(encoding='utf-8')
+          login=(src/'com/example/ui/LoginScreen.kt').read_text(encoding='utf-8')
+          ops=(src/'com/example/ui/OperationsV14Dialog.kt').read_text(encoding='utf-8')
+          storage=(src/'com/example/util/AutoBackupStorage.kt').read_text(encoding='utf-8')
+          sched=(src/'com/example/notifications/AutoBackupScheduler.kt').read_text(encoding='utf-8')
+          main=(src/'com/example/MainActivity.kt').read_text(encoding='utf-8')
+          backup=(src/'com/example/util/CommercialBackupManager.kt').read_text(encoding='utf-8')
+          result_store=(src/'com/example/backend/FirestoreResultFileStore.kt').read_text(encoding='utf-8')
+          rules=(root/'firestore.rules').read_text(encoding='utf-8')
+          google=(root/'app/google-services.json').read_text(encoding='utf-8')
+          tests=json.loads((root/'app/src/main/assets/lab_tests_android.json').read_text(encoding='utf-8'))
+          baseline_tests=json.loads(subprocess.check_output(
+              ['git','-C',str(root),'show','HEAD:app/src/main/assets/lab_tests_android.json'], text=True
+          ))
+          allkt='\n'.join(p.read_text(errors='ignore') for p in src.rglob('*.kt'))
+          by={t['english_name']:t for t in tests}
+          baseline_by_id={int(t['id']):t for t in baseline_tests}
+
+          def without_search_text(t):
+              return {k:v for k,v in t.items() if k != 'search_text'}
+
+          catalogue_fields_unchanged = len(baseline_tests)==len(tests) and all(
+              int(t['id']) in baseline_by_id and without_search_text(t)==without_search_text(baseline_by_id[int(t['id'])])
+              for t in tests
+          )
+          old_search_preserved = all(
+              str(baseline_by_id[int(t['id'])].get('search_text','')).strip() in str(t.get('search_text',''))
+              for t in tests if int(t['id']) in baseline_by_id
+          )
+
+          heart=["CK-MB","Troponin I (Qualitative)","Troponin I (Quantitative)","Homocysteine","CRP","LDH (Lactate Dehydrogenase)","Cholesterol","HDL","LDL Cholesterol","Triglyceride"]
+          organ_min_counts={
+            'القلب': 10, 'الكبد': 13, 'الكلى': 13, 'الغدة الدرقية': 7,
+            'البنكرياس': 13, 'البروستاتا': 2, 'المبايض': 6, 'الرحم': 7,
+            'الغدة النخامية': 8, 'الغدة الكظرية': 9, 'العظام': 6,
+            'العضلات': 3, 'المعدة': 4, 'القولون': 5, 'الرئة': 7,
+            'الثدي': 2, 'الخصية': 9,
+          }
+          alias_counts={alias: sum(alias in str(t.get('search_text','')) for t in tests) for alias in organ_min_counts}
+
+          checks={
+            # exact V143 delta
+            'V143 version': 'versionCode = 143' in grad and '5.63-organ-search-everywhere-v143' in grad,
+            'same package': 'applicationId = "com.aistudio.labtestsdirectory.egypt"' in grad,
+            '331 tests': len(tests)==331 and len(baseline_tests)==331,
+            'catalogue ids names prices unchanged': catalogue_fields_unchanged,
+            'pre-existing search aliases preserved': old_search_preserved,
+            'heart all 10 direct searchable': all(n in by and 'القلب' in by[n].get('search_text','') for n in heart) and alias_counts['القلب']==10,
+            'both Troponin I tests': by.get('Troponin I (Qualitative)',{}).get('id')==309 and by.get('Troponin I (Quantitative)',{}).get('id')==310,
+            'all organ aliases written': all(alias_counts[k] >= v for k,v in organ_min_counts.items()),
+            'direct search reads search_text': all(x in repo for x in ['test.normEnglish','test.normArabic','test.normMarket','test.normSearch']),
+            'smart + direct merged': 'val smartMatches = repository.smartSearchTests(q)' in vm and '(smartMatches + directMatches).distinctBy { it.id }' in vm,
+            'V142 semantic rules preserved': 'V142 semantic organ/system search' in repo,
+            'universal separators preserved': 'universal medical-list tokenizer' in vm and "'+'" in vm and "'•'" in vm and "'|'" in vm,
+            'OCR uses same parser': 'val segments = parseQueries(rawText)' in vm,
+
+            # V142 backup/UI/login preservation
+            'backup now visible': 'V142_QUICK_BACKUP' in ops and 'نسخة احتياطية الآن' in ops,
+            'backup status visible': 'النسخ التلقائي: 4:00 ص' in ops and 'آخر نسخة:' in ops,
+            'V134 encrypted exporter active': 'createEncryptedBackupV134' in vm,
+            'manual backup enables automatic': 'AutoBackupCredentialStore.savePassword' in vm,
+            '4am preserved': 'FOUR_AM_HOUR = 4' in sched,
+            'missed backup catchup': 'catchUpIfMissed' in sched and 'AutoBackupScheduler.catchUpIfMissed(this)' in main,
+            'latest backup detection': 'latestBackupEpochMillis' in storage and 'latestBackupName' in storage,
+            'safe restore preserved': 'if (!snapshot.exists()) missing += write' in backup,
+            'backup core server reads': 'db.collection(name).get(Source.SERVER)' in backup,
+            'backup core collections remain mandatory': all(x in backup for x in [
+                'val labOrders = simple("lab_orders")',
+                'val customerPrices = simple("customer_price_overrides")',
+                'val labPrices = simple("lab2lab_prices")',
+                'val phoneRegistry = simple("phone_registry")',
+                'val catalogOverrides = simple("lab_catalog_overrides")',
+            ]),
+            'backup security collections permission safe': 'fun optionalSecurity(name: String)' in backup and 'optionalSecurity("users")' in backup and 'optionalSecurity("audit_logs")' in backup,
+            'backup device archive permission safe': 'securityArchiveWarnings += "devices/$uid:' in backup and 'collection("devices").get(Source.SERVER)' in backup,
+            'backup security archive status recorded': 'security_archive_complete' in backup and 'security_archive_warnings' in backup,
+            'admin icons enlarged': 'actionSize = 72.dp' in ops and ('actionSize = 60.dp' in ops or 'actionSize = 68.dp' in ops),
+            'login care tagline': 'V142_CARE_TAGLINE' in login and all(x in login for x in ['"رعاية"','"تليق"','"بك"']),
+            'tagline sequential animation': 'careWordsVisible' in login and 'delay(320)' in login and 'AnimatedVisibility' in login,
+
+            # production behavior / security preservation
+            'Firebase project preserved': 'tahalil-alakkad' in google,
+            'Firestore rules byte-identical': hashlib.sha256((root/'firestore.rules').read_bytes()).hexdigest() == os.environ.get('V142_RULES_SHA',''),
+            'google-services byte-identical': hashlib.sha256((root/'app/google-services.json').read_bytes()).hexdigest() == os.environ.get('V142_GOOGLE_SHA',''),
+            'shared catalogue overrides preserved': 'lab_catalog_overrides' in vm and 'applyRemoteCatalogOverride' in repo,
+            'Firestore result chunking': 'RAW_CHUNK_BYTES = 420 * 1024' in result_store and 'result_file_chunk' in result_store and 'fsr:' in result_store,
+            'result failover preserved': 'tahalil-result-failover' in allkt,
+            'reconciliation preserved': 'tahalil-shadow-reconcile' in allkt,
+            'offline preserved': 'OfflineAccessVault' in allkt,
+            'notifications preserved': 'class OrderRealtimeNotificationService' in allkt,
+            'screenshots enabled': 'FLAG_SECURE' not in allkt,
+            'overlay defense preserved': 'setHideOverlayWindows(true)' in main,
+            'no Firebase Storage client': 'FirebaseStorage' not in allkt and 'firebase-storage' not in grad.lower(),
+            'no Cloudflare': 'cloudflare' not in allkt.lower() and 'workers.dev' not in allkt.lower(),
+            'no client secrets': all(x not in allkt for x in ['SUPABASE_SERVICE_ROLE_KEY','SUPABASE_SECRET_KEYS','sb_secret_','BEGIN PRIVATE KEY']),
+          }
+          for k,v in checks.items(): print(('OK   ' if v else 'FAIL ')+k)
+          print('Organ alias counts:', alias_counts)
+          bad=[k for k,v in checks.items() if not v]
+          if bad: raise SystemExit('V143 AUDIT FAILED: '+', '.join(bad))
+          print('ALL V143 REQUESTED + V142 PRESERVATION CHECKS PASSED')
+          PY
+
+      - name: Prove only the 4 intended source files changed
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd build_v143
+          git diff --check
+          ACTUAL="$(git diff --name-only | sort)"
+          EXPECTED="$(printf '%s\n' \
+            'app/build.gradle.kts' \
+            'app/src/main/assets/lab_tests_android.json' \
+            'app/src/main/java/com/example/ui/LabTestsViewModel.kt' \
+            'app/src/main/java/com/example/util/CommercialBackupManager.kt' | sort)"
+          if [ "$ACTUAL" != "$EXPECTED" ]; then
+            echo '::error::Unexpected files changed from V142 baseline'
+            echo 'Expected:'; printf '%s\n' "$EXPECTED"
+            echo 'Actual:'; printf '%s\n' "$ACTUAL"
+            exit 1
+          fi
+          echo 'Only the 4 intended V143 files differ from exact V142 source.'
+
+      - name: Signing wiring preflight
+        shell: bash
+        run: |
+          set -euo pipefail
+          GRAD='build_v143/app/build.gradle.kts'
+          grep -Fq 'System.getenv("KEYSTORE_PATH")' "$GRAD"
+          grep -Fq 'System.getenv("STORE_PASSWORD")' "$GRAD"
+          grep -Fq 'System.getenv("KEY_ALIAS")' "$GRAD"
+          grep -Fq 'System.getenv("KEY_PASSWORD")' "$GRAD"
+          grep -Fq 'signingConfig = signingConfigs.getByName("release")' "$GRAD"
+          echo 'Release build is wired to the selected signing identity.'
+
+      - name: Prepare deterministic APK certificate reader
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > "$RUNNER_TEMP/apk_cert_sha256.py" <<'PY'
+          import sys, struct, hashlib
+
+          apk_path = sys.argv[1]
+          data = open(apk_path, 'rb').read()
+
+          # Locate ZIP End Of Central Directory in the legal ZIP comment window.
+          start = max(0, len(data) - (22 + 65535))
+          eocd = data.rfind(b'PK\x05\x06', start)
+          if eocd < 0 or eocd + 20 > len(data):
+              raise SystemExit('EOCD not found')
+          cd_offset = struct.unpack_from('<I', data, eocd + 16)[0]
+
+          # APK Signing Block footer is immediately before the central directory.
+          footer_off = cd_offset - 24
+          if footer_off < 0:
+              raise SystemExit('APK Signing Block footer not found')
+          size_footer = struct.unpack_from('<Q', data, footer_off)[0]
+          if data[footer_off + 8:footer_off + 24] != b'APK Sig Block 42':
+              raise SystemExit('APK Signing Block magic not found')
+          block_start = cd_offset - (size_footer + 8)
+          if block_start < 0:
+              raise SystemExit('Invalid APK Signing Block size')
+          size_header = struct.unpack_from('<Q', data, block_start)[0]
+          if size_header != size_footer:
+              raise SystemExit('APK Signing Block size mismatch')
+
+          # Parse length-prefixed ID/value pairs.
+          pairs = {}
+          p = block_start + 8
+          while p < footer_off:
+              if p + 8 > footer_off:
+                  raise SystemExit('Truncated signing pair')
+              pair_len = struct.unpack_from('<Q', data, p)[0]
+              p += 8
+              if pair_len < 4 or p + pair_len > footer_off:
+                  raise SystemExit('Invalid signing pair')
+              pair_id = struct.unpack_from('<I', data, p)[0]
+              pairs[pair_id] = data[p + 4:p + pair_len]
+              p += pair_len
+
+          # Prefer v3.1/v3 when present, then v2. All carry X.509 certs in signedData.
+          scheme = None
+          for scheme_id in (0x1b93ad61, 0xf05368c0, 0x7109871a):
+              if scheme_id in pairs:
+                  scheme = pairs[scheme_id]
+                  break
+          if scheme is None:
+              raise SystemExit('No APK v2/v3 signing block found')
+
+          def lp(buf, off):
+              if off + 4 > len(buf):
+                  raise ValueError('truncated length')
+              n = struct.unpack_from('<I', buf, off)[0]
+              off += 4
+              if off + n > len(buf):
+                  raise ValueError('truncated field')
+              return buf[off:off+n], off+n
+
+          signers, _ = lp(scheme, 0)
+          signer, _ = lp(signers, 0)
+          signed_data, _ = lp(signer, 0)
+          _digests, off = lp(signed_data, 0)
+          certs, off = lp(signed_data, off)
+          cert, _ = lp(certs, 0)
+          print(hashlib.sha256(cert).hexdigest())
+          PY
+          python3 -m py_compile "$RUNNER_TEMP/apk_cert_sha256.py"
+          echo 'Deterministic APK v2/v3 certificate reader ready.'
+
+      - name: Select exact installed-V142 signing identity
+        shell: bash
+        env:
+          SIGNING_BUNDLE_B64: ${{ secrets.TAHALIL_SIGNING_BUNDLE_B64 }}
+        run: |
+          set -euo pipefail
+          test -n "${SIGNING_BUNDLE_B64:-}" || { echo "::error::TAHALIL_SIGNING_BUNDLE_B64 missing in old signing repo"; exit 1; }
+
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner -print | sort -V | tail -1)"
+          test -x "$APKSIGNER" || { echo '::error::apksigner not found'; exit 1; }
+
+          # The published V142 APK is the exact identity that must remain install-compatible.
+          V142_APK="$RUNNER_TEMP/android-v142-installed.apk"
+          curl --fail --location --retry 3 \
+            'https://github.com/ahmedmeshrf22-jpg/lab-tests-directory/releases/download/v142-android/Tahalil-Alakkad-V142-All-Fixes-Organ-Smart-Search-Android-SIGNED.apk' \
+            -o "$V142_APK"
+          test -s "$V142_APK"
+          "$APKSIGNER" verify --verbose --print-certs "$V142_APK" >/dev/null
+          EXPECTED_CERT="$(python3 "$RUNNER_TEMP/apk_cert_sha256.py" "$V142_APK")" || {
+            echo '::error::Could not read exact V142 APK signing certificate'
+            exit 1
+          }
+          test "${#EXPECTED_CERT}" -eq 64 || {
+            echo '::error::Unexpected V142 certificate SHA-256 length'
+            exit 1
+          }
+
+          SIGN_DIR="$RUNNER_TEMP/tahalil_v143_signing"
+          rm -rf "$SIGN_DIR" && mkdir -p "$SIGN_DIR/files" "$SIGN_DIR/test"
+          printf '%s' "$SIGNING_BUNDLE_B64" | tr -d '\r\n ' | base64 --decode > "$SIGN_DIR/bundle.bin"
+          test -s "$SIGN_DIR/bundle.bin"
+
+          if unzip -t "$SIGN_DIR/bundle.bin" >/dev/null 2>&1; then
+            unzip -q "$SIGN_DIR/bundle.bin" -d "$SIGN_DIR/files"
+          else
+            cp "$SIGN_DIR/bundle.bin" "$SIGN_DIR/files/original.keystore"
+          fi
+
+          mapfile -t KEYSTORES < <(find "$SIGN_DIR/files" -type f \( -iname '*.jks' -o -iname '*.keystore' \) -print | sort)
+          [ "${#KEYSTORES[@]}" -gt 0 ] || { echo '::error::No keystore found in signing bundle'; exit 1; }
+
+          # Candidate passwords from the trusted encrypted signing bundle only; never print them.
+          PASSWORD_FILE="$SIGN_DIR/password-candidates.txt"
+          : > "$PASSWORD_FILE"
+          while IFS= read -r META; do
+            [ -f "$META" ] || continue
+            sed -nE 's/^[[:space:]]*(STORE_PASSWORD|KEYSTORE_PASSWORD|storePassword|store_password|KEY_PASSWORD|keyPassword|key_password)[[:space:]]*[:=][[:space:]]*"?([^"#]+)"?[[:space:]]*$/\2/p' "$META" >> "$PASSWORD_FILE" || true
+          done < <(find "$SIGN_DIR/files" -type f \( -iname '*.properties' -o -iname '*.env' -o -iname '*.txt' \) -print | sort)
+          printf '%s\n' android >> "$PASSWORD_FILE"
+          awk 'NF && !seen[$0]++' "$PASSWORD_FILE" > "$PASSWORD_FILE.tmp"
+          mv "$PASSWORD_FILE.tmp" "$PASSWORD_FILE"
+
+          FOUND_KEYSTORE=''; FOUND_STOREPASS=''; FOUND_ALIAS=''; FOUND_KEYPASS=''
+          while IFS= read -r KS; do
+            while IFS= read -r SP; do
+              [ -n "$SP" ] || continue
+              keytool -list -keystore "$KS" -storepass "$SP" >/dev/null 2>&1 || continue
+              mapfile -t ALIASES < <(keytool -list -v -keystore "$KS" -storepass "$SP" 2>/dev/null | sed -n 's/^Alias name: //p')
+              for ALIAS in "${ALIASES[@]}"; do
+                [ -n "$ALIAS" ] || continue
+                CERT="$(keytool -exportcert -keystore "$KS" -storepass "$SP" -alias "$ALIAS" 2>/dev/null | sha256sum | awk '{print $1}' || true)"
+                [ "$CERT" = "$EXPECTED_CERT" ] || continue
+
+                while IFS= read -r KP; do
+                  [ -n "$KP" ] || continue
+                  TEST_P12="$SIGN_DIR/test/keycheck.p12"
+                  rm -f "$TEST_P12"
+                  if keytool -importkeystore \
+                      -srckeystore "$KS" -srcstorepass "$SP" \
+                      -srcalias "$ALIAS" -srckeypass "$KP" \
+                      -destkeystore "$TEST_P12" -deststoretype PKCS12 \
+                      -deststorepass 'TemporaryCheckOnly_143!' \
+                      -destkeypass 'TemporaryCheckOnly_143!' \
+                      -noprompt >/dev/null 2>&1; then
+                    FOUND_KEYSTORE="$KS"; FOUND_STOREPASS="$SP"; FOUND_ALIAS="$ALIAS"; FOUND_KEYPASS="$KP"
+                    break 4
+                  fi
+                done < "$PASSWORD_FILE"
+              done
+            done < "$PASSWORD_FILE"
+          done < <(printf '%s\n' "${KEYSTORES[@]}")
+
+          test -n "$FOUND_KEYSTORE" || {
+            echo '::error::No private signing key in TAHALIL_SIGNING_BUNDLE_B64 matches installed V142.'
+            exit 1
+          }
+
+          echo "::add-mask::$FOUND_STOREPASS"
+          echo "::add-mask::$FOUND_ALIAS"
+          echo "::add-mask::$FOUND_KEYPASS"
+
+          SELECTED_CERT="$(keytool -exportcert -keystore "$FOUND_KEYSTORE" -storepass "$FOUND_STOREPASS" -alias "$FOUND_ALIAS" | sha256sum | awk '{print $1}')"
+          test "$SELECTED_CERT" = "$EXPECTED_CERT" || { echo '::error::Selected key certificate is not V142'; exit 1; }
+
+          {
+            echo "KEYSTORE_PATH=$FOUND_KEYSTORE"
+            echo "STORE_PASSWORD=$FOUND_STOREPASS"
+            echo "KEY_ALIAS=$FOUND_ALIAS"
+            echo "KEY_PASSWORD=$FOUND_KEYPASS"
+            echo "EXPECTED_V142_CERT=$EXPECTED_CERT"
+          } >> "$GITHUB_ENV"
+          echo 'Exact installed-V142 private signing identity selected and key-unlock tested.'
+
+      - name: Compile-check Android V143
+        working-directory: build_v143
+        shell: bash
+        run: |
+          set -euo pipefail
+          gradle --no-daemon --no-configuration-cache --no-parallel --max-workers=2 :app:compileReleaseKotlin
+
+      - name: Build signed Android V143
+        working-directory: build_v143
+        shell: bash
+        run: |
+          set -euo pipefail
+          gradle --no-daemon --no-configuration-cache --no-parallel --max-workers=2 :app:assembleRelease
+
+      - name: Verify actual APK package version and signer
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="$(find build_v143/app/build/outputs/apk/release -type f -name '*.apk' -print -quit)"
+          test -n "$APK" && test -s "$APK"
+          [ "$(stat -c%s "$APK")" -gt 10000000 ] || { echo '::error::Built APK is unexpectedly small'; exit 1; }
+
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner -print | sort -V | tail -1)"
+          AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt -print | sort -V | tail -1)"
+          test -x "$APKSIGNER" && test -x "$AAPT"
+          "$APKSIGNER" verify --verbose --print-certs "$APK"
+
+          test -n "${EXPECTED_V142_CERT:-}" && test "${#EXPECTED_V142_CERT}" -eq 64
+          NEW_CERT="$(python3 "$RUNNER_TEMP/apk_cert_sha256.py" "$APK")" || {
+            echo '::error::Could not read built V143 APK signing certificate'
+            exit 1
+          }
+          test "${#NEW_CERT}" -eq 64
+          test "$NEW_CERT" = "$EXPECTED_V142_CERT" || {
+            echo '::error::Built APK signer differs from installed V142'
+            exit 1
+          }
+
+          BADGING="$("$AAPT" dump badging "$APK" | head -1)"
+          printf '%s\n' "$BADGING"
+          printf '%s\n' "$BADGING" | grep -Fq "package: name='com.aistudio.labtestsdirectory.egypt'"
+          printf '%s\n' "$BADGING" | grep -Fq "versionCode='143'"
+
+          cp "$APK" Tahalil-Alakkad-V143-Organ-Search-Everywhere-SIGNED.apk
+          sha256sum Tahalil-Alakkad-V143-Organ-Search-Everywhere-SIGNED.apk > Tahalil-Alakkad-V143-Organ-Search-Everywhere-SIGNED.apk.sha256
+          echo 'APK package + versionCode + installed-V142 signer all verified.'
+
+      - name: Publish verified V143 source branch
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          cd build_v143
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          rm -rf app/build build .gradle
+          git checkout -B v143-android-organ-search-backup-final-r3-base
+          git add -A
+          git commit -m 'Android V143 organ search everywhere + backup permission fix'
+          V143_SHA="$(git rev-parse HEAD)"
+          git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:refs/heads/v143-android-organ-search-backup-final-r3-base
+          echo "V143_COMMIT_SHA=$V143_SHA" >> "$GITHUB_ENV"
+
+      - name: Prepare source snapshot
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd build_v143 && zip -qr ../Tahalil-Alakkad-V143-Android-SOURCE.zip . -x '.git/*' '.gradle/*' 'app/build/*' 'build/*' '*.apk')
+          sha256sum Tahalil-Alakkad-V143-Android-SOURCE.zip > Tahalil-Alakkad-V143-Android-SOURCE.zip.sha256
+
+      - name: Upload V143 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Tahalil-Alakkad-Android-V143-ORGAN-SEARCH-BACKUP-FINAL-R3
+          path: |
+            Tahalil-Alakkad-V143-Organ-Search-Everywhere-SIGNED.apk
+            Tahalil-Alakkad-V143-Organ-Search-Everywhere-SIGNED.apk.sha256
+            Tahalil-Alakkad-V143-Android-SOURCE.zip
+            Tahalil-Alakkad-V143-Android-SOURCE.zip.sha256
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish Android V143 release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TAG='v143-organ-search-backup-final-r3'
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "::error::Release $TAG already exists; refusing to overwrite a published delivery."
+            exit 1
+          fi
+          gh release create "$TAG" \
+            Tahalil-Alakkad-V143-Organ-Search-Everywhere-SIGNED.apk \
+            Tahalil-Alakkad-V143-Organ-Search-Everywhere-SIGNED.apk.sha256 \
+            Tahalil-Alakkad-V143-Android-SOURCE.zip \
+            Tahalil-Alakkad-V143-Android-SOURCE.zip.sha256 \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$V143_COMMIT_SHA" \
+            --title 'تحاليل العقاد Android V143 — Organ Search + Backup Fix FINAL' \
+            --notes 'V143 fixes organ/system search across direct, smart/manual and OCR paths. Typing القلب returns CK-MB, both Troponin I qualitative/quantitative, Homocysteine, CRP, LDH, Cholesterol, HDL, LDL and Triglyceride. It also restores the proven V141 backup permission fix accidentally absent from V142: core encrypted operational backup stays mandatory, while Firestore-denied users/audit/device security archives are best-effort and recorded as warnings instead of aborting the whole manual/04:00 backup. Firestore rules are unchanged. V142 backup UI, 04:00 catch-up, login tagline, catalogue/prices, result/offline/notification/security behavior and installed V142 signing identity are preserved. Windows V144 is in the separate new repository and is deliberately not touched by this Android workflow.'
+          echo 'Android V143 release published. Windows repository untouched.'
+
+      - name: Final status
+        shell: bash
+        run: |
+          echo 'ANDROID V143 R3 FINAL AUDITED: ORGAN-SEARCH + BACKUP-PERMISSIONS + SOURCE-PRESERVED + COMPILED + EXACT-SIGNER + APK-VERIFIED + RELEASED'
