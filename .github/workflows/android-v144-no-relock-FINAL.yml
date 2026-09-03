@@ -1,0 +1,350 @@
+name: Android V144 No Re-Lock FINAL
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: tahalil-android-v144-no-relock-final
+  cancel-in-progress: false
+
+jobs:
+  build-v144:
+    name: Keep signed-in session unlocked + exact signer + release
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout signing repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Preflight destination
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TAG='v144-android-no-relock'
+          BRANCH='v144-android-no-relock-base'
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "::error::Release $TAG already exists; refusing overwrite"
+            exit 1
+          fi
+          if git ls-remote --exit-code --heads origin "refs/heads/$BRANCH" >/dev/null 2>&1; then
+            echo "::error::Branch $BRANCH already exists; refusing overwrite"
+            exit 1
+          fi
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Gradle 8.11.1
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+
+      - name: Resolve exact current Android V143 source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin '+refs/heads/*:refs/remotes/origin/*' '+refs/tags/*:refs/tags/*'
+          REF='refs/remotes/origin/v143-android-organ-search-backup-final-r3-base'
+          EXPECTED='ff1c9153cd6b2b93519384523b795e1d21b13449'
+          ACTUAL="$(git rev-parse "$REF^{commit}")"
+          test "$ACTUAL" = "$EXPECTED" || {
+            echo "::error::V143 base moved. Expected $EXPECTED, got $ACTUAL"
+            exit 1
+          }
+          rm -rf build_v144
+          git worktree add --detach build_v144 "$REF"
+          grep -Fq 'versionCode = 143' build_v144/app/build.gradle.kts
+          grep -Fq 'V142 semantic organ/system search' build_v144/app/src/main/java/com/example/data/repository/LabTestRepository.kt
+          grep -Fq 'security_archive_warnings' build_v144/app/src/main/java/com/example/util/CommercialBackupManager.kt
+          echo "BASE_SHA=$ACTUAL" >> "$GITHUB_ENV"
+
+      - name: Disable password or biometric re-lock after leaving app
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 <<'PY'
+          from pathlib import Path
+          import re
+
+          main = Path('build_v144/app/src/main/java/com/example/MainActivity.kt')
+          s = main.read_text(encoding='utf-8')
+
+          old = 'var isLocallyUnlocked by remember { mutableStateOf(false) }'
+          new = 'var isLocallyUnlocked by remember { mutableStateOf(auth.currentUser != null) }'
+          if s.count(old) != 1:
+              raise SystemExit('Expected isLocallyUnlocked initializer not found exactly once')
+          s = s.replace(old, new, 1)
+
+          auth_old = '''                            if (fAuth.currentUser == null) {
+                                isLocallyUnlocked = false
+                                viewModel.clearLab2LabState()
+                            }'''
+          auth_new = '''                            if (fAuth.currentUser == null) {
+                                isLocallyUnlocked = false
+                                viewModel.clearLab2LabState()
+                            } else {
+                                // V144: Firebase session is already authenticated. Do not require
+                                // a second local PIN/biometric challenge when reopening the app.
+                                isLocallyUnlocked = true
+                                unlockError = null
+                            }'''
+          if s.count(auth_old) != 1:
+              raise SystemExit('Expected auth listener lock block not found exactly once')
+          s = s.replace(auth_old, auth_new, 1)
+
+          pattern = re.compile(
+              r'''                    DisposableEffect\(lifecycleOwner, appSettings\.securityEnabled, appSettings\.autoLockSeconds, appSettings\.unlockMode, externalPickerActive\) \{\n.*?\n                    \}\n\n                    when \{''',
+              re.S,
+          )
+          replacement = '''                    // V144 NO_RELOCK: leaving the app must not trigger a second
+                    // password/PIN/biometric challenge. The Firebase login session remains the
+                    // authentication gate. Explicit Logout still signs out and returns to LoginScreen.
+                    // Manager-only admin elevation is still cleared whenever the app backgrounds.
+                    DisposableEffect(lifecycleOwner) {
+                        val observer = LifecycleEventObserver { _, event ->
+                            if (event == Lifecycle.Event.ON_STOP && auth.currentUser != null) {
+                                viewModel.lockAdmin()
+                            }
+                        }
+                        lifecycleOwner.lifecycle.addObserver(observer)
+                        onDispose {
+                            lifecycleOwner.lifecycle.removeObserver(observer)
+                        }
+                    }
+
+                    when {'''
+          s, n = pattern.subn(replacement, s, count=1)
+          if n != 1:
+              raise SystemExit('Expected lifecycle re-lock block not found exactly once')
+
+          main.write_text(s, encoding='utf-8')
+
+          grad = Path('build_v144/app/build.gradle.kts')
+          g = grad.read_text(encoding='utf-8')
+          g, n1 = re.subn(r'versionCode\s*=\s*143\b', 'versionCode = 144', g, count=1)
+          g, n2 = re.subn(r'versionName\s*=\s*"[^"]+"', 'versionName = "5.64-no-relock-v144"', g, count=1)
+          if n1 != 1 or n2 != 1:
+              raise SystemExit(f'Version bump failed: code={n1} name={n2}')
+          grad.write_text(g, encoding='utf-8')
+          PY
+
+      - name: Audit exact scope and preserved V143 fixes
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd build_v144
+          git diff --check
+          ACTUAL="$(git diff --name-only | sort)"
+          EXPECTED="$(printf '%s\n' \
+            'app/build.gradle.kts' \
+            'app/src/main/java/com/example/MainActivity.kt' | sort)"
+          if [ "$ACTUAL" != "$EXPECTED" ]; then
+            echo '::error::Unexpected source files changed'
+            echo 'Expected:'; printf '%s\n' "$EXPECTED"
+            echo 'Actual:'; printf '%s\n' "$ACTUAL"
+            exit 1
+          fi
+          grep -Fq 'versionCode = 144' app/build.gradle.kts
+          grep -Fq '5.64-no-relock-v144' app/build.gradle.kts
+          grep -Fq 'mutableStateOf(auth.currentUser != null)' app/src/main/java/com/example/MainActivity.kt
+          grep -Fq 'V144 NO_RELOCK' app/src/main/java/com/example/MainActivity.kt
+          ! grep -Fq 'DisposableEffect(lifecycleOwner, appSettings.securityEnabled, appSettings.autoLockSeconds' app/src/main/java/com/example/MainActivity.kt
+          grep -Fq 'auth.signOut()' app/src/main/java/com/example/MainActivity.kt
+          grep -Fq 'V142 semantic organ/system search' app/src/main/java/com/example/data/repository/LabTestRepository.kt
+          grep -Fq 'security_archive_warnings' app/src/main/java/com/example/util/CommercialBackupManager.kt
+          grep -Fq 'AutoBackupScheduler.catchUpIfMissed(this)' app/src/main/java/com/example/MainActivity.kt
+          echo 'Scope audit passed: only no-relock behavior + version changed; V143 search and backup fixes preserved.'
+
+      - name: Signing wiring preflight
+        shell: bash
+        run: |
+          set -euo pipefail
+          GRAD='build_v144/app/build.gradle.kts'
+          grep -Fq 'System.getenv("KEYSTORE_PATH")' "$GRAD"
+          grep -Fq 'System.getenv("STORE_PASSWORD")' "$GRAD"
+          grep -Fq 'System.getenv("KEY_ALIAS")' "$GRAD"
+          grep -Fq 'System.getenv("KEY_PASSWORD")' "$GRAD"
+          grep -Fq 'signingConfig = signingConfigs.getByName("release")' "$GRAD"
+
+      - name: Select exact installed Android signer
+        shell: bash
+        env:
+          SIGNING_BUNDLE_B64: ${{ secrets.TAHALIL_SIGNING_BUNDLE_B64 }}
+        run: |
+          set -euo pipefail
+          test -n "${SIGNING_BUNDLE_B64:-}" || { echo '::error::TAHALIL_SIGNING_BUNDLE_B64 missing'; exit 1; }
+
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner -print | sort -V | tail -1)"
+          test -x "$APKSIGNER"
+
+          CURRENT_APK="$RUNNER_TEMP/android-v143-current.apk"
+          curl --fail --location --retry 3 \
+            'https://github.com/ahmedmeshrf22-jpg/lab-tests-directory/releases/download/v143-organ-search-backup-final-r3/Tahalil-Alakkad-V143-Organ-Search-Everywhere-SIGNED.apk' \
+            -o "$CURRENT_APK"
+          test -s "$CURRENT_APK"
+          "$APKSIGNER" verify --verbose --print-certs "$CURRENT_APK" > "$RUNNER_TEMP/current-cert.txt"
+          EXPECTED_CERT="$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' "$RUNNER_TEMP/current-cert.txt" | head -1 | tr 'A-F' 'a-f')"
+          test "${#EXPECTED_CERT}" -eq 64 || { echo '::error::Could not read current APK certificate'; exit 1; }
+
+          SIGN_DIR="$RUNNER_TEMP/tahalil_v144_signing"
+          rm -rf "$SIGN_DIR" && mkdir -p "$SIGN_DIR/files" "$SIGN_DIR/test"
+          printf '%s' "$SIGNING_BUNDLE_B64" | tr -d '\r\n ' | base64 --decode > "$SIGN_DIR/bundle.bin"
+          test -s "$SIGN_DIR/bundle.bin"
+          if unzip -t "$SIGN_DIR/bundle.bin" >/dev/null 2>&1; then
+            unzip -q "$SIGN_DIR/bundle.bin" -d "$SIGN_DIR/files"
+          else
+            cp "$SIGN_DIR/bundle.bin" "$SIGN_DIR/files/original.keystore"
+          fi
+
+          mapfile -t KEYSTORES < <(find "$SIGN_DIR/files" -type f \( -iname '*.jks' -o -iname '*.keystore' \) -print | sort)
+          [ "${#KEYSTORES[@]}" -gt 0 ] || { echo '::error::No keystore found'; exit 1; }
+
+          PASSWORD_FILE="$SIGN_DIR/password-candidates.txt"
+          : > "$PASSWORD_FILE"
+          while IFS= read -r META; do
+            [ -f "$META" ] || continue
+            sed -nE 's/^[[:space:]]*(STORE_PASSWORD|KEYSTORE_PASSWORD|storePassword|store_password|KEY_PASSWORD|keyPassword|key_password)[[:space:]]*[:=][[:space:]]*"?([^"#]+)"?[[:space:]]*$/\2/p' "$META" >> "$PASSWORD_FILE" || true
+          done < <(find "$SIGN_DIR/files" -type f \( -iname '*.properties' -o -iname '*.env' -o -iname '*.txt' \) -print | sort)
+          printf '%s\n' android >> "$PASSWORD_FILE"
+          awk 'NF && !seen[$0]++' "$PASSWORD_FILE" > "$PASSWORD_FILE.tmp"
+          mv "$PASSWORD_FILE.tmp" "$PASSWORD_FILE"
+
+          FOUND_KEYSTORE=''; FOUND_STOREPASS=''; FOUND_ALIAS=''; FOUND_KEYPASS=''
+          while IFS= read -r KS; do
+            while IFS= read -r SP; do
+              [ -n "$SP" ] || continue
+              keytool -list -keystore "$KS" -storepass "$SP" >/dev/null 2>&1 || continue
+              mapfile -t ALIASES < <(keytool -list -v -keystore "$KS" -storepass "$SP" 2>/dev/null | sed -n 's/^Alias name: //p')
+              for ALIAS in "${ALIASES[@]}"; do
+                [ -n "$ALIAS" ] || continue
+                CERT="$(keytool -exportcert -keystore "$KS" -storepass "$SP" -alias "$ALIAS" 2>/dev/null | sha256sum | awk '{print $1}' || true)"
+                [ "$CERT" = "$EXPECTED_CERT" ] || continue
+                while IFS= read -r KP; do
+                  [ -n "$KP" ] || continue
+                  TEST_P12="$SIGN_DIR/test/keycheck.p12"
+                  rm -f "$TEST_P12"
+                  if keytool -importkeystore \
+                    -srckeystore "$KS" -srcstorepass "$SP" \
+                    -srcalias "$ALIAS" -srckeypass "$KP" \
+                    -destkeystore "$TEST_P12" -deststoretype PKCS12 \
+                    -deststorepass 'TemporaryCheckOnly_144!' \
+                    -destkeypass 'TemporaryCheckOnly_144!' \
+                    -noprompt >/dev/null 2>&1; then
+                    FOUND_KEYSTORE="$KS"; FOUND_STOREPASS="$SP"; FOUND_ALIAS="$ALIAS"; FOUND_KEYPASS="$KP"
+                    break 4
+                  fi
+                done < "$PASSWORD_FILE"
+              done
+            done < "$PASSWORD_FILE"
+          done < <(printf '%s\n' "${KEYSTORES[@]}")
+
+          test -n "$FOUND_KEYSTORE" || { echo '::error::No signing key matches installed V143'; exit 1; }
+          echo "::add-mask::$FOUND_STOREPASS"
+          echo "::add-mask::$FOUND_ALIAS"
+          echo "::add-mask::$FOUND_KEYPASS"
+          {
+            echo "KEYSTORE_PATH=$FOUND_KEYSTORE"
+            echo "STORE_PASSWORD=$FOUND_STOREPASS"
+            echo "KEY_ALIAS=$FOUND_ALIAS"
+            echo "KEY_PASSWORD=$FOUND_KEYPASS"
+            echo "EXPECTED_CERT=$EXPECTED_CERT"
+          } >> "$GITHUB_ENV"
+          echo 'Exact installed Android signing identity selected.'
+
+      - name: Compile-check Android V144
+        working-directory: build_v144
+        shell: bash
+        run: |
+          set -euo pipefail
+          gradle --no-daemon --no-configuration-cache --no-parallel --max-workers=2 :app:compileReleaseKotlin
+
+      - name: Build signed Android V144
+        working-directory: build_v144
+        shell: bash
+        run: |
+          set -euo pipefail
+          gradle --no-daemon --no-configuration-cache --no-parallel --max-workers=2 :app:assembleRelease
+
+      - name: Verify APK version package and signer
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="$(find build_v144/app/build/outputs/apk/release -type f -name '*.apk' -print -quit)"
+          test -n "$APK" && test -s "$APK"
+          [ "$(stat -c%s "$APK")" -gt 10000000 ] || { echo '::error::Built APK unexpectedly small'; exit 1; }
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner -print | sort -V | tail -1)"
+          AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt -print | sort -V | tail -1)"
+          "$APKSIGNER" verify --verbose --print-certs "$APK" > "$RUNNER_TEMP/new-cert.txt"
+          NEW_CERT="$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' "$RUNNER_TEMP/new-cert.txt" | head -1 | tr 'A-F' 'a-f')"
+          test "$NEW_CERT" = "$EXPECTED_CERT" || { echo '::error::Signer mismatch'; exit 1; }
+          BADGING="$("$AAPT" dump badging "$APK" | head -1)"
+          printf '%s\n' "$BADGING"
+          printf '%s\n' "$BADGING" | grep -Fq "package: name='com.aistudio.labtestsdirectory.egypt'"
+          printf '%s\n' "$BADGING" | grep -Fq "versionCode='144'"
+          cp "$APK" Tahalil-Alakkad-V144-No-Relock-SIGNED.apk
+          sha256sum Tahalil-Alakkad-V144-No-Relock-SIGNED.apk > Tahalil-Alakkad-V144-No-Relock-SIGNED.apk.sha256
+
+      - name: Publish immutable V144 source branch
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          cd build_v144
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          rm -rf app/build build .gradle
+          git checkout -B v144-android-no-relock-base
+          git add -A
+          git commit -m 'Android V144 keep authenticated session unlocked on app return'
+          V144_SHA="$(git rev-parse HEAD)"
+          git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:refs/heads/v144-android-no-relock-base
+          echo "V144_COMMIT_SHA=$V144_SHA" >> "$GITHUB_ENV"
+
+      - name: Prepare source snapshot
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd build_v144 && zip -qr ../Tahalil-Alakkad-V144-Android-SOURCE.zip . -x '.git/*' '.gradle/*' 'app/build/*' 'build/*' '*.apk')
+          sha256sum Tahalil-Alakkad-V144-Android-SOURCE.zip > Tahalil-Alakkad-V144-Android-SOURCE.zip.sha256
+
+      - name: Upload V144 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Tahalil-Alakkad-Android-V144-NO-RELOCK
+          path: |
+            Tahalil-Alakkad-V144-No-Relock-SIGNED.apk
+            Tahalil-Alakkad-V144-No-Relock-SIGNED.apk.sha256
+            Tahalil-Alakkad-V144-Android-SOURCE.zip
+            Tahalil-Alakkad-V144-Android-SOURCE.zip.sha256
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish Android V144 release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TAG='v144-android-no-relock'
+          gh release create "$TAG" \
+            Tahalil-Alakkad-V144-No-Relock-SIGNED.apk \
+            Tahalil-Alakkad-V144-No-Relock-SIGNED.apk.sha256 \
+            Tahalil-Alakkad-V144-Android-SOURCE.zip \
+            Tahalil-Alakkad-V144-Android-SOURCE.zip.sha256 \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$V144_COMMIT_SHA" \
+            --title 'تحاليل العقاد Android V144 — بدون قفل عند الرجوع للتطبيق' \
+            --notes 'Built from exact Android V143 Organ Search + Backup Fix R3 source. Removes the secondary local PIN/biometric re-lock when the authenticated user leaves and returns to the app, including process reopen while Firebase login is still active. Explicit Logout still signs out normally. Manager admin elevation still locks on background. V143 organ search, encrypted manual/04:00 backup permission fix, catalogue, prices, results, offline, notifications, screenshots and installed signing identity are preserved. Firestore rules are unchanged.'
+          echo 'ANDROID V144 NO-RELOCK RELEASED'
