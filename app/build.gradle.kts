@@ -20,8 +20,8 @@ android {
     applicationId = "com.aistudio.labtestsdirectory.egypt"
     minSdk = 24
     targetSdk = 36
-    versionCode = 142
-    versionName = "5.62-backup-smart-search-ui-v142"
+    versionCode = 143
+    versionName = "5.63-organ-search-everywhere-v143"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
@@ -146,4 +146,26 @@ dependencies {
   androidTestImplementation(libs.androidx.runner)
   debugImplementation(libs.androidx.compose.ui.test.manifest)
   debugImplementation(libs.androidx.compose.ui.tooling)
+}
+
+// V143 CI safety: force the release variant to use the exact V142 signing
+// identity selected by the workflow. No secret value is stored in source.
+android {
+    signingConfigs {
+        create("v143ExactInstalledSigner") {
+            storeFile = file(System.getenv("KEYSTORE_PATH")
+                ?: error("KEYSTORE_PATH missing"))
+            storePassword = System.getenv("STORE_PASSWORD")
+                ?: error("STORE_PASSWORD missing")
+            keyAlias = System.getenv("KEY_ALIAS")
+                ?: error("KEY_ALIAS missing")
+            keyPassword = System.getenv("KEY_PASSWORD")
+                ?: error("KEY_PASSWORD missing")
+        }
+    }
+    buildTypes {
+        getByName("release") {
+            signingConfig = signingConfigs.getByName("v143ExactInstalledSigner")
+        }
+    }
 }
