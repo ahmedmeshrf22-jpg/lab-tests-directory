@@ -1,0 +1,200 @@
+name: Final Handover Healthcheck V144 V146
+
+on:
+  push:
+    paths:
+      - '.github/workflows/final-handover-healthcheck-v144-v146.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  final-handover-healthcheck:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+      FIREBASE_WEB_API_KEY: AIzaSyDHw4qrzsE04pQR7uj3GVOgEdyU5Cev49U
+    steps:
+      - name: Verify final release assets are reachable
+        shell: bash
+        run: |
+          set -euo pipefail
+          urls=(
+            "https://github.com/ahmedmeshrf22-jpg/lab-tests-directory/releases/download/v144-android-no-relock-r3/Tahalil-Alakkad-V144-No-Relock-R3-SIGNED.apk"
+            "https://github.com/ahmedmeshrf96-bot/lab-tests-directory/releases/download/v146-windows/Tahalil-Alakkad-V146-Windows-Setup.exe"
+            "https://github.com/ahmedmeshrf96-bot/lab-tests-directory/releases/download/v146-windows/Tahalil-Alakkad-V146-Windows-Portable.exe"
+            "https://github.com/ahmedmeshrf96-bot/lab-tests-directory/releases/download/v146-windows/latest-windows.json"
+          )
+          for u in "${urls[@]}"; do
+            code="$(curl -L -sS -o /dev/null -w '%{http_code}' --retry 3 --retry-delay 2 --max-time 90 "$u")"
+            test "$code" = "200"
+            echo "OK $code $u"
+          done
+
+      - name: Verify unauthenticated Supabase security gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="https://ogidyelgmigcvasizzuv.supabase.co/functions/v1"
+          code="$(curl -sS -o /tmp/failover-noauth.json -w '%{http_code}' "$base/tahalil-failover-read?entityType=catalog_override&prefix=lab_catalog_overrides")"
+          test "$code" = "401"
+          code="$(curl -sS -X POST -o /tmp/reconcile-noauth.json -w '%{http_code}' "$base/tahalil-shadow-reconcile")"
+          test "$code" = "401"
+          code="$(curl -sS -o /tmp/mirror-noauth.json -w '%{http_code}' "$base/tahalil-shadow-mirror")"
+          test "$code" = "401"
+          echo "Supabase auth gates passed"
+
+      - name: Prepare Firebase service account
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${FIREBASE_SERVICE_ACCOUNT_JSON:-}"
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT_JSON" > "$RUNNER_TEMP/firebase-service-account.json"
+          python3 -m json.tool "$RUNNER_TEMP/firebase-service-account.json" >/dev/null
+          echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/firebase-service-account.json" >> "$GITHUB_ENV"
+
+      - name: Install Firebase Admin SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/handover-check"
+          cd "$RUNNER_TEMP/handover-check"
+          npm init -y >/dev/null 2>&1
+          npm install firebase-admin@13 --no-audit --no-fund
+
+      - name: Authenticated failover parity, reconcile and Firestore checkpoint
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/handover-check"
+          cat > handover-check.cjs <<'NODE'
+          const admin = require('firebase-admin');
+          const fs = require('fs');
+          const crypto = require('crypto');
+
+          const PROJECT = 'tahalil-alakkad';
+          const PRIV_UID = 'Wps5Y19pZSbeGooEzFfW5UFsshq2';
+          const API_KEY = process.env.FIREBASE_WEB_API_KEY;
+          const SUPABASE_BASE = 'https://ogidyelgmigcvasizzuv.supabase.co/functions/v1';
+
+          const sa = JSON.parse(fs.readFileSync(process.env.GOOGLE_APPLICATION_CREDENTIALS, 'utf8'));
+          admin.initializeApp({ credential: admin.credential.cert(sa), projectId: PROJECT });
+          const db = admin.firestore();
+
+          function assert(v, m) { if (!v) throw new Error(m); }
+
+          async function getDevice(uid) {
+            await admin.auth().getUser(uid);
+            const p = await db.collection('users').doc(uid).get();
+            assert(p.exists, 'Privileged admin profile missing');
+            const pd = p.data() || {};
+            assert(pd.enabled === true, 'Privileged admin disabled');
+            assert(pd.role === 'super_admin', 'Privileged admin role mismatch');
+            const ds = await db.collection('users').doc(uid).collection('devices').get();
+            for (const d of ds.docs) {
+              const x = d.data() || {};
+              const id = String(x.device_id || d.id || '').toLowerCase();
+              if (x.status === 'approved' && x.uid === uid && /^[a-f0-9]{32}$/.test(id)) return id;
+            }
+            throw new Error('No approved privileged-admin device');
+          }
+
+          async function getIdToken(uid) {
+            const customToken = await admin.auth().createCustomToken(uid);
+            const r = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken?key=${encodeURIComponent(API_KEY)}`, {
+              method: 'POST', headers: {'Content-Type':'application/json'},
+              body: JSON.stringify({token: customToken, returnSecureToken: true})
+            });
+            const x = await r.json().catch(()=>({}));
+            assert(r.ok && x.idToken, `Custom-token exchange failed ${r.status}`);
+            return x.idToken;
+          }
+
+          async function failover(token, device, entityType, prefix) {
+            const u = new URL(`${SUPABASE_BASE}/tahalil-failover-read`);
+            u.searchParams.set('entityType', entityType);
+            if (prefix) u.searchParams.set('prefix', prefix);
+            const r = await fetch(u, {headers:{Authorization:`Bearer ${token}`,'X-Tahalil-Device':device,Accept:'application/json'}});
+            const x = await r.json().catch(()=>({}));
+            assert(r.ok && x.ok === true, `Failover ${entityType} failed ${r.status} ${x.error || ''}`);
+            return x;
+          }
+
+          async function reconcile(token, device) {
+            const r = await fetch(`${SUPABASE_BASE}/tahalil-shadow-reconcile`, {
+              method:'POST', headers:{Authorization:`Bearer ${token}`,'X-Tahalil-Device':device,Accept:'application/json'}
+            });
+            const x = await r.json().catch(()=>({}));
+            assert(r.ok && x.ok === true, `Reconcile failed ${r.status} ${x.error || ''}`);
+            return x;
+          }
+
+          const shadowPaths = body => new Set((Array.isArray(body.documents)?body.documents:[]).map(x=>String(x.path||'')).filter(Boolean));
+          const diff = (a,b) => [...a].filter(x=>!b.has(x));
+          async function firestorePaths(c) {
+            const s = await db.collection(c).get();
+            return new Set(s.docs.map(d=>`${c}/${d.id}`));
+          }
+
+          async function writeCheckpoint(health) {
+            const state = {
+              checkpoint_key:'current', checkpoint_type:'final_delivery_release_state',
+              android:{version_code:144,version_name:'5.64-no-relock-v144-r3',commit:'cb81e5608a02103b5d4633063b44fffd21e082da',release_tag:'v144-android-no-relock-r3',apk_sha256:'b242200dbc4964bd3fa81245ae080183c6b2639a30fefdc1f17deb6282720aac'},
+              windows:{version_code:146,version_name:'Windows V146 Android V144 R3 Full Parity No Re-Lock',release_tag:'v146-windows',setup_sha256:'85d849242e091e1180f9c901664b31bdc5d968327abd022eafdfa1ffa16e3a67',portable_sha256:'6db8f034895455e0361685c2a0c16804f49fb5817714d1b4e1793f6e2cf2fbc6'},
+              backend:{firebase_project_id:PROJECT,supabase_project_ref:'ogidyelgmigcvasizzuv',backend_hardening:'catalog_override_shadow_failover_reconcile + lab_order tombstone cleanup',edge_functions:{'tahalil-shadow-mirror':5,'tahalil-recovery-probe':2,'tahalil-failover-read':4,'tahalil-result-failover':1,'tahalil-shadow-reconcile':2}},
+              handover_health:health,
+              safety:{firestore_rules_changed:false,customer_data_changed:false,backend_functions_redeployed:true},
+              saved_at:admin.firestore.FieldValue.serverTimestamp()
+            };
+            state.checkpoint_sha256 = crypto.createHash('sha256').update(JSON.stringify({android:state.android,windows:state.windows,backend:state.backend,handover_health:health,safety:state.safety})).digest('hex');
+            const ref = db.collection('system_release_state').doc('current');
+            await ref.set(state,{merge:false});
+            const s = (await ref.get()).data() || {};
+            assert(s.backend?.edge_functions?.['tahalil-shadow-mirror']===5,'Checkpoint mirror mismatch');
+            assert(s.backend?.edge_functions?.['tahalil-failover-read']===4,'Checkpoint failover mismatch');
+            assert(s.backend?.edge_functions?.['tahalil-shadow-reconcile']===2,'Checkpoint reconcile mismatch');
+            assert(s.handover_health?.status==='passed','Checkpoint health mismatch');
+          }
+
+          async function main(){
+            const device = await getDevice(PRIV_UID);
+            const token = await getIdToken(PRIV_UID);
+            const rec = await reconcile(token,device);
+
+            const catShadow = shadowPaths(await failover(token,device,'catalog_override','lab_catalog_overrides'));
+            const labShadow = shadowPaths(await failover(token,device,'lab_order','lab_orders'));
+            const catFb = await firestorePaths('lab_catalog_overrides');
+            const labFb = await firestorePaths('lab_orders');
+
+            const catMissing=diff(catFb,catShadow), catExtra=diff(catShadow,catFb);
+            const labMissing=diff(labFb,labShadow), labExtra=diff(labShadow,labFb);
+            assert(catMissing.length===0 && catExtra.length===0,`catalog_override parity mismatch missing=${catMissing.length} extra=${catExtra.length}`);
+            assert(labMissing.length===0 && labExtra.length===0,`lab_order parity mismatch missing=${labMissing.length} extra=${labExtra.length}`);
+
+            const health={status:'passed',checked_on:'2026-09-05',authenticated_catalog_override_failover:true,authenticated_lab_order_failover:true,reconcile_completed:true,catalog_override_firestore_count:catFb.size,catalog_override_shadow_count:catShadow.size,lab_order_firestore_count:labFb.size,lab_order_shadow_count:labShadow.size,reconcile_scanned:Number(rec.scanned||0),reconcile_tombstoned:Number(rec.tombstoned||0)};
+            await writeCheckpoint(health);
+            fs.writeFileSync('handover-health.json',JSON.stringify({ok:true,health,reconcileCounts:rec.counts||{}},null,2));
+            console.log('FINAL HANDOVER HEALTHCHECK PASSED');
+            console.log(JSON.stringify(health));
+          }
+
+          main().then(()=>process.exit(0)).catch(e=>{console.error('FINAL HANDOVER HEALTHCHECK FAILED:',e.message||e);process.exit(1);});
+          NODE
+          node handover-check.cjs
+
+      - name: Upload final health report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: final-handover-health-v144-v146
+          path: ${{ runner.temp }}/handover-check/handover-health.json
+          if-no-files-found: ignore
+
+      - name: Final summary
+        if: success()
+        shell: bash
+        run: |
+          echo "## FINAL HANDOVER PASSED" >> "$GITHUB_STEP_SUMMARY"
+          echo "Android V144 R3, Windows V146, Firebase checkpoint and Supabase failover parity verified." >> "$GITHUB_STEP_SUMMARY"
