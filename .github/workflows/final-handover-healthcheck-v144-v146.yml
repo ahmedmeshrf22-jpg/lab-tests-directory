@@ -143,7 +143,7 @@ jobs:
               checkpoint_key:'current', checkpoint_type:'final_delivery_release_state',
               android:{version_code:144,version_name:'5.64-no-relock-v144-r3',commit:'cb81e5608a02103b5d4633063b44fffd21e082da',release_tag:'v144-android-no-relock-r3',apk_sha256:'b242200dbc4964bd3fa81245ae080183c6b2639a30fefdc1f17deb6282720aac'},
               windows:{version_code:146,version_name:'Windows V146 Android V144 R3 Full Parity No Re-Lock',release_tag:'v146-windows',setup_sha256:'85d849242e091e1180f9c901664b31bdc5d968327abd022eafdfa1ffa16e3a67',portable_sha256:'6db8f034895455e0361685c2a0c16804f49fb5817714d1b4e1793f6e2cf2fbc6'},
-              backend:{firebase_project_id:PROJECT,supabase_project_ref:'ogidyelgmigcvasizzuv',backend_hardening:'catalog_override_shadow_failover_reconcile + lab_order tombstone cleanup',edge_functions:{'tahalil-shadow-mirror':5,'tahalil-recovery-probe':2,'tahalil-failover-read':4,'tahalil-result-failover':1,'tahalil-shadow-reconcile':2}},
+              backend:{firebase_project_id:PROJECT,supabase_project_ref:'ogidyelgmigcvasizzuv',backend_hardening:'catalog_override_shadow_failover_reconcile + lab_order tombstone cleanup',edge_functions:{'tahalil-shadow-mirror':5,'tahalil-recovery-probe':2,'tahalil-failover-read':4,'tahalil-result-failover':1,'tahalil-shadow-reconcile':3}},
               handover_health:health,
               safety:{firestore_rules_changed:false,customer_data_changed:false,backend_functions_redeployed:true},
               saved_at:admin.firestore.FieldValue.serverTimestamp()
@@ -154,7 +154,7 @@ jobs:
             const s = (await ref.get()).data() || {};
             assert(s.backend?.edge_functions?.['tahalil-shadow-mirror']===5,'Checkpoint mirror mismatch');
             assert(s.backend?.edge_functions?.['tahalil-failover-read']===4,'Checkpoint failover mismatch');
-            assert(s.backend?.edge_functions?.['tahalil-shadow-reconcile']===2,'Checkpoint reconcile mismatch');
+            assert(s.backend?.edge_functions?.['tahalil-shadow-reconcile']===3,'Checkpoint reconcile mismatch');
             assert(s.handover_health?.status==='passed','Checkpoint health mismatch');
           }
 
@@ -162,6 +162,7 @@ jobs:
             const device = await getDevice(PRIV_UID);
             const token = await getIdToken(PRIV_UID);
             const rec = await reconcile(token,device);
+            assert(Number(rec.revision||0)===3,'Reconcile live revision mismatch');
 
             const catShadow = shadowPaths(await failover(token,device,'catalog_override','lab_catalog_overrides'));
             const labShadow = shadowPaths(await failover(token,device,'lab_order','lab_orders'));
@@ -173,7 +174,7 @@ jobs:
             assert(catMissing.length===0 && catExtra.length===0,`catalog_override parity mismatch missing=${catMissing.length} extra=${catExtra.length}`);
             assert(labMissing.length===0 && labExtra.length===0,`lab_order parity mismatch missing=${labMissing.length} extra=${labExtra.length}`);
 
-            const health={status:'passed',checked_on:'2026-09-05',authenticated_catalog_override_failover:true,authenticated_lab_order_failover:true,reconcile_completed:true,catalog_override_firestore_count:catFb.size,catalog_override_shadow_count:catShadow.size,lab_order_firestore_count:labFb.size,lab_order_shadow_count:labShadow.size,reconcile_scanned:Number(rec.scanned||0),reconcile_tombstoned:Number(rec.tombstoned||0)};
+            const health={status:'passed',checked_on:'2026-09-05',authenticated_catalog_override_failover:true,authenticated_lab_order_failover:true,reconcile_completed:true,reconcile_revision:Number(rec.revision||0),catalog_override_firestore_count:catFb.size,catalog_override_shadow_count:catShadow.size,lab_order_firestore_count:labFb.size,lab_order_shadow_count:labShadow.size,reconcile_scanned:Number(rec.scanned||0),reconcile_tombstoned:Number(rec.tombstoned||0)};
             await writeCheckpoint(health);
             fs.writeFileSync('handover-health.json',JSON.stringify({ok:true,health,reconcileCounts:rec.counts||{}},null,2));
             console.log('FINAL HANDOVER HEALTHCHECK PASSED');
