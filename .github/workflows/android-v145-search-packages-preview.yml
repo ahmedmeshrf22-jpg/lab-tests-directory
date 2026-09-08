@@ -1,22 +1,23 @@
-name: Android V145 Search Packages PREVIEW
+name: Android V145 FINAL Search Packages Handover
 
 on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
-  group: tahalil-v145-search-packages-preview
+  group: tahalil-android-v145-final
   cancel-in-progress: false
 
 jobs:
   build-v145:
+    name: Build Audit Sign Release V145
     runs-on: ubuntu-latest
     timeout-minutes: 90
 
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
@@ -27,12 +28,33 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-      - name: Setup Gradle
+      - name: Setup Gradle 8.11.1
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.11.1"
 
-      - name: Load exact V144 R3 source
+      - name: Preflight final destination
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          TAG='v145-search-packages-final'
+          BRANCH='v145-search-packages-final-base'
+
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "::error::Final V145 release already exists"
+            exit 1
+          fi
+
+          if git ls-remote --exit-code --heads origin \
+            "refs/heads/$BRANCH" >/dev/null 2>&1; then
+            echo "::error::Final V145 source branch already exists"
+            exit 1
+          fi
+
+      - name: Load exact V144 R3
         shell: bash
         run: |
           set -euo pipefail
@@ -47,7 +69,7 @@ jobs:
           ACTUAL="$(git rev-parse "$REF^{commit}")"
 
           if [ "$ACTUAL" != "$EXPECTED" ]; then
-            echo "::error::V144 R3 source changed"
+            echo "::error::V144 R3 base moved"
             echo "Expected: $EXPECTED"
             echo "Actual:   $ACTUAL"
             exit 1
@@ -59,472 +81,443 @@ jobs:
           grep -Fq 'versionCode = 144' \
             build_v145/app/build.gradle.kts
 
-          grep -Fq 'versionName = "5.64-no-relock-v144-r3"' \
-            build_v145/app/build.gradle.kts
-
           grep -Fq 'V144_R3_NO_RELOCK' \
             build_v145/app/src/main/java/com/example/MainActivity.kt
 
           sha256sum \
             build_v145/firestore.rules \
-            build_v145/app/google-services.json \
             build_v145/app/src/main/assets/lab_tests_android.json \
             build_v145/app/src/main/java/com/example/MainActivity.kt \
-            > "$RUNNER_TEMP/protected-before.sha256"
+            > "$RUNNER_TEMP/protected-v144.sha256"
 
-      - name: Apply V145 search packages patch
+      - name: Create package UI
         shell: bash
         run: |
           set -euo pipefail
 
-          python3 <<'PY'
-          from pathlib import Path
+          cat > \
+          build_v145/app/src/main/java/com/example/ui/V145InquiryPackages.kt \
+          <<'KOTLIN'
 
-          ROOT = Path("build_v145")
+          package com.example.ui
 
-          SCREEN = ROOT / "app/src/main/java/com/example/ui/LabTestsScreen.kt"
-          GRAD = ROOT / "app/build.gradle.kts"
+          import androidx.compose.foundation.BorderStroke
+          import androidx.compose.foundation.layout.*
+          import androidx.compose.foundation.shape.RoundedCornerShape
+          import androidx.compose.material.icons.Icons
+          import androidx.compose.material.icons.filled.AddCircle
+          import androidx.compose.material.icons.filled.CheckCircle
+          import androidx.compose.material3.*
+          import androidx.compose.runtime.Composable
+          import androidx.compose.ui.Alignment
+          import androidx.compose.ui.Modifier
+          import androidx.compose.ui.graphics.Color
+          import androidx.compose.ui.text.font.FontWeight
+          import androidx.compose.ui.unit.dp
+          import androidx.compose.ui.unit.sp
+          import com.example.data.model.LabTest
+          import com.example.settings.appText
 
-          def replace_one(text, old, new, name):
-              count = text.count(old)
-              if count != 1:
-                  raise SystemExit(
-                      f"{name}: expected exactly 1 occurrence, found {count}"
-                  )
-              return text.replace(old, new, 1)
-
-          # ============================================================
-          # VERSION
-          # ============================================================
-
-          g = GRAD.read_text(encoding="utf-8")
-
-          g = replace_one(
-              g,
-              "versionCode = 144",
-              "versionCode = 145",
-              "versionCode"
+          private data class V145Package(
+              val ar: String,
+              val en: String,
+              val queries: List<String>
           )
 
-          g = replace_one(
-              g,
-              'versionName = "5.64-no-relock-v144-r3"',
-              'versionName = "5.65-search-packages-v145-preview"',
-              "versionName"
-          )
+          private val V145Packages = listOf(
 
-          GRAD.write_text(g, encoding="utf-8")
-
-          # ============================================================
-          # UI
-          # ============================================================
-
-          s = SCREEN.read_text(encoding="utf-8")
-
-          # ------------------------------------------------------------
-          # 1. DO NOT erase search text after selecting a test.
-          # ------------------------------------------------------------
-
-          OLD_SELECT = '''                                        onSuggestionSelected = { test ->
-                                              viewModel.addSelectedTest(test)
-                                              // Keep the field focused and ready for the next test.
-                                              viewModel.clearSearch()
-                                          },'''
-
-          NEW_SELECT = '''                                        onSuggestionSelected = { test ->
-                                              // V145: text stays until user presses X.
-                                              viewModel.addSelectedTest(test)
-                                          },'''
-
-          s = replace_one(
-              s,
-              OLD_SELECT,
-              NEW_SELECT,
-              "remove automatic search clearing"
-          )
-
-          # ------------------------------------------------------------
-          # 2. Enlarge SearchBox + multiline.
-          # ------------------------------------------------------------
-
-          start = s.find("private fun SearchBox(")
-          end = s.find(
-              "\n@Composable\nprivate fun ResultCountChip",
-              start
-          )
-
-          if start < 0 or end < 0:
-              raise SystemExit("SearchBox block not found")
-
-          before = s[:start]
-          box = s[start:end]
-          after = s[end:]
-
-          box = replace_one(
-              box,
-              '''            modifier = Modifier
-                  .fillMaxWidth()
-                  .heightIn(min = 62.dp)
-                  .onFocusChanged { focused = it.isFocused }
-                  .testTag("search_text_field"),''',
-              '''            modifier = Modifier
-                  .fillMaxWidth()
-                  .heightIn(min = 105.dp)
-                  .onFocusChanged { focused = it.isFocused }
-                  .testTag("search_text_field"),''',
-              "search field height"
-          )
-
-          box = replace_one(
-              box,
-              '''                        "ابحث عن تحليل أو اكتب ما تريد الاطمئنان عليه",
-                          "Search a test or type what you want to check"''',
-              '''                        "اكتب أو الصق أكتر من تحليل — كل تحليل في سطر أو بفاصلة",
-                          "Type or paste multiple tests — one per line or separated by commas"''',
-              "search placeholder"
-          )
-
-          box = replace_one(
-              box,
-              '''            singleLine = true,
-              shape = RoundedCornerShape(18.dp),''',
-              '''            singleLine = false,
-              minLines = 2,
-              maxLines = 5,
-              shape = RoundedCornerShape(18.dp),''',
-              "multiline search"
-          )
-
-          box = replace_one(
-              box,
-              '''            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-              keyboardActions = KeyboardActions(onSearch = { keyboardController?.hide() })''',
-              '''            keyboardOptions = KeyboardOptions(
-                  imeAction = ImeAction.Default
-              )''',
-              "keyboard multiline"
-          )
-
-          box = replace_one(
-              box,
-              '''                        modifier = Modifier.fillMaxWidth().heightIn(max = 330.dp),''',
-              '''                        modifier = Modifier.fillMaxWidth().heightIn(max = 520.dp),''',
-              "larger results list"
-          )
-
-          s = before + box + after
-
-          # ------------------------------------------------------------
-          # 3. PACKAGES
-          # ------------------------------------------------------------
-
-          SEARCH_MARKER = '''@Composable
-          private fun SearchBox('''
-
-          if s.count(SEARCH_MARKER) != 1:
-              raise SystemExit("SearchBox insertion marker invalid")
-
-          PACKAGE_CODE = r'''
-          private data class InquiryPackageV145(
-              val key: String,
-              val arabicName: String,
-              val englishName: String,
-              val testQueries: List<String>
-          )
-
-          private val V145_INQUIRY_PACKAGES = listOf(
-
-              InquiryPackageV145(
-                  key = "liver",
-                  arabicName = "باقة وظائف الكبد",
-                  englishName = "Liver Function Package",
-                  testQueries = listOf(
-                      "ALT",
-                      "AST",
+              V145Package(
+                  "باقة وظائف الكبد",
+                  "Liver Function Package",
+                  listOf(
+                      "ALT (SGPT)",
+                      "AST (SGOT)",
+                      "ALP",
                       "GGT",
-                      "Bilirubin Total",
-                      "Bilirubin Direct",
+                      "Bilirubin (Total)",
+                      "Bilirubin (Direct)",
                       "Albumin"
                   )
               ),
 
-              InquiryPackageV145(
-                  key = "kidney",
-                  arabicName = "باقة وظائف الكلى",
-                  englishName = "Kidney Function Package",
-                  testQueries = listOf(
-                      "Creatinine",
+              V145Package(
+                  "باقة وظائف الكلى",
+                  "Kidney Function Package",
+                  listOf(
                       "Urea",
-                      "Uric Acid"
+                      "Creatinine",
+                      "Uric Acid",
+                      "eGFR"
                   )
               ),
 
-              InquiryPackageV145(
-                  key = "diabetes",
-                  arabicName = "باقة السكر",
-                  englishName = "Diabetes Package",
-                  testQueries = listOf(
-                      "HbA1c",
-                      "Glucose Fasting",
-                      "Glucose 2 Hours"
+              V145Package(
+                  "باقة السكر",
+                  "Diabetes Package",
+                  listOf(
+                      "Fasting Blood Glucose",
+                      "HbA1c"
                   )
               ),
 
-              InquiryPackageV145(
-                  key = "thyroid",
-                  arabicName = "باقة الغدة الدرقية",
-                  englishName = "Thyroid Package",
-                  testQueries = listOf(
+              V145Package(
+                  "باقة الغدة الدرقية",
+                  "Thyroid Package",
+                  listOf(
                       "TSH",
                       "Free T4",
                       "Free T3"
                   )
               ),
 
-              InquiryPackageV145(
-                  key = "lipid",
-                  arabicName = "باقة الدهون",
-                  englishName = "Lipid Profile Package",
-                  testQueries = listOf(
+              V145Package(
+                  "باقة الدهون",
+                  "Lipid Profile Package",
+                  listOf(
                       "Cholesterol",
-                      "Triglycerides",
+                      "Triglyceride",
                       "HDL",
                       "LDL"
                   )
               ),
 
-              InquiryPackageV145(
-                  key = "anemia",
-                  arabicName = "باقة الأنيميا",
-                  englishName = "Anemia Package",
-                  testQueries = listOf(
+              V145Package(
+                  "باقة الأنيميا",
+                  "Anemia Package",
+                  listOf(
                       "CBC",
-                      "Ferritin",
-                      "Iron",
-                      "TIBC"
+                      "Ferritin"
+                  )
+              ),
+
+              V145Package(
+                  "باقة الفحص الأساسي",
+                  "Basic Checkup Package",
+                  listOf(
+                      "CBC",
+                      "HbA1c",
+                      "TSH",
+                      "Creatinine",
+                      "ALT (SGPT)",
+                      "Cholesterol"
                   )
               )
           )
 
-          private fun resolvePackageTestsV145(
+          private fun normalizeV145(value: String): String =
+              value.lowercase()
+                  .replace(
+                      Regex("[^a-z0-9\\u0600-\\u06ff]+"),
+                      " "
+                  )
+                  .trim()
+
+          private fun resolveV145(
               viewModel: LabTestsViewModel,
-              queries: List<String>
-          ): List<LabTest> {
+              query: String
+          ): LabTest? {
 
-              fun normalize(value: String): String {
-                  return value
-                      .lowercase()
-                      .replace(
-                          Regex("[^a-z0-9\\u0600-\\u06ff]+"),
-                          " "
-                      )
-                      .trim()
+              val wanted = normalizeV145(query)
+
+              val candidates =
+                  viewModel.searchManagerTests(query)
+
+              return candidates.firstOrNull { test ->
+
+                  listOf(
+                      test.englishName,
+                      test.arabicName,
+                      test.marketName
+                  ).any { name ->
+
+                      val current =
+                          normalizeV145(name)
+
+                      current == wanted ||
+                          current.startsWith("$wanted ") ||
+                          wanted.startsWith("$current ")
+                  }
+
+              } ?: candidates.firstOrNull()
+          }
+
+          private fun priceNumberV145(
+              value: String?
+          ): Double {
+
+              return Regex(
+                  "[0-9]+(\\.[0-9]+)?"
+              )
+                  .find(value.orEmpty())
+                  ?.value
+                  ?.toDoubleOrNull()
+                  ?: 0.0
+          }
+
+          private fun moneyV145(
+              value: Double
+          ): String {
+
+              return if (
+                  value % 1.0 == 0.0
+              ) {
+                  value.toLong().toString()
+              } else {
+                  String.format(
+                      "%.2f",
+                      value
+                  )
               }
+          }
 
-              return queries.mapNotNull { query ->
+          fun activeSearchSegmentV145(
+              query: String
+          ): String {
 
-                  val requested = normalize(query)
-
-                  val candidates =
-                      viewModel.searchManagerTests(query)
-
-                  candidates.firstOrNull { test ->
-
-                      listOf(
-                          test.englishName,
-                          test.arabicName,
-                          test.marketName
-                      ).any { name ->
-
-                          val normalized = normalize(name)
-
-                          normalized == requested ||
-                              normalized.startsWith("$requested ") ||
-                              requested.startsWith("$normalized ")
-                      }
-
-                  } ?: candidates.firstOrNull()
-
-              }.distinctBy { it.id }
+              return query
+                  .split(
+                      Regex(
+                          "[\\n\\r\\t,،;؛|•]+"
+                      )
+                  )
+                  .lastOrNull()
+                  ?.trim()
+                  .orEmpty()
           }
 
           @Composable
-          private fun InquiryPackagesSectionV145(
+          fun InquiryPackagesV145(
               viewModel: LabTestsViewModel,
-              customerPriceOverrides: Map<Int, String>,
+              customerPriceOverrides:
+                  Map<Int, String>,
               selectedIds: Set<Int>,
-              onAddPackage: (List<LabTest>) -> Unit
+              onAddPackage:
+                  (List<LabTest>) -> Unit
           ) {
 
               Column(
-                  modifier = Modifier.fillMaxWidth(),
-                  verticalArrangement = Arrangement.spacedBy(9.dp)
+                  modifier =
+                      Modifier.fillMaxWidth(),
+                  verticalArrangement =
+                      Arrangement.spacedBy(8.dp)
               ) {
 
-                  Row(
-                      modifier = Modifier.fillMaxWidth(),
-                      horizontalArrangement = Arrangement.SpaceBetween,
-                      verticalAlignment = Alignment.CenterVertically
-                  ) {
+                  Text(
+                      text = appText(
+                          "باقات التحاليل",
+                          "Test Packages"
+                      ),
+                      fontSize = 16.sp,
+                      fontWeight =
+                          FontWeight.ExtraBold,
+                      color =
+                          Color(0xFF17324D)
+                  )
 
-                      Text(
-                          text = appText(
-                              "باقات التحاليل",
-                              "Test Packages"
-                          ),
-                          fontSize = 16.sp,
-                          fontWeight = FontWeight.ExtraBold,
-                          color = Color(0xFF17324D)
-                      )
-
-                      Text(
-                          text = appText(
-                              "${V145_INQUIRY_PACKAGES.size} باقات",
-                              "${V145_INQUIRY_PACKAGES.size} packages"
-                          ),
-                          fontSize = 10.sp,
-                          color = Color(0xFF64748B)
-                      )
-                  }
-
-                  V145_INQUIRY_PACKAGES.forEach { pkg ->
+                  V145Packages.forEach { pkg ->
 
                       val tests =
-                          resolvePackageTestsV145(
-                              viewModel,
-                              pkg.testQueries
-                          )
+                          pkg.queries
+                              .mapNotNull {
+                                  resolveV145(
+                                      viewModel,
+                                      it
+                                  )
+                              }
+                              .distinctBy {
+                                  it.id
+                              }
 
                       val total =
-                          calculatePriceTotal(tests) { test ->
+                          tests.sumOf { test ->
 
-                              customerPriceOverrides[test.id]
-                                  ?: test.customerPrice
+                              priceNumberV145(
+                                  customerPriceOverrides[
+                                      test.id
+                                  ]
+                                      ?: test.customerPrice
+                              )
                           }
 
                       val allSelected =
                           tests.isNotEmpty() &&
-                              tests.all { it.id in selectedIds }
+                              tests.all {
+                                  it.id in selectedIds
+                              }
 
                       Card(
-                          modifier = Modifier.fillMaxWidth(),
-                          shape = RoundedCornerShape(17.dp),
-                          colors = CardDefaults.cardColors(
-                              containerColor =
+                          modifier =
+                              Modifier.fillMaxWidth(),
+                          shape =
+                              RoundedCornerShape(
+                                  16.dp
+                              ),
+                          colors =
+                              CardDefaults.cardColors(
+                                  containerColor =
+                                      if (allSelected)
+                                          Color(
+                                              0xFFEAF7F2
+                                          )
+                                      else
+                                          Color.White
+                              ),
+                          border =
+                              BorderStroke(
+                                  1.dp,
                                   if (allSelected)
-                                      Color(0xFFEAF7F2)
+                                      Color(
+                                          0xFF8FD3B6
+                                      )
                                   else
-                                      Color.White
-                          ),
-                          border = BorderStroke(
-                              1.dp,
-                              if (allSelected)
-                                  Color(0xFF98D8BE)
-                              else
-                                  Color(0xFFDCE6EF)
-                          )
+                                      Color(
+                                          0xFFDCE6EF
+                                      )
+                              )
                       ) {
 
                           Column(
-                              modifier = Modifier
-                                  .fillMaxWidth()
-                                  .padding(12.dp),
+                              modifier =
+                                  Modifier
+                                      .fillMaxWidth()
+                                      .padding(12.dp),
                               verticalArrangement =
-                                  Arrangement.spacedBy(7.dp)
+                                  Arrangement.spacedBy(
+                                      6.dp
+                                  )
                           ) {
 
                               Row(
-                                  modifier = Modifier.fillMaxWidth(),
-                                  horizontalArrangement =
-                                      Arrangement.SpaceBetween,
+                                  modifier =
+                                      Modifier.fillMaxWidth(),
                                   verticalAlignment =
-                                      Alignment.CenterVertically
+                                      Alignment.CenterVertically,
+                                  horizontalArrangement =
+                                      Arrangement.SpaceBetween
                               ) {
 
                                   Column(
-                                      modifier = Modifier.weight(1f)
+                                      modifier =
+                                          Modifier.weight(1f)
                                   ) {
 
                                       Text(
-                                          text = appText(
-                                              pkg.arabicName,
-                                              pkg.englishName
-                                          ),
-                                          fontSize = 14.sp,
+                                          text =
+                                              appText(
+                                                  pkg.ar,
+                                                  pkg.en
+                                              ),
+                                          fontSize =
+                                              14.sp,
                                           fontWeight =
                                               FontWeight.ExtraBold,
-                                          color = Color(0xFF17324D)
+                                          color =
+                                              Color(
+                                                  0xFF17324D
+                                              )
                                       )
 
                                       Text(
-                                          text = appText(
-                                              "${tests.size} تحليل",
-                                              "${tests.size} tests"
-                                          ),
-                                          fontSize = 10.sp,
-                                          fontWeight = FontWeight.Bold,
-                                          color = Color(0xFF64748B)
+                                          text =
+                                              appText(
+                                                  "${tests.size} تحليل",
+                                                  "${tests.size} tests"
+                                              ),
+                                          fontSize =
+                                              10.sp,
+                                          color =
+                                              Color(
+                                                  0xFF64748B
+                                              )
                                       )
                                   }
 
                                   Text(
                                       text =
-                                          "${formatTotalDisplay(total)} ${
-                                              appText("ج", "EGP")
+                                          "${moneyV145(total)} ${
+                                              appText(
+                                                  "ج",
+                                                  "EGP"
+                                              )
                                           }",
-                                      fontSize = 17.sp,
+                                      fontSize =
+                                          17.sp,
                                       fontWeight =
                                           FontWeight.ExtraBold,
-                                      color = Color(0xFF087F5B)
+                                      color =
+                                          Color(
+                                              0xFF087F5B
+                                          )
                                   )
                               }
 
-                              if (tests.isNotEmpty()) {
+                              if (
+                                  tests.isNotEmpty()
+                              ) {
 
                                   Text(
-                                      text = tests.joinToString(
-                                          separator = " • "
-                                      ) { test ->
-
-                                          test.marketName.ifBlank {
-                                              test.englishName
-                                          }
-                                      },
-                                      fontSize = 9.sp,
-                                      lineHeight = 13.sp,
-                                      color = Color(0xFF64748B)
+                                      text =
+                                          tests.joinToString(
+                                              " • "
+                                          ) {
+                                              it.marketName
+                                                  .ifBlank {
+                                                      it.englishName
+                                                  }
+                                          },
+                                      fontSize =
+                                          9.sp,
+                                      color =
+                                          Color(
+                                              0xFF64748B
+                                          )
                                   )
                               }
 
-                              LabeledIconAction(
-                                  label =
-                                      if (allSelected)
+                              Button(
+                                  onClick = {
+                                      onAddPackage(
+                                          tests
+                                      )
+                                  },
+                                  enabled =
+                                      tests.isNotEmpty() &&
+                                          !allSelected,
+                                  modifier =
+                                      Modifier.fillMaxWidth()
+                              ) {
+
+                                  Icon(
+                                      imageVector =
+                                          if (
+                                              allSelected
+                                          )
+                                              Icons.Default.CheckCircle
+                                          else
+                                              Icons.Default.AddCircle,
+                                      contentDescription =
+                                          null
+                                  )
+
+                                  Spacer(
+                                      Modifier.width(
+                                          6.dp
+                                      )
+                                  )
+
+                                  Text(
+                                      if (
+                                          allSelected
+                                      )
                                           appText(
-                                              "تمت إضافة الباقة",
-                                              "Package added"
+                                              "تمت الإضافة",
+                                              "Added"
                                           )
                                       else
                                           appText(
                                               "إضافة الباقة بالكامل",
                                               "Add full package"
-                                          ),
-                                  onClick = {
-                                      onAddPackage(tests)
-                                  },
-                                  modifier =
-                                      Modifier.fillMaxWidth(),
-                                  enabled =
-                                      tests.isNotEmpty() &&
-                                          !allSelected
-                              ) {
-
-                                  Icon(
-                                      imageVector =
-                                          if (allSelected)
-                                              Icons.Default.CheckCircle
-                                          else
-                                              Icons.Default.AddCircle,
-                                      contentDescription = null
+                                          )
                                   )
                               }
                           }
@@ -533,20 +526,88 @@ jobs:
               }
           }
 
-          '''
+          KOTLIN
 
-          s = s.replace(
-              SEARCH_MARKER,
-              PACKAGE_CODE + SEARCH_MARKER,
-              1
+      - name: Apply V145 source changes
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          python3 <<'PY'
+
+          from pathlib import Path
+          import re
+
+          root = Path("build_v145")
+
+          screen_file = (
+              root /
+              "app/src/main/java/com/example/ui/LabTestsScreen.kt"
           )
 
-          # ------------------------------------------------------------
-          # 4. Insert packages under Test Inquiry search field.
-          # ------------------------------------------------------------
+          vm_file = (
+              root /
+              "app/src/main/java/com/example/ui/LabTestsViewModel.kt"
+          )
 
-          QUICK_SEARCH = '''                                    SearchBox(
-                                              query = searchQuery,
-                                              onQueryChange = { viewModel.onManualQueryChanged(it) },
-                                              onClear = { viewModel.clearSearch() },
-                                           
+          grad_file = (
+              root /
+              "app/build.gradle.kts"
+          )
+
+          screen =
+              screen_file.read_text(
+                  encoding="utf-8"
+              )
+
+          vm =
+              vm_file.read_text(
+                  encoding="utf-8"
+              )
+
+          grad =
+              grad_file.read_text(
+                  encoding="utf-8"
+              )
+
+          # -------------------------------
+          # Version 145
+          # -------------------------------
+
+          if grad.count(
+              "versionCode = 144"
+          ) != 1:
+              raise SystemExit(
+                  "Version marker invalid"
+              )
+
+          grad =
+              grad.replace(
+                  "versionCode = 144",
+                  "versionCode = 145",
+                  1
+              )
+
+          grad, n =
+              re.subn(
+                  r'versionName\s*=\s*"[^"]+"',
+                  'versionName = "5.65-search-packages-v145"',
+                  grad,
+                  count=1
+              )
+
+          if n != 1:
+              raise SystemExit(
+                  "versionName failed"
+              )
+
+          # -------------------------------
+          # Stop automatic clear
+          # -------------------------------
+
+          auto_clear =
+              re.compile(
+                  r'onSuggestionSelected\s*=\s*'
+                  r'\{\s*test\s*->\s*'
+                  r'viewModel\.addSelectedTest'
+                  r'\(test\)
