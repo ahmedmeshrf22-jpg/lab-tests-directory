@@ -11,7 +11,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  build-v145:
+  build-v145-final:
     name: Build Audit Sign Release V145
     runs-on: ubuntu-latest
     timeout-minutes: 90
@@ -33,28 +33,25 @@ jobs:
         with:
           gradle-version: "8.11.1"
 
-      - name: Preflight final destination
+      - name: Preflight
         shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
 
-          TAG='v145-search-packages-final'
-          BRANCH='v145-search-packages-final-base'
+          TAG="v145-search-packages-final"
+          BRANCH="v145-search-packages-final-base"
 
-          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            echo "::error::Final V145 release already exists"
+          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
+            echo "::error::Tag $TAG already exists"
             exit 1
           fi
 
-          if git ls-remote --exit-code --heads origin \
-            "refs/heads/$BRANCH" >/dev/null 2>&1; then
-            echo "::error::Final V145 source branch already exists"
+          if git ls-remote --exit-code --heads origin "refs/heads/$BRANCH" >/dev/null 2>&1; then
+            echo "::error::Branch $BRANCH already exists"
             exit 1
           fi
 
-      - name: Load exact V144 R3
+      - name: Load exact V144 R3 production source
         shell: bash
         run: |
           set -euo pipefail
@@ -63,13 +60,13 @@ jobs:
             '+refs/heads/*:refs/remotes/origin/*' \
             '+refs/tags/*:refs/tags/*'
 
-          REF='refs/remotes/origin/v144-android-no-relock-r3-base'
-          EXPECTED='cb81e5608a02103b5d4633063b44fffd21e082da'
+          REF="refs/remotes/origin/v144-android-no-relock-r3-base"
+          EXPECTED="cb81e5608a02103b5d4633063b44fffd21e082da"
 
           ACTUAL="$(git rev-parse "$REF^{commit}")"
 
           if [ "$ACTUAL" != "$EXPECTED" ]; then
-            echo "::error::V144 R3 base moved"
+            echo "::error::V144 R3 base changed"
             echo "Expected: $EXPECTED"
             echo "Actual:   $ACTUAL"
             exit 1
@@ -81,443 +78,375 @@ jobs:
           grep -Fq 'versionCode = 144' \
             build_v145/app/build.gradle.kts
 
+          grep -Fq 'versionName = "5.64-no-relock-v144-r3"' \
+            build_v145/app/build.gradle.kts
+
           grep -Fq 'V144_R3_NO_RELOCK' \
             build_v145/app/src/main/java/com/example/MainActivity.kt
 
           sha256sum \
             build_v145/firestore.rules \
+            build_v145/app/google-services.json \
             build_v145/app/src/main/assets/lab_tests_android.json \
             build_v145/app/src/main/java/com/example/MainActivity.kt \
-            > "$RUNNER_TEMP/protected-v144.sha256"
+            > "$RUNNER_TEMP/v145-protected-before.sha256"
 
-      - name: Create package UI
+      - name: Apply complete V145 feature patch
         shell: bash
         run: |
           set -euo pipefail
 
-          cat > \
-          build_v145/app/src/main/java/com/example/ui/V145InquiryPackages.kt \
-          <<'KOTLIN'
+          python3 <<'PY'
+          from pathlib import Path
 
-          package com.example.ui
+          root = Path("build_v145")
 
-          import androidx.compose.foundation.BorderStroke
-          import androidx.compose.foundation.layout.*
-          import androidx.compose.foundation.shape.RoundedCornerShape
-          import androidx.compose.material.icons.Icons
-          import androidx.compose.material.icons.filled.AddCircle
-          import androidx.compose.material.icons.filled.CheckCircle
-          import androidx.compose.material3.*
-          import androidx.compose.runtime.Composable
-          import androidx.compose.ui.Alignment
-          import androidx.compose.ui.Modifier
-          import androidx.compose.ui.graphics.Color
-          import androidx.compose.ui.text.font.FontWeight
-          import androidx.compose.ui.unit.dp
-          import androidx.compose.ui.unit.sp
-          import com.example.data.model.LabTest
-          import com.example.settings.appText
+          screen_file = root / "app/src/main/java/com/example/ui/LabTestsScreen.kt"
+          vm_file = root / "app/src/main/java/com/example/ui/LabTestsViewModel.kt"
+          gradle_file = root / "app/build.gradle.kts"
 
-          private data class V145Package(
-              val ar: String,
-              val en: String,
-              val queries: List<String>
+          screen = screen_file.read_text(encoding="utf-8")
+          vm = vm_file.read_text(encoding="utf-8")
+          gradle = gradle_file.read_text(encoding="utf-8")
+
+          def replace_exact(text, old, new, label, expected=1):
+              count = text.count(old)
+              if count != expected:
+                  raise SystemExit(
+                      f"{label}: expected {expected} occurrence(s), found {count}"
+                  )
+              return text.replace(old, new, expected)
+
+          # ==========================================================
+          # VERSION
+          # ==========================================================
+
+          gradle = replace_exact(
+              gradle,
+              "versionCode = 144",
+              "versionCode = 145",
+              "versionCode"
           )
 
-          private val V145Packages = listOf(
+          gradle = replace_exact(
+              gradle,
+              'versionName = "5.64-no-relock-v144-r3"',
+              'versionName = "5.65-search-packages-v145"',
+              "versionName"
+          )
 
-              V145Package(
-                  "باقة وظائف الكبد",
-                  "Liver Function Package",
-                  listOf(
-                      "ALT (SGPT)",
-                      "AST (SGOT)",
+          # ==========================================================
+          # KEEP USER SEARCH TEXT AFTER SELECTING A TEST
+          # ==========================================================
+
+          old_auto_clear = (
+              "                                            viewModel.addSelectedTest(test)\n"
+              "                                            // Keep the field focused and ready for the next test.\n"
+              "                                            viewModel.clearSearch()"
+          )
+
+          new_auto_clear = (
+              "                                            viewModel.addSelectedTest(test)"
+          )
+
+          screen = replace_exact(
+              screen,
+              old_auto_clear,
+              new_auto_clear,
+              "remove automatic query clearing"
+          )
+
+          # ==========================================================
+          # KEEP EXACT MULTI-TEST TEXT TYPED BY USER
+          # ==========================================================
+
+          old_multi = (
+              "        if (explicitTests.size > 1) {\n"
+              '            onQueryChanged(explicitTests.joinToString("\\n") { it.englishName })\n'
+              "            return\n"
+              "        }"
+          )
+
+          new_multi = (
+              "        if (explicitTests.size > 1) {\n"
+              '            onQueryChanged(explicitTests.joinToString("\\n") { it.englishName })\n'
+              "            _searchQuery.value = newQuery\n"
+              "            return\n"
+              "        }"
+          )
+
+          vm = replace_exact(
+              vm,
+              old_multi,
+              new_multi,
+              "preserve multi-test query"
+          )
+
+          # ==========================================================
+          # PACKAGE + ACTIVE SEARCH HELPERS
+          # Everything is inserted in the existing screen file so it
+          # uses the project's existing LabTest/Compose imports.
+          # ==========================================================
+
+          searchbox_marker = "@Composable\nprivate fun SearchBox("
+
+          if screen.count(searchbox_marker) != 1:
+              raise SystemExit("SearchBox marker invalid")
+
+          package_code = r'''
+          private data class V145InquiryPackage(
+              val key: String,
+              val nameAr: String,
+              val nameEn: String,
+              val testQueries: List<String>
+          )
+
+          private val V145InquiryPackages = listOf(
+              V145InquiryPackage(
+                  key = "liver",
+                  nameAr = "باقة وظائف الكبد",
+                  nameEn = "Liver Function Package",
+                  testQueries = listOf(
+                      "ALT",
+                      "AST",
                       "ALP",
                       "GGT",
-                      "Bilirubin (Total)",
-                      "Bilirubin (Direct)",
+                      "Bilirubin Total",
+                      "Bilirubin Direct",
                       "Albumin"
                   )
               ),
-
-              V145Package(
-                  "باقة وظائف الكلى",
-                  "Kidney Function Package",
-                  listOf(
+              V145InquiryPackage(
+                  key = "kidney",
+                  nameAr = "باقة وظائف الكلى",
+                  nameEn = "Kidney Function Package",
+                  testQueries = listOf(
                       "Urea",
                       "Creatinine",
                       "Uric Acid",
                       "eGFR"
                   )
               ),
-
-              V145Package(
-                  "باقة السكر",
-                  "Diabetes Package",
-                  listOf(
+              V145InquiryPackage(
+                  key = "diabetes",
+                  nameAr = "باقة السكر",
+                  nameEn = "Diabetes Package",
+                  testQueries = listOf(
                       "Fasting Blood Glucose",
                       "HbA1c"
                   )
               ),
-
-              V145Package(
-                  "باقة الغدة الدرقية",
-                  "Thyroid Package",
-                  listOf(
+              V145InquiryPackage(
+                  key = "thyroid",
+                  nameAr = "باقة الغدة الدرقية",
+                  nameEn = "Thyroid Package",
+                  testQueries = listOf(
                       "TSH",
                       "Free T4",
                       "Free T3"
                   )
               ),
-
-              V145Package(
-                  "باقة الدهون",
-                  "Lipid Profile Package",
-                  listOf(
+              V145InquiryPackage(
+                  key = "lipids",
+                  nameAr = "باقة الدهون",
+                  nameEn = "Lipid Profile Package",
+                  testQueries = listOf(
                       "Cholesterol",
                       "Triglyceride",
                       "HDL",
                       "LDL"
                   )
               ),
-
-              V145Package(
-                  "باقة الأنيميا",
-                  "Anemia Package",
-                  listOf(
+              V145InquiryPackage(
+                  key = "anemia",
+                  nameAr = "باقة الأنيميا",
+                  nameEn = "Anemia Package",
+                  testQueries = listOf(
                       "CBC",
                       "Ferritin"
                   )
               ),
-
-              V145Package(
-                  "باقة الفحص الأساسي",
-                  "Basic Checkup Package",
-                  listOf(
+              V145InquiryPackage(
+                  key = "basic",
+                  nameAr = "باقة الفحص الأساسي",
+                  nameEn = "Basic Checkup Package",
+                  testQueries = listOf(
                       "CBC",
                       "HbA1c",
                       "TSH",
                       "Creatinine",
-                      "ALT (SGPT)",
+                      "ALT",
                       "Cholesterol"
                   )
               )
           )
 
-          private fun normalizeV145(value: String): String =
-              value.lowercase()
-                  .replace(
-                      Regex("[^a-z0-9\\u0600-\\u06ff]+"),
-                      " "
-                  )
-                  .trim()
-
-          private fun resolveV145(
-              viewModel: LabTestsViewModel,
-              query: String
-          ): LabTest? {
-
-              val wanted = normalizeV145(query)
-
-              val candidates =
-                  viewModel.searchManagerTests(query)
-
-              return candidates.firstOrNull { test ->
-
-                  listOf(
-                      test.englishName,
-                      test.arabicName,
-                      test.marketName
-                  ).any { name ->
-
-                      val current =
-                          normalizeV145(name)
-
-                      current == wanted ||
-                          current.startsWith("$wanted ") ||
-                          wanted.startsWith("$current ")
-                  }
-
-              } ?: candidates.firstOrNull()
-          }
-
-          private fun priceNumberV145(
-              value: String?
-          ): Double {
-
-              return Regex(
-                  "[0-9]+(\\.[0-9]+)?"
-              )
-                  .find(value.orEmpty())
-                  ?.value
-                  ?.toDoubleOrNull()
-                  ?: 0.0
-          }
-
-          private fun moneyV145(
-              value: Double
-          ): String {
-
-              return if (
-                  value % 1.0 == 0.0
-              ) {
-                  value.toLong().toString()
-              } else {
-                  String.format(
-                      "%.2f",
-                      value
-                  )
-              }
-          }
-
-          fun activeSearchSegmentV145(
+          private fun activeSearchSegmentV145(
               query: String
           ): String {
-
               return query
-                  .split(
-                      Regex(
-                          "[\\n\\r\\t,،;؛|•]+"
-                      )
-                  )
+                  .split(Regex("[\\n\\r\\t,،;؛|•]+"))
                   .lastOrNull()
                   ?.trim()
                   .orEmpty()
           }
 
-          @Composable
-          fun InquiryPackagesV145(
+          private fun resolvePackageTestsV145(
               viewModel: LabTestsViewModel,
-              customerPriceOverrides:
-                  Map<Int, String>,
+              queries: List<String>
+          ): List<LabTest> {
+              return queries
+                  .mapNotNull { query ->
+                      viewModel.smartSearchCandidates(query)
+                          .firstOrNull()
+                  }
+                  .distinctBy { it.id }
+          }
+
+          @Composable
+          private fun InquiryPackagesSectionV145(
+              viewModel: LabTestsViewModel,
+              customerPriceOverrides: Map<Int, String>,
               selectedIds: Set<Int>,
-              onAddPackage:
-                  (List<LabTest>) -> Unit
+              onAddPackage: (List<LabTest>) -> Unit
           ) {
-
               Column(
-                  modifier =
-                      Modifier.fillMaxWidth(),
-                  verticalArrangement =
-                      Arrangement.spacedBy(8.dp)
+                  modifier = Modifier.fillMaxWidth(),
+                  verticalArrangement = Arrangement.spacedBy(8.dp)
               ) {
-
                   Text(
                       text = appText(
                           "باقات التحاليل",
                           "Test Packages"
                       ),
                       fontSize = 16.sp,
-                      fontWeight =
-                          FontWeight.ExtraBold,
-                      color =
-                          Color(0xFF17324D)
+                      fontWeight = FontWeight.ExtraBold,
+                      color = Color(0xFF17324D)
                   )
 
-                  V145Packages.forEach { pkg ->
+                  V145InquiryPackages.forEach { pkg ->
+                      val tests = resolvePackageTestsV145(
+                          viewModel = viewModel,
+                          queries = pkg.testQueries
+                      )
 
-                      val tests =
-                          pkg.queries
-                              .mapNotNull {
-                                  resolveV145(
-                                      viewModel,
-                                      it
-                                  )
-                              }
-                              .distinctBy {
-                                  it.id
-                              }
-
-                      val total =
-                          tests.sumOf { test ->
-
-                              priceNumberV145(
-                                  customerPriceOverrides[
-                                      test.id
-                                  ]
-                                      ?: test.customerPrice
-                              )
-                          }
+                      val totalPrice = calculatePriceTotal(tests) { test ->
+                          customerPriceOverrides[test.id]
+                              ?: test.customerPrice
+                      }
 
                       val allSelected =
                           tests.isNotEmpty() &&
-                              tests.all {
-                                  it.id in selectedIds
-                              }
+                              tests.all { it.id in selectedIds }
 
                       Card(
-                          modifier =
-                              Modifier.fillMaxWidth(),
-                          shape =
-                              RoundedCornerShape(
-                                  16.dp
-                              ),
-                          colors =
-                              CardDefaults.cardColors(
-                                  containerColor =
-                                      if (allSelected)
-                                          Color(
-                                              0xFFEAF7F2
-                                          )
-                                      else
-                                          Color.White
-                              ),
-                          border =
-                              BorderStroke(
-                                  1.dp,
-                                  if (allSelected)
-                                      Color(
-                                          0xFF8FD3B6
-                                      )
-                                  else
-                                      Color(
-                                          0xFFDCE6EF
-                                      )
-                              )
+                          modifier = Modifier.fillMaxWidth(),
+                          shape = RoundedCornerShape(16.dp),
+                          colors = CardDefaults.cardColors(
+                              containerColor =
+                                  if (allSelected) {
+                                      Color(0xFFEAF7F2)
+                                  } else {
+                                      Color.White
+                                  }
+                          ),
+                          border = BorderStroke(
+                              1.dp,
+                              if (allSelected) {
+                                  Color(0xFF8FD3B6)
+                              } else {
+                                  Color(0xFFDCE6EF)
+                              }
+                          )
                       ) {
-
                           Column(
-                              modifier =
-                                  Modifier
-                                      .fillMaxWidth()
-                                      .padding(12.dp),
+                              modifier = Modifier
+                                  .fillMaxWidth()
+                                  .padding(12.dp),
                               verticalArrangement =
-                                  Arrangement.spacedBy(
-                                      6.dp
-                                  )
+                                  Arrangement.spacedBy(6.dp)
                           ) {
-
                               Row(
-                                  modifier =
-                                      Modifier.fillMaxWidth(),
-                                  verticalAlignment =
-                                      Alignment.CenterVertically,
+                                  modifier = Modifier.fillMaxWidth(),
                                   horizontalArrangement =
-                                      Arrangement.SpaceBetween
+                                      Arrangement.SpaceBetween,
+                                  verticalAlignment =
+                                      Alignment.CenterVertically
                               ) {
-
                                   Column(
-                                      modifier =
-                                          Modifier.weight(1f)
+                                      modifier = Modifier.weight(1f)
                                   ) {
-
                                       Text(
-                                          text =
-                                              appText(
-                                                  pkg.ar,
-                                                  pkg.en
-                                              ),
-                                          fontSize =
-                                              14.sp,
+                                          text = appText(
+                                              pkg.nameAr,
+                                              pkg.nameEn
+                                          ),
+                                          fontSize = 14.sp,
                                           fontWeight =
                                               FontWeight.ExtraBold,
-                                          color =
-                                              Color(
-                                                  0xFF17324D
-                                              )
+                                          color = Color(0xFF17324D)
                                       )
 
                                       Text(
-                                          text =
-                                              appText(
-                                                  "${tests.size} تحليل",
-                                                  "${tests.size} tests"
-                                              ),
-                                          fontSize =
-                                              10.sp,
-                                          color =
-                                              Color(
-                                                  0xFF64748B
-                                              )
+                                          text = appText(
+                                              "${tests.size} تحليل",
+                                              "${tests.size} tests"
+                                          ),
+                                          fontSize = 10.sp,
+                                          color = Color(0xFF64748B)
                                       )
                                   }
 
                                   Text(
                                       text =
-                                          "${moneyV145(total)} ${
-                                              appText(
-                                                  "ج",
-                                                  "EGP"
-                                              )
+                                          "${formatTotalDisplay(totalPrice)} ${
+                                              appText("ج", "EGP")
                                           }",
-                                      fontSize =
-                                          17.sp,
+                                      fontSize = 17.sp,
                                       fontWeight =
                                           FontWeight.ExtraBold,
-                                      color =
-                                          Color(
-                                              0xFF087F5B
-                                          )
+                                      color = Color(0xFF087F5B)
                                   )
                               }
 
-                              if (
-                                  tests.isNotEmpty()
-                              ) {
-
+                              if (tests.isNotEmpty()) {
                                   Text(
-                                      text =
-                                          tests.joinToString(
-                                              " • "
-                                          ) {
-                                              it.marketName
-                                                  .ifBlank {
-                                                      it.englishName
-                                                  }
-                                          },
-                                      fontSize =
-                                          9.sp,
-                                      color =
-                                          Color(
-                                              0xFF64748B
-                                          )
+                                      text = tests.joinToString(
+                                          separator = " • "
+                                      ) { test ->
+                                          test.marketName.ifBlank {
+                                              test.englishName
+                                          }
+                                      },
+                                      fontSize = 9.sp,
+                                      color = Color(0xFF64748B)
                                   )
                               }
 
-                              Button(
-                                  onClick = {
-                                      onAddPackage(
-                                          tests
-                                      )
-                                  },
-                                  enabled =
-                                      tests.isNotEmpty() &&
-                                          !allSelected,
-                                  modifier =
-                                      Modifier.fillMaxWidth()
-                              ) {
-
-                                  Icon(
-                                      imageVector =
-                                          if (
-                                              allSelected
-                                          )
-                                              Icons.Default.CheckCircle
-                                          else
-                                              Icons.Default.AddCircle,
-                                      contentDescription =
-                                          null
-                                  )
-
-                                  Spacer(
-                                      Modifier.width(
-                                          6.dp
-                                      )
-                                  )
-
-                                  Text(
-                                      if (
-                                          allSelected
-                                      )
+                              LabeledIconAction(
+                                  label =
+                                      if (allSelected) {
                                           appText(
-                                              "تمت الإضافة",
-                                              "Added"
+                                              "تمت إضافة الباقة",
+                                              "Package added"
                                           )
-                                      else
+                                      } else {
                                           appText(
                                               "إضافة الباقة بالكامل",
                                               "Add full package"
                                           )
+                                      },
+                                  onClick = {
+                                      onAddPackage(tests)
+                                  },
+                                  modifier = Modifier.fillMaxWidth(),
+                                  enabled =
+                                      tests.isNotEmpty() &&
+                                          !allSelected
+                              ) {
+                                  Icon(
+                                      Icons.Default.AddCircle,
+                                      contentDescription = null
                                   )
                               }
                           }
@@ -526,88 +455,113 @@ jobs:
               }
           }
 
-          KOTLIN
+          '''
 
-      - name: Apply V145 source changes
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          python3 <<'PY'
-
-          from pathlib import Path
-          import re
-
-          root = Path("build_v145")
-
-          screen_file = (
-              root /
-              "app/src/main/java/com/example/ui/LabTestsScreen.kt"
+          screen = screen.replace(
+              searchbox_marker,
+              package_code + searchbox_marker,
+              1
           )
 
-          vm_file = (
-              root /
-              "app/src/main/java/com/example/ui/LabTestsViewModel.kt"
+          # ==========================================================
+          # SUGGESTIONS FOLLOW CURRENT TEST SEGMENT
+          # ==========================================================
+
+          old_suggestions = (
+              "suggestions = "
+              "viewModel.smartSearchCandidates(searchQuery),"
           )
 
-          grad_file = (
-              root /
-              "app/build.gradle.kts"
+          screen = replace_exact(
+              screen,
+              old_suggestions,
+              "suggestions = "
+              "viewModel.smartSearchCandidates("
+              "activeSearchSegmentV145(searchQuery)),",
+              "active search suggestions",
+              expected=2
           )
 
-          screen =
-              screen_file.read_text(
-                  encoding="utf-8"
-              )
+          # ==========================================================
+          # BIGGER MULTILINE SEARCH FIELD
+          # ==========================================================
 
-          vm =
-              vm_file.read_text(
-                  encoding="utf-8"
-              )
+          start = screen.find("private fun SearchBox(")
 
-          grad =
-              grad_file.read_text(
-                  encoding="utf-8"
-              )
+          end = screen.find(
+              "\n@Composable\nprivate fun ResultCountChip",
+              start
+          )
 
-          # -------------------------------
-          # Version 145
-          # -------------------------------
+          if start < 0 or end < 0:
+              raise SystemExit("SearchBox block not found")
 
-          if grad.count(
-              "versionCode = 144"
-          ) != 1:
+          searchbox = screen[start:end]
+
+          searchbox = replace_exact(
+              searchbox,
+              ".heightIn(min = 62.dp)",
+              ".heightIn(min = 105.dp)",
+              "search field height"
+          )
+
+          searchbox = replace_exact(
+              searchbox,
+              "            singleLine = true,\n",
+              "            singleLine = false,\n"
+              "            minLines = 2,\n"
+              "            maxLines = 5,\n",
+              "multiline search"
+          )
+
+          searchbox = replace_exact(
+              searchbox,
+              "keyboardOptions = "
+              "KeyboardOptions(imeAction = ImeAction.Search),",
+              "keyboardOptions = "
+              "KeyboardOptions(imeAction = ImeAction.Default),",
+              "keyboard action"
+          )
+
+          screen = (
+              screen[:start] +
+              searchbox +
+              screen[end:]
+          )
+
+          # ==========================================================
+          # INSERT PACKAGES DIRECTLY BELOW QUICK INQUIRY SEARCH
+          # ==========================================================
+
+          quick_pos = screen.find('"quick_image" -> {')
+
+          if quick_pos < 0:
+              raise SystemExit("quick_image workspace not found")
+
+          search_pos = screen.find(
+              "SearchBox(",
+              quick_pos
+          )
+
+          if search_pos < 0:
+              raise SystemExit("quick inquiry SearchBox missing")
+
+          search_end_marker = (
+              "                                        "
+              "importingDocument = importingTestsDocument\n"
+              "                                    )"
+          )
+
+          search_end = screen.find(
+              search_end_marker,
+              search_pos
+          )
+
+          if search_end < 0:
               raise SystemExit(
-                  "Version marker invalid"
+                  "quick inquiry SearchBox end not found"
               )
 
-          grad =
-              grad.replace(
-                  "versionCode = 144",
-                  "versionCode = 145",
-                  1
-              )
+          search_end += len(search_end_marker)
 
-          grad, n =
-              re.subn(
-                  r'versionName\s*=\s*"[^"]+"',
-                  'versionName = "5.65-search-packages-v145"',
-                  grad,
-                  count=1
-              )
-
-          if n != 1:
-              raise SystemExit(
-                  "versionName failed"
-              )
-
-          # -------------------------------
-          # Stop automatic clear
-          # -------------------------------
-
-          auto_clear =
-              re.compile(
-                  r'onSuggestionSelected\s*=\s*'
-                  r'\{\s*test\s*->\s*'
-                  r'viewModel\.addSelectedTest'
-                  r'\(test\)
+  
