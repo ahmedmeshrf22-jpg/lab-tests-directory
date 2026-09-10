@@ -1,0 +1,610 @@
+name: Android V145 R4 UI POLISH FINAL
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-v145-r4-ui-polish
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Gradle 8.11.1
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.11.1"
+
+      - name: Prepare exact V145 R3 base
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git fetch origin \
+            '+refs/heads/*:refs/remotes/origin/*'
+
+          REF="refs/remotes/origin/v145-search-packages-final-r3-base"
+
+          git rev-parse "$REF^{commit}"
+
+          rm -rf build_r4
+
+          git worktree add \
+            --detach \
+            build_r4 \
+            "$REF"
+
+          cd build_r4
+
+          grep -Fq \
+            'versionCode = 145' \
+            app/build.gradle.kts
+
+          grep -Fq \
+            'V145PackagesSection' \
+            app/src/main/java/com/example/ui/LabTestsScreen.kt
+
+          grep -Fq \
+            'QuickImageSelectedSection(' \
+            app/src/main/java/com/example/ui/LabTestsScreen.kt
+
+          sha256sum \
+            firestore.rules \
+            app/google-services.json \
+            app/src/main/assets/lab_tests_android.json \
+            app/src/main/java/com/example/MainActivity.kt \
+            > "$RUNNER_TEMP/r4-protected.sha256"
+
+      - name: Apply complete R4 UI polish
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          python3 <<'PY'
+          from pathlib import Path
+          import re
+
+          root = Path("build_r4")
+
+          screen_path = (
+              root /
+              "app/src/main/java/com/example/ui/LabTestsScreen.kt"
+          )
+
+          gradle_path = (
+              root /
+              "app/build.gradle.kts"
+          )
+
+          screen = screen_path.read_text(
+              encoding="utf-8"
+          )
+
+          gradle = gradle_path.read_text(
+              encoding="utf-8"
+          )
+
+          # ------------------------------------
+          # VERSION
+          # ------------------------------------
+
+          gradle, count = re.subn(
+              r'versionCode\s*=\s*145\b',
+              'versionCode = 146',
+              gradle,
+              count=1
+          )
+
+          if count != 1:
+              raise SystemExit(
+                  "Could not update versionCode"
+              )
+
+          gradle, count = re.subn(
+              r'versionName\s*=\s*"[^"]+"',
+              'versionName = "5.66-ui-polish-v145-r4"',
+              gradle,
+              count=1
+          )
+
+          if count != 1:
+              raise SystemExit(
+                  "Could not update versionName"
+              )
+
+          # ------------------------------------
+          # REPLACE OLD LARGE PACKAGE SECTION
+          # while preserving its exact signature
+          # ------------------------------------
+
+          marker = (
+              "private fun V145PackagesSection("
+          )
+
+          pos = screen.find(marker)
+
+          if pos < 0:
+              raise SystemExit(
+                  "V145PackagesSection not found"
+              )
+
+          annotation_pos = screen.rfind(
+              "@Composable",
+              0,
+              pos
+          )
+
+          if annotation_pos < 0:
+              raise SystemExit(
+                  "Package @Composable not found"
+              )
+
+          search_marker = (
+              "@Composable\nprivate fun SearchBox("
+          )
+
+          search_pos = screen.find(
+              search_marker,
+              pos
+          )
+
+          if search_pos < 0:
+              raise SystemExit(
+                  "SearchBox after packages not found"
+              )
+
+          open_brace = screen.find(
+              "{",
+              pos,
+              search_pos
+          )
+
+          if open_brace < 0:
+              raise SystemExit(
+                  "Package function body not found"
+              )
+
+          header = screen[
+              annotation_pos:
+              open_brace + 1
+          ]
+
+          required_parameters = [
+              "viewModel",
+              "customerPriceOverrides",
+              "selectedIds",
+              "onAddPackage"
+          ]
+
+          for parameter in required_parameters:
+              if parameter not in header:
+                  raise SystemExit(
+                      "Unexpected package signature: "
+                      + parameter
+                  )
+
+          new_body = r'''
+
+              val packages = listOf(
+                  appText(
+                      "وظائف الكبد",
+                      "Liver"
+                  ) to listOf(
+                      "ALT",
+                      "AST",
+                      "ALP",
+                      "GGT",
+                      "Bilirubin Total",
+                      "Bilirubin Direct",
+                      "Albumin"
+                  ),
+
+                  appText(
+                      "وظائف الكلى",
+                      "Kidney"
+                  ) to listOf(
+                      "Urea",
+                      "Creatinine",
+                      "Uric Acid",
+                      "eGFR"
+                  ),
+
+                  appText(
+                      "السكر",
+                      "Diabetes"
+                  ) to listOf(
+                      "Fasting Blood Glucose",
+                      "HbA1c"
+                  ),
+
+                  appText(
+                      "الغدة الدرقية",
+                      "Thyroid"
+                  ) to listOf(
+                      "TSH",
+                      "Free T4",
+                      "Free T3"
+                  ),
+
+                  appText(
+                      "الدهون",
+                      "Lipids"
+                  ) to listOf(
+                      "Cholesterol",
+                      "Triglyceride",
+                      "HDL",
+                      "LDL"
+                  ),
+
+                  appText(
+                      "الأنيميا",
+                      "Anemia"
+                  ) to listOf(
+                      "CBC",
+                      "Ferritin"
+                  ),
+
+                  appText(
+                      "الفحص الأساسي",
+                      "Basic Checkup"
+                  ) to listOf(
+                      "CBC",
+                      "HbA1c",
+                      "TSH",
+                      "Creatinine",
+                      "ALT",
+                      "Cholesterol"
+                  )
+              )
+
+              Column(
+                  modifier = Modifier.fillMaxWidth(),
+                  verticalArrangement =
+                      Arrangement.spacedBy(8.dp)
+              ) {
+
+                  Text(
+                      text = appText(
+                          "الباقات الجاهزة",
+                          "Quick packages"
+                      ),
+                      fontSize = 15.sp,
+                      fontWeight = FontWeight.Bold,
+                      color =
+                          MaterialTheme.colorScheme.onSurface
+                  )
+
+                  packages
+                      .chunked(2)
+                      .forEach { packageRow ->
+
+                          Row(
+                              modifier =
+                                  Modifier.fillMaxWidth(),
+                              horizontalArrangement =
+                                  Arrangement.spacedBy(8.dp)
+                          ) {
+
+                              packageRow.forEach { pkg ->
+
+                                  val tests =
+                                      pkg.second
+                                          .mapNotNull { query ->
+                                              viewModel
+                                                  .smartSearchCandidates(
+                                                      query
+                                                  )
+                                                  .firstOrNull()
+                                          }
+                                          .distinctBy {
+                                              it.id
+                                          }
+
+                                  val total =
+                                      calculatePriceTotal(
+                                          tests
+                                      ) { test ->
+                                          customerPriceOverrides[
+                                              test.id
+                                          ] ?: test.customerPrice
+                                      }
+
+                                  val added =
+                                      tests.isNotEmpty() &&
+                                          tests.all {
+                                              it.id in selectedIds
+                                          }
+
+                                  Card(
+                                      modifier =
+                                          Modifier
+                                              .weight(1f),
+                                      shape =
+                                          RoundedCornerShape(
+                                              20.dp
+                                          ),
+                                      colors =
+                                          CardDefaults.cardColors(
+                                              containerColor =
+                                                  if (added) {
+                                                      MaterialTheme
+                                                          .colorScheme
+                                                          .secondaryContainer
+                                                  } else {
+                                                      MaterialTheme
+                                                          .colorScheme
+                                                          .surfaceVariant
+                                                          .copy(
+                                                              alpha = 0.42f
+                                                          )
+                                                  }
+                                          )
+                                  ) {
+
+                                      Column(
+                                          modifier =
+                                              Modifier
+                                                  .fillMaxWidth()
+                                                  .padding(
+                                                      horizontal = 11.dp,
+                                                      vertical = 10.dp
+                                                  ),
+                                          verticalArrangement =
+                                              Arrangement.spacedBy(
+                                                  5.dp
+                                              )
+                                      ) {
+
+                                          Text(
+                                              text = pkg.first,
+                                              fontSize = 13.sp,
+                                              fontWeight =
+                                                  FontWeight.ExtraBold,
+                                              color =
+                                                  MaterialTheme
+                                                      .colorScheme
+                                                      .onSurface,
+                                              maxLines = 2
+                                          )
+
+                                          Text(
+                                              text = appText(
+                                                  "${tests.size} تحليل",
+                                                  "${tests.size} tests"
+                                              ),
+                                              fontSize = 10.sp,
+                                              color =
+                                                  MaterialTheme
+                                                      .colorScheme
+                                                      .onSurfaceVariant
+                                          )
+
+                                          Text(
+                                              text =
+                                                  "${formatTotalDisplay(total)} ${
+                                                      appText(
+                                                          "ج",
+                                                          "EGP"
+                                                      )
+                                                  }",
+                                              fontSize = 15.sp,
+                                              fontWeight =
+                                                  FontWeight.ExtraBold,
+                                              color =
+                                                  MaterialTheme
+                                                      .colorScheme
+                                                      .primary
+                                          )
+
+                                          Button(
+                                              onClick = {
+                                                  onAddPackage(
+                                                      tests
+                                                  )
+                                              },
+                                              enabled =
+                                                  tests.isNotEmpty() &&
+                                                      !added,
+                                              modifier =
+                                                  Modifier
+                                                      .fillMaxWidth()
+                                                      .heightIn(
+                                                          min = 38.dp
+                                                      ),
+                                              shape =
+                                                  RoundedCornerShape(
+                                                      13.dp
+                                                  )
+                                          ) {
+
+                                              Text(
+                                                  text =
+                                                      if (added) {
+                                                          appText(
+                                                              "مضافة ✓",
+                                                              "Added ✓"
+                                                          )
+                                                      } else {
+                                                          appText(
+                                                              "إضافة",
+                                                              "Add"
+                                                          )
+                                                      },
+                                                  fontSize = 11.sp,
+                                                  fontWeight =
+                                                      FontWeight.Bold
+                                              )
+                                          }
+                                      }
+                                  }
+                              }
+
+                              if (
+                                  packageRow.size == 1
+                              ) {
+                                  Spacer(
+                                      modifier =
+                                          Modifier.weight(1f)
+                                  )
+                              }
+                          }
+                      }
+              }
+          }
+          '''
+
+          removed_segment = screen[
+              annotation_pos:
+              search_pos
+          ]
+
+          replacement = (
+              header +
+              new_body +
+              "\n"
+          )
+
+          screen = (
+              screen[:annotation_pos] +
+              replacement +
+              screen[search_pos:]
+          )
+
+          # ------------------------------------
+          # Restore active multi-test helper
+          # only if old package block contained it
+          # ------------------------------------
+
+          if (
+              "activeSearchSegmentV145" in removed_segment
+              and
+              "fun activeSearchSegmentV145" not in screen
+          ):
+              helper = r'''
+          private fun activeSearchSegmentV145(
+              query: String
+          ): String {
+              return query
+                  .split(
+                      Regex(
+                          "[\\n\\r\\t,،;؛|•]+"
+                      )
+                  )
+                  .lastOrNull()
+                  ?.trim()
+                  .orEmpty()
+          }
+
+          '''
+
+              search_pos = screen.find(
+                  search_marker
+              )
+
+              screen = (
+                  screen[:search_pos] +
+                  helper +
+                  screen[search_pos:]
+              )
+
+          # ------------------------------------
+          # POLISH SEARCH BOX
+          # ------------------------------------
+
+          search_start = screen.find(
+              "private fun SearchBox("
+          )
+
+          result_marker = (
+              "\n@Composable\n"
+              "private fun ResultCountChip"
+          )
+
+          search_end = screen.find(
+              result_marker,
+              search_start
+          )
+
+          if (
+              search_start < 0
+              or
+              search_end < 0
+          ):
+              raise SystemExit(
+                  "SearchBox block boundaries not found"
+              )
+
+          box = screen[
+              search_start:
+              search_end
+          ]
+
+          # Smaller and cleaner than old 105dp box.
+          box, height_count = re.subn(
+              r'\.heightIn\(\s*min\s*=\s*'
+              r'(?:62|70|72|74|105)\.dp\s*\)',
+              '.heightIn(min = 74.dp)',
+              box,
+              count=1
+          )
+
+          if height_count != 1:
+              raise SystemExit(
+                  "Search field height marker not found"
+              )
+
+          # Keep multi-line but make it compact.
+          box = box.replace(
+              "maxLines = 5,",
+              "maxLines = 3,",
+              1
+          )
+
+          # Softer rounded field.
+          box = box.replace(
+              "RoundedCornerShape(18.dp)",
+              "RoundedCornerShape(24.dp)"
+          )
+
+          # Don't let suggestions occupy half the screen.
+          box = box.replace(
+              ".heightIn(max = 520.dp)",
+              ".heightIn(max = 320.dp)"
+          )
+
+          # Remove the unnecessary visible word "ابحث / Search".
+          box = re.sub(
+              r'appText\(\s*"ابحث"\s*,\s*"Search"\s*\)',
+              '""',
+              box
+          )
+
+          box = re.sub(
+              r'appText\(\s*"ابحث"\s*,\s*"SEARCH"\s*\)',
+              '""',
+              box
+          )
+
+          box = box.replace(
+              'Text("ابحث")',
+              'Text("")'
+          )
+
+          box =
