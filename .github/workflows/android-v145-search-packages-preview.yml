@@ -1,4 +1,4 @@
-name: Android V145 FINAL Search Packages Handover
+name: Android V145 FINAL R2 Build
 
 on:
   workflow_dispatch:
@@ -7,12 +7,11 @@ permissions:
   contents: write
 
 concurrency:
-  group: tahalil-android-v145-final
+  group: android-v145-final-r2
   cancel-in-progress: false
 
 jobs:
-  build-v145-final:
-    name: Build Audit Sign Release V145
+  build:
     runs-on: ubuntu-latest
     timeout-minutes: 90
 
@@ -22,546 +21,207 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Setup Java 17
+      - name: Java 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "17"
 
-      - name: Setup Gradle 8.11.1
+      - name: Gradle 8.11.1
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.11.1"
 
-      - name: Preflight
+      - name: Preflight final R2
         shell: bash
         run: |
           set -euo pipefail
-
-          TAG="v145-search-packages-final"
-          BRANCH="v145-search-packages-final-base"
-
-          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
-            echo "::error::Tag $TAG already exists"
+          if git ls-remote --exit-code --heads origin refs/heads/v145-search-packages-final-r2-base >/dev/null 2>&1; then
+            echo "::error::R2 source branch already exists"
+            exit 1
+          fi
+          if git ls-remote --exit-code --tags origin refs/tags/v145-search-packages-final-r2 >/dev/null 2>&1; then
+            echo "::error::R2 release tag already exists"
             exit 1
           fi
 
-          if git ls-remote --exit-code --heads origin "refs/heads/$BRANCH" >/dev/null 2>&1; then
-            echo "::error::Branch $BRANCH already exists"
-            exit 1
-          fi
-
-      - name: Load exact V144 R3 production source
+      - name: Prepare exact V144 base
         shell: bash
         run: |
           set -euo pipefail
-
-          git fetch origin \
-            '+refs/heads/*:refs/remotes/origin/*' \
-            '+refs/tags/*:refs/tags/*'
-
-          REF="refs/remotes/origin/v144-android-no-relock-r3-base"
-          EXPECTED="cb81e5608a02103b5d4633063b44fffd21e082da"
-
-          ACTUAL="$(git rev-parse "$REF^{commit}")"
-
-          if [ "$ACTUAL" != "$EXPECTED" ]; then
-            echo "::error::V144 R3 base changed"
-            echo "Expected: $EXPECTED"
-            echo "Actual:   $ACTUAL"
-            exit 1
-          fi
-
+          git fetch origin '+refs/heads/*:refs/remotes/origin/*'
+          BASE='cb81e5608a02103b5d4633063b44fffd21e082da'
+          test "$(git rev-parse refs/remotes/origin/v144-android-no-relock-r3-base^{commit})" = "$BASE"
           rm -rf build_v145
-          git worktree add --detach build_v145 "$REF"
+          git worktree add --detach build_v145 "$BASE"
+          (
+            cd build_v145
+            sha256sum firestore.rules app/google-services.json app/src/main/assets/lab_tests_android.json app/src/main/java/com/example/MainActivity.kt > "$RUNNER_TEMP/protected.sha256"
+          )
 
-          grep -Fq 'versionCode = 144' \
-            build_v145/app/build.gradle.kts
+      - name: Apply complete V145 R2 patch
+        shell: bash
+        env:
+          V145_PATCH_GZ_B64: |-
+            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
+            ekNwnM/VK7t/A2v5IbLnIgAA
+        run: |
+          set -euo pipefail
+          printf '%s' "$V145_PATCH_GZ_B64" | base64 --decode > "$RUNNER_TEMP/v145_patch.py.gz"
+          gzip -dc "$RUNNER_TEMP/v145_patch.py.gz" > "$RUNNER_TEMP/v145_patch.py"
+          python3 -m py_compile "$RUNNER_TEMP/v145_patch.py"
+          python3 "$RUNNER_TEMP/v145_patch.py"
 
-          grep -Fq 'versionName = "5.64-no-relock-v144-r3"' \
-            build_v145/app/build.gradle.kts
-
-          grep -Fq 'V144_R3_NO_RELOCK' \
-            build_v145/app/src/main/java/com/example/MainActivity.kt
-
-          sha256sum \
-            build_v145/firestore.rules \
-            build_v145/app/google-services.json \
-            build_v145/app/src/main/assets/lab_tests_android.json \
-            build_v145/app/src/main/java/com/example/MainActivity.kt \
-            > "$RUNNER_TEMP/v145-protected-before.sha256"
-
-      - name: Apply complete V145 feature patch
+      - name: Safety audit
         shell: bash
         run: |
           set -euo pipefail
+          cd build_v145
+          git diff --check
+          EXPECTED=$'app/build.gradle.kts\napp/src/main/java/com/example/ui/LabTestsScreen.kt\napp/src/main/java/com/example/ui/LabTestsViewModel.kt'
+          ACTUAL="$(git diff --name-only | sort)"
+          test "$ACTUAL" = "$(printf '%s\n' "$EXPECTED" | sort)"
+          sha256sum -c "$RUNNER_TEMP/protected.sha256"
+          grep -Fq 'versionCode = 145' app/build.gradle.kts
+          grep -Fq '5.65-search-packages-v145-r2' app/build.gradle.kts
+          grep -Fq 'V145PackagesSection' app/src/main/java/com/example/ui/LabTestsScreen.kt
+          grep -Fq 'QuickImageSelectedSection(' app/src/main/java/com/example/ui/LabTestsScreen.kt
+          grep -Fq 'minLines = 2' app/src/main/java/com/example/ui/LabTestsScreen.kt
+          grep -Fq '_searchQuery.value = newQuery' app/src/main/java/com/example/ui/LabTestsViewModel.kt
 
-          python3 <<'PY'
-          from pathlib import Path
-
-          root = Path("build_v145")
-
-          screen_file = root / "app/src/main/java/com/example/ui/LabTestsScreen.kt"
-          vm_file = root / "app/src/main/java/com/example/ui/LabTestsViewModel.kt"
-          gradle_file = root / "app/build.gradle.kts"
-
-          screen = screen_file.read_text(encoding="utf-8")
-          vm = vm_file.read_text(encoding="utf-8")
-          gradle = gradle_file.read_text(encoding="utf-8")
-
-          def replace_exact(text, old, new, label, expected=1):
-              count = text.count(old)
-              if count != expected:
-                  raise SystemExit(
-                      f"{label}: expected {expected} occurrence(s), found {count}"
-                  )
-              return text.replace(old, new, expected)
-
-          # ==========================================================
-          # VERSION
-          # ==========================================================
-
-          gradle = replace_exact(
-              gradle,
-              "versionCode = 144",
-              "versionCode = 145",
-              "versionCode"
-          )
-
-          gradle = replace_exact(
-              gradle,
-              'versionName = "5.64-no-relock-v144-r3"',
-              'versionName = "5.65-search-packages-v145"',
-              "versionName"
-          )
-
-          # ==========================================================
-          # KEEP USER SEARCH TEXT AFTER SELECTING A TEST
-          # ==========================================================
-
-          old_auto_clear = (
-              "                                            viewModel.addSelectedTest(test)\n"
-              "                                            // Keep the field focused and ready for the next test.\n"
-              "                                            viewModel.clearSearch()"
-          )
-
-          new_auto_clear = (
-              "                                            viewModel.addSelectedTest(test)"
-          )
-
-          screen = replace_exact(
-              screen,
-              old_auto_clear,
-              new_auto_clear,
-              "remove automatic query clearing"
-          )
-
-          # ==========================================================
-          # KEEP EXACT MULTI-TEST TEXT TYPED BY USER
-          # ==========================================================
-
-          old_multi = (
-              "        if (explicitTests.size > 1) {\n"
-              '            onQueryChanged(explicitTests.joinToString("\\n") { it.englishName })\n'
-              "            return\n"
-              "        }"
-          )
-
-          new_multi = (
-              "        if (explicitTests.size > 1) {\n"
-              '            onQueryChanged(explicitTests.joinToString("\\n") { it.englishName })\n'
-              "            _searchQuery.value = newQuery\n"
-              "            return\n"
-              "        }"
-          )
-
-          vm = replace_exact(
-              vm,
-              old_multi,
-              new_multi,
-              "preserve multi-test query"
-          )
-
-          # ==========================================================
-          # PACKAGE + ACTIVE SEARCH HELPERS
-          # Everything is inserted in the existing screen file so it
-          # uses the project's existing LabTest/Compose imports.
-          # ==========================================================
-
-          searchbox_marker = "@Composable\nprivate fun SearchBox("
-
-          if screen.count(searchbox_marker) != 1:
-              raise SystemExit("SearchBox marker invalid")
-
-          package_code = r'''
-          private data class V145InquiryPackage(
-              val key: String,
-              val nameAr: String,
-              val nameEn: String,
-              val testQueries: List<String>
-          )
-
-          private val V145InquiryPackages = listOf(
-              V145InquiryPackage(
-                  key = "liver",
-                  nameAr = "باقة وظائف الكبد",
-                  nameEn = "Liver Function Package",
-                  testQueries = listOf(
-                      "ALT",
-                      "AST",
-                      "ALP",
-                      "GGT",
-                      "Bilirubin Total",
-                      "Bilirubin Direct",
-                      "Albumin"
-                  )
-              ),
-              V145InquiryPackage(
-                  key = "kidney",
-                  nameAr = "باقة وظائف الكلى",
-                  nameEn = "Kidney Function Package",
-                  testQueries = listOf(
-                      "Urea",
-                      "Creatinine",
-                      "Uric Acid",
-                      "eGFR"
-                  )
-              ),
-              V145InquiryPackage(
-                  key = "diabetes",
-                  nameAr = "باقة السكر",
-                  nameEn = "Diabetes Package",
-                  testQueries = listOf(
-                      "Fasting Blood Glucose",
-                      "HbA1c"
-                  )
-              ),
-              V145InquiryPackage(
-                  key = "thyroid",
-                  nameAr = "باقة الغدة الدرقية",
-                  nameEn = "Thyroid Package",
-                  testQueries = listOf(
-                      "TSH",
-                      "Free T4",
-                      "Free T3"
-                  )
-              ),
-              V145InquiryPackage(
-                  key = "lipids",
-                  nameAr = "باقة الدهون",
-                  nameEn = "Lipid Profile Package",
-                  testQueries = listOf(
-                      "Cholesterol",
-                      "Triglyceride",
-                      "HDL",
-                      "LDL"
-                  )
-              ),
-              V145InquiryPackage(
-                  key = "anemia",
-                  nameAr = "باقة الأنيميا",
-                  nameEn = "Anemia Package",
-                  testQueries = listOf(
-                      "CBC",
-                      "Ferritin"
-                  )
-              ),
-              V145InquiryPackage(
-                  key = "basic",
-                  nameAr = "باقة الفحص الأساسي",
-                  nameEn = "Basic Checkup Package",
-                  testQueries = listOf(
-                      "CBC",
-                      "HbA1c",
-                      "TSH",
-                      "Creatinine",
-                      "ALT",
-                      "Cholesterol"
-                  )
-              )
-          )
-
-          private fun activeSearchSegmentV145(
-              query: String
-          ): String {
-              return query
-                  .split(Regex("[\\n\\r\\t,،;؛|•]+"))
-                  .lastOrNull()
-                  ?.trim()
-                  .orEmpty()
+      - name: Reuse proven V144 signing selector
+        shell: bash
+        env:
+          SIGNING_BUNDLE_B64: ${{ secrets.TAHALIL_SIGNING_BUNDLE_B64 }}
+        run: |
+          set -euo pipefail
+          WF='.github/workflows/android-v144-ONLY-SESSION-RELOCK-FIX-FINAL-ONE-RUN-R3-AUDITED.yml'
+          test -s "$WF"
+          extract_step() {
+            local name="$1" out="$2"
+            awk -v target="$name" '
+              $0 == "      - name: " target { found=1; next }
+              found && /^        run: \|/ { inrun=1; next }
+              inrun && /^      - name:/ { exit }
+              inrun { sub(/^          /,""); print }
+            ' "$WF" > "$out"
+            test -s "$out"
           }
+          extract_step 'Prepare deterministic APK certificate reader' "$RUNNER_TEMP/cert.sh"
+          extract_step 'Select exact installed Android signer' "$RUNNER_TEMP/signer.sh"
+          bash "$RUNNER_TEMP/cert.sh"
+          bash "$RUNNER_TEMP/signer.sh"
 
-          private fun resolvePackageTestsV145(
-              viewModel: LabTestsViewModel,
-              queries: List<String>
-          ): List<LabTest> {
-              return queries
-                  .mapNotNull { query ->
-                      viewModel.smartSearchCandidates(query)
-                          .firstOrNull()
-                  }
-                  .distinctBy { it.id }
-          }
+      - name: Compile and build signed APK
+        working-directory: build_v145
+        shell: bash
+        run: |
+          set -euo pipefail
+          gradle --no-daemon --no-configuration-cache --no-parallel --max-workers=2 :app:compileReleaseKotlin
+          gradle --no-daemon --no-configuration-cache --no-parallel --max-workers=2 :app:assembleRelease
 
-          @Composable
-          private fun InquiryPackagesSectionV145(
-              viewModel: LabTestsViewModel,
-              customerPriceOverrides: Map<Int, String>,
-              selectedIds: Set<Int>,
-              onAddPackage: (List<LabTest>) -> Unit
-          ) {
-              Column(
-                  modifier = Modifier.fillMaxWidth(),
-                  verticalArrangement = Arrangement.spacedBy(8.dp)
-              ) {
-                  Text(
-                      text = appText(
-                          "باقات التحاليل",
-                          "Test Packages"
-                      ),
-                      fontSize = 16.sp,
-                      fontWeight = FontWeight.ExtraBold,
-                      color = Color(0xFF17324D)
-                  )
+      - name: Verify V145 against installed V144 signer
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="$(find build_v145/app/build/outputs/apk/release -type f -name '*.apk' | head -1)"
+          test -s "$APK"
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -1)"
+          AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -1)"
+          "$APKSIGNER" verify --verbose --print-certs "$APK" > "$RUNNER_TEMP/new.cert"
+          NEW_CERT="$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' "$RUNNER_TEMP/new.cert" | head -1 | tr 'A-F' 'a-f')"
+          curl -fL --retry 3 'https://github.com/ahmedmeshrf22-jpg/lab-tests-directory/releases/download/v144-android-no-relock-r3/Tahalil-Alakkad-V144-No-Relock-R3-SIGNED.apk' -o "$RUNNER_TEMP/v144.apk"
+          "$APKSIGNER" verify --verbose --print-certs "$RUNNER_TEMP/v144.apk" > "$RUNNER_TEMP/old.cert"
+          OLD_CERT="$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' "$RUNNER_TEMP/old.cert" | head -1 | tr 'A-F' 'a-f')"
+          test -n "$NEW_CERT"
+          test "$NEW_CERT" = "$OLD_CERT"
+          BADGING="$("$AAPT" dump badging "$APK" | head -1)"
+          echo "$BADGING"
+          echo "$BADGING" | grep -Fq "package: name='com.aistudio.labtestsdirectory.egypt'"
+          echo "$BADGING" | grep -Fq "versionCode='145'"
+          echo "$BADGING" | grep -Fq "versionName='5.65-search-packages-v145-r2'"
+          cp "$APK" Tahalil-Alakkad-V145-R2-FINAL-SIGNED.apk
+          sha256sum Tahalil-Alakkad-V145-R2-FINAL-SIGNED.apk > Tahalil-Alakkad-V145-R2-FINAL-SIGNED.apk.sha256
 
-                  V145InquiryPackages.forEach { pkg ->
-                      val tests = resolvePackageTestsV145(
-                          viewModel = viewModel,
-                          queries = pkg.testQueries
-                      )
+      - name: Create local source commit and ZIP
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd build_v145
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git checkout -b v145-search-packages-final-r2-base
+          git add app/build.gradle.kts app/src/main/java/com/example/ui/LabTestsScreen.kt app/src/main/java/com/example/ui/LabTestsViewModel.kt
+          git commit -m 'Android V145 R2 final search packages and inquiry image'
+          FINAL_SHA="$(git rev-parse HEAD)"
+          git archive --format=zip --output="$GITHUB_WORKSPACE/Tahalil-Alakkad-V145-R2-SOURCE.zip" HEAD
+          echo "FINAL_SHA=$FINAL_SHA" >> "$GITHUB_ENV"
+          cd "$GITHUB_WORKSPACE"
+          sha256sum Tahalil-Alakkad-V145-R2-SOURCE.zip > Tahalil-Alakkad-V145-R2-SOURCE.zip.sha256
 
-                      val totalPrice = calculatePriceTotal(tests) { test ->
-                          customerPriceOverrides[test.id]
-                              ?: test.customerPrice
-                      }
+      - name: Upload final artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Tahalil-Alakkad-V145-R2-FINAL-HANDOVER
+          path: |
+            Tahalil-Alakkad-V145-R2-FINAL-SIGNED.apk
+            Tahalil-Alakkad-V145-R2-FINAL-SIGNED.apk.sha256
+            Tahalil-Alakkad-V145-R2-SOURCE.zip
+            Tahalil-Alakkad-V145-R2-SOURCE.zip.sha256
+          if-no-files-found: error
+          retention-days: 30
 
-                      val allSelected =
-                          tests.isNotEmpty() &&
-                              tests.all { it.id in selectedIds }
-
-                      Card(
-                          modifier = Modifier.fillMaxWidth(),
-                          shape = RoundedCornerShape(16.dp),
-                          colors = CardDefaults.cardColors(
-                              containerColor =
-                                  if (allSelected) {
-                                      Color(0xFFEAF7F2)
-                                  } else {
-                                      Color.White
-                                  }
-                          ),
-                          border = BorderStroke(
-                              1.dp,
-                              if (allSelected) {
-                                  Color(0xFF8FD3B6)
-                              } else {
-                                  Color(0xFFDCE6EF)
-                              }
-                          )
-                      ) {
-                          Column(
-                              modifier = Modifier
-                                  .fillMaxWidth()
-                                  .padding(12.dp),
-                              verticalArrangement =
-                                  Arrangement.spacedBy(6.dp)
-                          ) {
-                              Row(
-                                  modifier = Modifier.fillMaxWidth(),
-                                  horizontalArrangement =
-                                      Arrangement.SpaceBetween,
-                                  verticalAlignment =
-                                      Alignment.CenterVertically
-                              ) {
-                                  Column(
-                                      modifier = Modifier.weight(1f)
-                                  ) {
-                                      Text(
-                                          text = appText(
-                                              pkg.nameAr,
-                                              pkg.nameEn
-                                          ),
-                                          fontSize = 14.sp,
-                                          fontWeight =
-                                              FontWeight.ExtraBold,
-                                          color = Color(0xFF17324D)
-                                      )
-
-                                      Text(
-                                          text = appText(
-                                              "${tests.size} تحليل",
-                                              "${tests.size} tests"
-                                          ),
-                                          fontSize = 10.sp,
-                                          color = Color(0xFF64748B)
-                                      )
-                                  }
-
-                                  Text(
-                                      text =
-                                          "${formatTotalDisplay(totalPrice)} ${
-                                              appText("ج", "EGP")
-                                          }",
-                                      fontSize = 17.sp,
-                                      fontWeight =
-                                          FontWeight.ExtraBold,
-                                      color = Color(0xFF087F5B)
-                                  )
-                              }
-
-                              if (tests.isNotEmpty()) {
-                                  Text(
-                                      text = tests.joinToString(
-                                          separator = " • "
-                                      ) { test ->
-                                          test.marketName.ifBlank {
-                                              test.englishName
-                                          }
-                                      },
-                                      fontSize = 9.sp,
-                                      color = Color(0xFF64748B)
-                                  )
-                              }
-
-                              LabeledIconAction(
-                                  label =
-                                      if (allSelected) {
-                                          appText(
-                                              "تمت إضافة الباقة",
-                                              "Package added"
-                                          )
-                                      } else {
-                                          appText(
-                                              "إضافة الباقة بالكامل",
-                                              "Add full package"
-                                          )
-                                      },
-                                  onClick = {
-                                      onAddPackage(tests)
-                                  },
-                                  modifier = Modifier.fillMaxWidth(),
-                                  enabled =
-                                      tests.isNotEmpty() &&
-                                          !allSelected
-                              ) {
-                                  Icon(
-                                      Icons.Default.AddCircle,
-                                      contentDescription = null
-                                  )
-                              }
-                          }
-                      }
-                  }
-              }
-          }
-
-          '''
-
-          screen = screen.replace(
-              searchbox_marker,
-              package_code + searchbox_marker,
-              1
-          )
-
-          # ==========================================================
-          # SUGGESTIONS FOLLOW CURRENT TEST SEGMENT
-          # ==========================================================
-
-          old_suggestions = (
-              "suggestions = "
-              "viewModel.smartSearchCandidates(searchQuery),"
-          )
-
-          screen = replace_exact(
-              screen,
-              old_suggestions,
-              "suggestions = "
-              "viewModel.smartSearchCandidates("
-              "activeSearchSegmentV145(searchQuery)),",
-              "active search suggestions",
-              expected=2
-          )
-
-          # ==========================================================
-          # BIGGER MULTILINE SEARCH FIELD
-          # ==========================================================
-
-          start = screen.find("private fun SearchBox(")
-
-          end = screen.find(
-              "\n@Composable\nprivate fun ResultCountChip",
-              start
-          )
-
-          if start < 0 or end < 0:
-              raise SystemExit("SearchBox block not found")
-
-          searchbox = screen[start:end]
-
-          searchbox = replace_exact(
-              searchbox,
-              ".heightIn(min = 62.dp)",
-              ".heightIn(min = 105.dp)",
-              "search field height"
-          )
-
-          searchbox = replace_exact(
-              searchbox,
-              "            singleLine = true,\n",
-              "            singleLine = false,\n"
-              "            minLines = 2,\n"
-              "            maxLines = 5,\n",
-              "multiline search"
-          )
-
-          searchbox = replace_exact(
-              searchbox,
-              "keyboardOptions = "
-              "KeyboardOptions(imeAction = ImeAction.Search),",
-              "keyboardOptions = "
-              "KeyboardOptions(imeAction = ImeAction.Default),",
-              "keyboard action"
-          )
-
-          screen = (
-              screen[:start] +
-              searchbox +
-              screen[end:]
-          )
-
-          # ==========================================================
-          # INSERT PACKAGES DIRECTLY BELOW QUICK INQUIRY SEARCH
-          # ==========================================================
-
-          quick_pos = screen.find('"quick_image" -> {')
-
-          if quick_pos < 0:
-              raise SystemExit("quick_image workspace not found")
-
-          search_pos = screen.find(
-              "SearchBox(",
-              quick_pos
-          )
-
-          if search_pos < 0:
-              raise SystemExit("quick inquiry SearchBox missing")
-
-          search_end_marker = (
-              "                                        "
-              "importingDocument = importingTestsDocument\n"
-              "                                    )"
-          )
-
-          search_end = screen.find(
-              search_end_marker,
-              search_pos
-          )
-
-          if search_end < 0:
-              raise SystemExit(
-                  "quick inquiry SearchBox end not found"
-              )
-
-          search_end += len(search_end_marker)
-
-  
+      - name: Publish permanent source and release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git -C build_v145 push origin HEAD:refs/heads/v145-search-packages-final-r2-base
+          gh release create v145-search-packages-final-r2 Tahalil-Alakkad-V145-R2-FINAL-SIGNED.apk Tahalil-Alakkad-V145-R2-FINAL-SIGNED.apk.sha256 Tahalil-Alakkad-V145-R2-SOURCE.zip Tahalil-Alakkad-V145-R2-SOURCE.zip.sha256 --repo "$GITHUB_REPOSITORY" --target "$FINAL_SHA" --title 'Tahalil Alakkad Android V145 R2 FINAL' --notes 'Final handover: larger persistent multi-test search, ready test packages with current-price totals, branded customer image save/share, exact V144 signer, unchanged Firestore Rules and 331-test catalogue.'
