@@ -3057,44 +3057,73 @@ private fun V145PackagesSection(
 ) {
     Column(
         modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(2.dp)
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         Text(
             text = appText("الباقات الجاهزة", "Ready packages"),
             fontWeight = FontWeight.Bold
         )
-        v145Packages.forEach { item ->
-            val tests = v145ResolvePackage(viewModel, item)
-            val total = calculatePriceTotal(tests) { test ->
-                customerPriceOverrides[test.id] ?: test.customerPrice
-            }
-            val added = tests.isNotEmpty() && tests.all { it.id in selectedIds }
-            TextButton(
-                onClick = { tests.forEach(onAdd) },
-                enabled = tests.isNotEmpty(),
-                modifier = Modifier.fillMaxWidth()
+
+        v145Packages.chunked(2).forEach { packageRow ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column {
-                        Text(
-                            text = appText(item.ar, item.en),
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = buildString {
-                                append(appText("${tests.size} تحليل", "${tests.size} tests"))
-                                append("  •  ")
-                                append(formatTotalDisplay(total))
-                                append(" ")
-                                append(appText("ج", "EGP"))
-                            }
-                        )
+                packageRow.forEach { item ->
+                    val tests = v145ResolvePackage(viewModel, item)
+                    val total = calculatePriceTotal(tests) { test ->
+                        customerPriceOverrides[test.id] ?: test.customerPrice
                     }
-                    Text(if (added) "✓" else "＋", fontWeight = FontWeight.Bold)
+                    val added = tests.isNotEmpty() &&
+                        tests.all { it.id in selectedIds }
+
+                    Button(
+                        onClick = { tests.forEach(onAdd) },
+                        enabled = tests.isNotEmpty() && !added,
+                        modifier = Modifier
+                            .weight(1f)
+                            .heightIn(min = 78.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(2.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = appText(item.ar, item.en),
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1
+                                )
+                                Text(
+                                    text = if (added) "✓" else "+",
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+
+                            Text(
+                                text = buildString {
+                                    append(
+                                        appText(
+                                            "${tests.size} تحليل",
+                                            "${tests.size} tests"
+                                        )
+                                    )
+                                    append(" • ")
+                                    append(formatTotalDisplay(total))
+                                    append(" ")
+                                    append(appText("ج", "EGP"))
+                                }
+                            )
+                        }
+                    }
+                }
+
+                if (packageRow.size == 1) {
+                    Spacer(modifier = Modifier.weight(1f))
                 }
             }
         }
@@ -3130,7 +3159,7 @@ private fun SearchBox(
             readOnly = false,
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(min = 82.dp)
+                .heightIn(min = 72.dp)
                 .onFocusChanged { focused = it.isFocused }
                 .testTag("search_text_field"),
             leadingIcon = {
@@ -3166,7 +3195,7 @@ private fun SearchBox(
             },
             singleLine = false,
             minLines = 2,
-            maxLines = 3,
+            maxLines = 2,
             shape = RoundedCornerShape(18.dp),
             colors = OutlinedTextFieldDefaults.colors(
                 focusedContainerColor = Color.White,
