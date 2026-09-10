@@ -3047,6 +3047,7 @@ private fun v145ResolvePackage(
     } ?: candidates.firstOrNull()
 }.distinctBy { it.id }
 
+
 @Composable
 private fun V145PackagesSection(
     viewModel: LabTestsViewModel,
@@ -3056,7 +3057,7 @@ private fun V145PackagesSection(
 ) {
     Column(
         modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+        verticalArrangement = Arrangement.spacedBy(2.dp)
     ) {
         Text(
             text = appText("الباقات الجاهزة", "Ready packages"),
@@ -3068,20 +3069,33 @@ private fun V145PackagesSection(
                 customerPriceOverrides[test.id] ?: test.customerPrice
             }
             val added = tests.isNotEmpty() && tests.all { it.id in selectedIds }
-            LabeledIconAction(
-                label = buildString {
-                    append(appText(item.ar, item.en))
-                    append(" • ")
-                    append(appText("${tests.size} تحليل", "${tests.size} tests"))
-                    append(" • ")
-                    append(formatTotalDisplay(total))
-                    append(" ")
-                    append(appText("ج", "EGP"))
-                    if (added) append(" ✓")
-                },
-                onClick = { tests.forEach(onAdd) }
+            TextButton(
+                onClick = { tests.forEach(onAdd) },
+                enabled = tests.isNotEmpty(),
+                modifier = Modifier.fillMaxWidth()
             ) {
-                Text(if (added) "✓" else "+")
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text(
+                            text = appText(item.ar, item.en),
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = buildString {
+                                append(appText("${tests.size} تحليل", "${tests.size} tests"))
+                                append("  •  ")
+                                append(formatTotalDisplay(total))
+                                append(" ")
+                                append(appText("ج", "EGP"))
+                            }
+                        )
+                    }
+                    Text(if (added) "✓" else "＋", fontWeight = FontWeight.Bold)
+                }
             }
         }
     }
@@ -3116,7 +3130,7 @@ private fun SearchBox(
             readOnly = false,
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(min = 105.dp)
+                .heightIn(min = 82.dp)
                 .onFocusChanged { focused = it.isFocused }
                 .testTag("search_text_field"),
             leadingIcon = {
@@ -3152,7 +3166,7 @@ private fun SearchBox(
             },
             singleLine = false,
             minLines = 2,
-            maxLines = 5,
+            maxLines = 3,
             shape = RoundedCornerShape(18.dp),
             colors = OutlinedTextFieldDefaults.colors(
                 focusedContainerColor = Color.White,
