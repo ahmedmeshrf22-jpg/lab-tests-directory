@@ -5969,6 +5969,7 @@ class LabTestsViewModel(application: Application) : AndroidViewModel(application
         val parsed = parseQueries(newQuery)
         if (explicitTests.size > 1) {
             onQueryChanged(explicitTests.joinToString("\n") { it.englishName })
+            _searchQuery.value = newQuery
             return
         }
         if (parsed.size > 1) {

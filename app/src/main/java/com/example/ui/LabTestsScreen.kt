@@ -539,15 +539,19 @@ fun LabTestsApp(
                                         query = searchQuery,
                                         onQueryChange = { viewModel.onManualQueryChanged(it) },
                                         onClear = { viewModel.clearSearch() },
-                                        suggestions = viewModel.smartSearchCandidates(searchQuery),
+                                        suggestions = viewModel.smartSearchCandidates(v145ActiveSegment(searchQuery)),
                                         selectedIds = selectedTests.map { it.id }.toSet(),
                                         onSuggestionSelected = { test ->
                                             viewModel.addSelectedTest(test)
-                                            // Keep the field focused and ready for the next test.
-                                            viewModel.clearSearch()
                                         },
                                         onImportDocument = { launchTestsImagePicker() },
                                         importingDocument = importingTestsDocument
+                                    )
+                                    V145PackagesSection(
+                                        viewModel = viewModel,
+                                        customerPriceOverrides = customerPriceOverrides,
+                                        selectedIds = selectedTests.map { it.id }.toSet(),
+                                        onAdd = { test -> viewModel.addSelectedTest(test) }
                                     )
                                 }
                             },
@@ -575,12 +579,22 @@ fun LabTestsApp(
                             allowOrderSelection = true,
                             showResolvedBatchAction = true,
                             selectedTestsContent = { tests ->
-                                PriceInquiryBasketSection(
-                                    selectedTests = tests,
-                                    customerPriceOverrides = customerPriceOverrides,
-                                    onRemoveTest = { testId -> viewModel.removeSelectedTest(testId) },
-                                    onClearAll = { viewModel.clearSelectedTests() }
-                                )
+                                Column(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    QuickImageSelectedSection(
+                                        selectedTests = tests,
+                                        customerPriceOverrides = customerPriceOverrides,
+                                        onRemoveTest = { testId -> viewModel.removeSelectedTest(testId) }
+                                    )
+                                    TextButton(
+                                        onClick = { viewModel.clearSelectedTests() },
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Text(appText("مسح قائمة الاستعلام", "Clear inquiry list"))
+                                    }
+                                }
                             },
                             bottomContent = null
                         )
@@ -622,7 +636,7 @@ fun LabTestsApp(
                                         query = searchQuery,
                                         onQueryChange = { viewModel.onManualQueryChanged(it) },
                                         onClear = { viewModel.clearSearch() },
-                                        suggestions = viewModel.smartSearchCandidates(searchQuery),
+                                        suggestions = viewModel.smartSearchCandidates(v145ActiveSegment(searchQuery)),
                                         selectedIds = selectedTests.map { it.id }.toSet(),
                                         onSuggestionSelected = { test -> viewModel.addSelectedTest(test) },
                                         onImportDocument = { launchTestsImagePicker() },
@@ -2996,6 +3010,83 @@ private fun CatalogTestEditorDialog(
     )
 }
 
+
+private data class V145Package(
+    val ar: String,
+    val en: String,
+    val tests: List<String>
+)
+
+private val v145Packages = listOf(
+    V145Package("وظائف الكبد", "Liver Functions",
+        listOf("ALT","AST","Albumin","ALP","Direct Bilirubin","Total Bilirubin","GGT")),
+    V145Package("وظائف الكلى", "Kidney Functions",
+        listOf("Urea","Creatinine","Uric Acid","eGFR")),
+    V145Package("متابعة السكر", "Diabetes",
+        listOf("Fasting Blood Glucose","HbA1c")),
+    V145Package("وظائف الغدة الدرقية", "Thyroid",
+        listOf("Free T3","Free T4","TSH")),
+    V145Package("دهون الدم", "Lipid Profile",
+        listOf("Cholesterol","HDL","LDL","Triglyceride")),
+    V145Package("الأنيميا", "Anemia",
+        listOf("CBC","Ferritin")),
+    V145Package("الفحص الأساسي", "Basic Checkup",
+        listOf("CBC","Fasting Blood Glucose","HbA1c","Creatinine","ALT","Cholesterol","TSH"))
+)
+
+private fun v145ActiveSegment(query: String): String =
+    query.split(Regex("[\\n\\r\\t,،;؛|•]+")).lastOrNull()?.trim().orEmpty()
+
+private fun v145ResolvePackage(
+    viewModel: LabTestsViewModel,
+    packageItem: V145Package
+): List<LabTest> = packageItem.tests.mapNotNull { name ->
+    val candidates = viewModel.smartSearchCandidates(name)
+    candidates.firstOrNull {
+        it.englishName.equals(name, ignoreCase = true)
+    } ?: candidates.firstOrNull()
+}.distinctBy { it.id }
+
+@Composable
+private fun V145PackagesSection(
+    viewModel: LabTestsViewModel,
+    customerPriceOverrides: Map<Int, String>,
+    selectedIds: Set<Int>,
+    onAdd: (LabTest) -> Unit
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text(
+            text = appText("الباقات الجاهزة", "Ready packages"),
+            fontWeight = FontWeight.Bold
+        )
+        v145Packages.forEach { item ->
+            val tests = v145ResolvePackage(viewModel, item)
+            val total = calculatePriceTotal(tests) { test ->
+                customerPriceOverrides[test.id] ?: test.customerPrice
+            }
+            val added = tests.isNotEmpty() && tests.all { it.id in selectedIds }
+            LabeledIconAction(
+                label = buildString {
+                    append(appText(item.ar, item.en))
+                    append(" • ")
+                    append(appText("${tests.size} تحليل", "${tests.size} tests"))
+                    append(" • ")
+                    append(formatTotalDisplay(total))
+                    append(" ")
+                    append(appText("ج", "EGP"))
+                    if (added) append(" ✓")
+                },
+                onClick = { tests.forEach(onAdd) }
+            ) {
+                Text(if (added) "✓" else "+")
+            }
+        }
+    }
+}
+
 @Composable
 private fun SearchBox(
     query: String,
@@ -3025,7 +3116,7 @@ private fun SearchBox(
             readOnly = false,
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(min = 62.dp)
+                .heightIn(min = 105.dp)
                 .onFocusChanged { focused = it.isFocused }
                 .testTag("search_text_field"),
             leadingIcon = {
@@ -3059,7 +3150,9 @@ private fun SearchBox(
                     }
                 }
             },
-            singleLine = true,
+            singleLine = false,
+            minLines = 2,
+            maxLines = 5,
             shape = RoundedCornerShape(18.dp),
             colors = OutlinedTextFieldDefaults.colors(
                 focusedContainerColor = Color.White,
@@ -3069,7 +3162,7 @@ private fun SearchBox(
                 focusedTextColor = Color(0xFF102A43),
                 unfocusedTextColor = Color(0xFF102A43)
             ),
-            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Default),
             keyboardActions = KeyboardActions(onSearch = { keyboardController?.hide() })
         )
 
