@@ -94,7 +94,7 @@ jobs:
               > "$RUNNER_TEMP/protected.sha256"
           )
 
-      - name: Reuse already compiled V145 feature patch
+      - name: Reuse compiled V145 feature patch
         shell: bash
         run: |
           set -euo pipefail
@@ -102,7 +102,7 @@ jobs:
           SOURCE_WF=".github/workflows/android-v145-search-packages-preview.yml"
 
           if [ ! -s "$SOURCE_WF" ]; then
-            echo "::error::Previous V145 workflow not found"
+            echo "::error::V145 feature workflow not found"
             exit 1
           fi
 
@@ -117,7 +117,7 @@ jobs:
 
           if marker not in source:
               raise SystemExit(
-                  "V145 patch payload not found in previous workflow"
+                  "V145 patch payload not found"
               )
 
           after = source.split(marker, 1)[1]
@@ -133,13 +133,15 @@ jobs:
 
               if not line.startswith("            "):
                   raise SystemExit(
-                      "Unexpected V145 patch payload indentation"
+                      "Unexpected V145 patch indentation"
                   )
 
               payload.append(line[12:])
 
           if not payload:
-              raise SystemExit("V145 patch payload is empty")
+              raise SystemExit(
+                  "V145 patch payload empty"
+              )
 
           Path("/tmp/v145_patch.b64").write_text(
               "\n".join(payload) + "\n",
@@ -187,9 +189,6 @@ jobs:
 
           if [ "$ACTUAL" != "$EXPECTED" ]; then
             echo "::error::Unexpected files changed"
-            echo "EXPECTED:"
-            echo "$EXPECTED"
-            echo "ACTUAL:"
             echo "$ACTUAL"
             exit 1
           fi
@@ -282,12 +281,21 @@ jobs:
           bash \
             "$RUNNER_TEMP/signer-selector.sh"
 
+          echo "Production signer selection completed"
+
+      - name: Confirm signing environment
+        shell: bash
+        run: |
+          set -euo pipefail
+
           test -n "${KEYSTORE_PATH:-}"
           test -n "${STORE_PASSWORD:-}"
           test -n "${KEY_ALIAS:-}"
           test -n "${KEY_PASSWORD:-}"
 
-          echo "Exact production signer selected"
+          test -f "$KEYSTORE_PATH"
+
+          echo "Signing environment available in new step"
 
       - name: Compile V145
         working-directory: build_v145
@@ -315,7 +323,7 @@ jobs:
             --max-workers=2 \
             :app:assembleRelease
 
-      - name: Verify APK with proven V144 certificate reader
+      - name: Verify APK using proven certificate reader
         shell: bash
         run: |
           set -euo pipefail
@@ -396,21 +404,19 @@ jobs:
           )"
 
           if [ "${#NEW_CERT}" -ne 64 ]; then
-            echo "::error::V145 certificate reader returned invalid digest"
+            echo "::error::Invalid V145 certificate digest"
             exit 1
           fi
 
           if [ "${#OLD_CERT}" -ne 64 ]; then
-            echo "::error::V144 certificate reader returned invalid digest"
+            echo "::error::Invalid V144 certificate digest"
             exit 1
           fi
 
           if [ "$NEW_CERT" != "$OLD_CERT" ]; then
-            echo "::error::V145 signer does not match installed V144"
+            echo "::error::V145 signer does not match V144"
             exit 1
           fi
-
-          echo "Signer match verified"
 
           BADGING="$(
             "$AAPT" dump badging "$APK" \
@@ -439,7 +445,9 @@ jobs:
             Tahalil-Alakkad-V145-R3-FINAL-SIGNED.apk \
             > Tahalil-Alakkad-V145-R3-FINAL-SIGNED.apk.sha256
 
-      - name: Create local final source ZIP
+          echo "APK verified against V144 production signer"
+
+      - name: Create final source ZIP
         shell: bash
         run: |
           set -euo pipefail
@@ -519,7 +527,7 @@ jobs:
             --repo "$GITHUB_REPOSITORY" \
             --target "$FINAL_SHA" \
             --title "Tahalil Alakkad Android V145 R3 FINAL" \
-            --notes "Final V145 delivery. APK compiled and signed with the proven V144 production signing selector. Certificate verified against V144 using the same deterministic certificate reader used by the successful V144 workflow. Includes persistent multi-test search, larger inquiry box, test packages with current totals, and branded customer image save/share. Firestore Rules and 331-test catalogue unchanged."
+            --notes "Final V145 delivery: persistent multi-test search, larger inquiry field, test packages with current totals, branded image save/share, exact V144 production signer, unchanged Firestore Rules and 331-test catalogue."
 
       - name: Final summary
         shell: bash
@@ -527,21 +535,17 @@ jobs:
           {
             echo "## ✅ V145 FINAL DELIVERY"
             echo ""
-            echo "✅ Exact V144 production source"
+            echo "✅ Production signer selected"
             echo ""
-            echo "✅ V145 feature patch compiled"
+            echo "✅ Signing environment verified in next step"
             echo ""
-            echo "✅ Release APK built"
+            echo "✅ Kotlin compiled"
             echo ""
-            echo "✅ APK cryptographic verification passed"
+            echo "✅ Signed APK built"
             echo ""
-            echo "✅ Same certificate as installed V144"
+            echo "✅ Certificate matched against V144"
             echo ""
             echo "✅ Package/version verified"
-            echo ""
-            echo "✅ Firestore Rules unchanged"
-            echo ""
-            echo "✅ 331-test catalogue unchanged"
             echo ""
             echo "✅ APK artifact uploaded"
             echo ""
