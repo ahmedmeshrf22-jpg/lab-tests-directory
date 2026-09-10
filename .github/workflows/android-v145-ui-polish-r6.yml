@@ -1,0 +1,199 @@
+name: Android V145 UI POLISH R6 FINAL
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/android-v145-ui-polish-r6.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-v145-ui-polish-r6
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Gradle 8.11.1
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.11.1"
+
+      - name: Preflight
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin '+refs/heads/*:refs/remotes/origin/*'
+          test -n "$(git rev-parse refs/remotes/origin/v145-ui-polish-r5-base^{commit})"
+          if git ls-remote --exit-code --heads origin refs/heads/v145-ui-polish-r6-base >/dev/null 2>&1; then
+            echo "::error::R6 source branch already exists"
+            exit 1
+          fi
+          if git ls-remote --exit-code --tags origin refs/tags/v145-ui-polish-r6 >/dev/null 2>&1; then
+            echo "::error::R6 release tag already exists"
+            exit 1
+          fi
+
+      - name: Prepare exact R5 source
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf build_v145
+          git worktree add --detach build_v145 refs/remotes/origin/v145-ui-polish-r5-base
+          cd build_v145
+          grep -Fq 'versionCode = 146' app/build.gradle.kts
+          grep -Fq 'versionName = "5.66-v145-ui-polish-r5"' app/build.gradle.kts
+          grep -Fq 'private fun V145PackagesSection(' app/src/main/java/com/example/ui/LabTestsScreen.kt
+          grep -Fq '.heightIn(min = 82.dp)' app/src/main/java/com/example/ui/LabTestsScreen.kt
+          grep -Fq 'maxLines = 3' app/src/main/java/com/example/ui/LabTestsScreen.kt
+          python3 -c 'import json; x=json.load(open("app/src/main/assets/lab_tests_android.json")); assert len(x)==331, len(x)'
+          sha256sum firestore.rules app/google-services.json app/src/main/assets/lab_tests_android.json app/src/main/java/com/example/MainActivity.kt > "$RUNNER_TEMP/protected.sha256"
+
+      - name: Apply verified R6 UI patch
+        shell: bash
+        env:
+          R6_PATCH_GZ_B64: "H4sIAAAAAAAC/61YT2/bNhS/61OwxNBIiCPDXZsExtKtSbMhQNMFcf8c2iCgJdrmQpECRSV2AgPDEGDArrvutEu3orvs0zjXfpI9UpItJ1asrOHBEckf3z++9/heekpGKCZ6wFkXsSiWSqMDmDpOjLbsl4u7KePh8Wnr8ZMmieNmooJmRJho/kROSTOQUZMOSRRz2kxZ8wXpvqKJTjqBolT4Jxp7Tr+Kkp36fUVCTgGaADYBbOwrSsJjTYfapSKQIRP9LZzq3tomILqA6N+KcELaQ1JQ1+w3kORhAwl6Bj8kol7bQTACmQoNlAzEtxMXcJ7dY718+8EWamVwMxRhCUWdUaJptDtk2u3hC0Nx3EZ0GNNA0xC1UA9OhujCEhjjjKCiOlUi46VozElA3ZlULZDYKGUk7jYQPqUqYVLsyJDCauvxOl6wuHFtMTeMoWFZdhv2z0oOeQlywjZ+4q+vrxn7r6VsLZacJYM19QSvVKI3bqDXCzQuobEDShA4k/hMhHTo4u92JHhTQrqcvhexYqdEU9RLBXoD9A5IcEL6NOmA1YCCC9Kflw+/F5XHO5SoYLAtAdVABLiCDY/jnB7QUCsrK6XDzjLWVpVTRs/2wYq8jQoHflMsZcoGaaJlRNWBYgH9ETRXLKRJG+2T+Js9AV7W0Qqc8GmGTii3/rAXAqRDtYHkW1I8C8M2cnM+Hlp7il4Lph0PXVjAjuRplMtlRgTe3WNUgW77+affY5zvk+FbFkJUeY0pFuTSLCD8mVJE9GlErY+XZn4CpqLh9sjd9MM4886CsRmvTERNZ2YYpwUaEK52D08+XF1O/oLfXyYfJh+RnX6C318n/07+Nk55CJE5QsWN4JJ0ZvSk0G8p6w8M0e+nE38b4mEKhFudalS6Mj8YpOKEhu4jz+9JtUuCAbooOB3KMzDlHC9YmtflruYsxkAqdg6y3tGwU3VKBi7GTOqSKgwyy3UlpoYgHO4CHBP4GqMc0kTyU5rbxp16cMNS8appSFADaICXBCmHyLAe/cqsupY+SGsZVQlSHQ3vzDGfhUfo27Yl4c/hFlIbVwpKwhAS6lamtM+Sl1LvRrEeuR56+LBSsgxNOLfmBGEQE+VwBIYLz26nWkvhVtKFLMtZcALyXOQ88mtzbUB7aNyoPEuFyUSVuqAHVtXq8wtcthJrhn9mY8pt9bzbcQOL2xNuBEbaQhs3Xfc2Fy7G9YRVU4WlUTfnEPUT26NKJZYpUpkz7lubujmlY3TapvoMSqnlFKc24qwvCmrFt78DP1S9yTF8dCu5ZVZa/FRUx+TcE2Lyk09Ulqh8KmoYa9nLUY9CRIYvmLBVQmvpAe/+DQB1pWtD3UP48x+/Y0Q5FJR4FX+5Ab5QnYqkeDdNcy1tUZ9VQzW8yAxwDCrCeqbM8fVtXwz81UWWfRN2Tsdo8nHyz9Xl1W9XlzWtX0HHfuPaFDzn/lC52TD6/POfCN/pDLxdEdH20X/OEmhIRq6tC7w7cr4b11kN+ckUirs/HOAaDMfO/zPVuGa9scD3TaCWCjRz02gLkkZVWrR5WrmLnoXZU+w5t8sym2VfY2fsQC/j2JY4edcmR2gVzTU7q7B83j4ChO2JjhNNlC63URV9k1ccgEup2XVBtZlyvWOa2p0Bi+H6yjyh95RDK2V5tT3jAjJmiFl/Kod5F3m9Ctm0Dziu2N2Y2804oAxjetBKLqXc/3UD31x81LhGs9iznW1+BWXtzG0YbqszrUFRcxuxf6bgacv+O5E00M1/UPTLiO4iBNheQKAcrqMkkDHUjq/3UNaAm2DijEILWfaDTGYjjxR8BAT+A6fbZKHYEQAA"
+        run: |
+          set -euo pipefail
+          printf '%s' "$R6_PATCH_GZ_B64" | base64 --decode > "$RUNNER_TEMP/r6.py.gz"
+          test "$(sha256sum "$RUNNER_TEMP/r6.py.gz" | awk '{print $1}')" = "975903b9ca5ef4c99733ce30f57ca4484351d11094501a2bd859df04f8122054"
+          gzip -t "$RUNNER_TEMP/r6.py.gz"
+          gzip -dc "$RUNNER_TEMP/r6.py.gz" > "$RUNNER_TEMP/r6.py"
+          python3 -m py_compile "$RUNNER_TEMP/r6.py"
+          python3 "$RUNNER_TEMP/r6.py"
+
+      - name: Safety audit
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd build_v145
+          git diff --check
+          EXPECTED="$(printf '%s\n' app/build.gradle.kts app/src/main/java/com/example/ui/LabTestsScreen.kt | sort)"
+          ACTUAL="$(git diff --name-only | sort)"
+          test "$ACTUAL" = "$EXPECTED"
+          sha256sum -c "$RUNNER_TEMP/protected.sha256"
+          grep -Fq 'versionCode = 147' app/build.gradle.kts
+          grep -Fq 'versionName = "5.67-v145-ui-polish-r6"' app/build.gradle.kts
+          grep -Fq 'v145Packages.chunked(2)' app/src/main/java/com/example/ui/LabTestsScreen.kt
+          grep -Fq '.heightIn(min = 72.dp)' app/src/main/java/com/example/ui/LabTestsScreen.kt
+          grep -Fq 'maxLines = 2' app/src/main/java/com/example/ui/LabTestsScreen.kt
+
+      - name: Load proven production signer
+        shell: bash
+        env:
+          SIGNING_BUNDLE_B64: ${{ secrets.TAHALIL_SIGNING_BUNDLE_B64 }}
+        run: |
+          set -euo pipefail
+          WF='.github/workflows/android-v144-ONLY-SESSION-RELOCK-FIX-FINAL-ONE-RUN-R3-AUDITED.yml'
+          test -s "$WF"
+          extract_step() {
+            local name="$1" out="$2"
+            awk -v target="$name" '
+              $0 == "      - name: " target { found=1; next }
+              found && /^        run: \|/ { inrun=1; next }
+              inrun && /^      - name:/ { exit }
+              inrun { sub(/^          /,""); print }
+            ' "$WF" > "$out"
+            test -s "$out"
+          }
+          extract_step 'Prepare deterministic APK certificate reader' "$RUNNER_TEMP/cert.sh"
+          extract_step 'Select exact installed Android signer' "$RUNNER_TEMP/signer.sh"
+          bash "$RUNNER_TEMP/cert.sh"
+          bash "$RUNNER_TEMP/signer.sh"
+
+      - name: Confirm signing environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${KEYSTORE_PATH:-}"
+          test -n "${STORE_PASSWORD:-}"
+          test -n "${KEY_ALIAS:-}"
+          test -n "${KEY_PASSWORD:-}"
+          test -f "$KEYSTORE_PATH"
+
+      - name: Compile and build
+        working-directory: build_v145
+        shell: bash
+        run: |
+          set -euo pipefail
+          gradle --no-daemon --no-configuration-cache --no-parallel --max-workers=2 :app:compileReleaseKotlin
+          gradle --no-daemon --no-configuration-cache --no-parallel --max-workers=2 :app:assembleRelease
+
+      - name: Verify signed APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="$(find build_v145/app/build/outputs/apk/release -type f -name '*.apk' | sort | head -1)"
+          test -s "$APK"
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -1)"
+          AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -1)"
+          "$APKSIGNER" verify --verbose "$APK"
+
+          curl -fL --retry 3 'https://github.com/ahmedmeshrf22-jpg/lab-tests-directory/releases/download/v145-ui-polish-r5/Tahalil-Alakkad-V145-R5-UI-POLISH-SIGNED.apk' -o "$RUNNER_TEMP/r5.apk"
+          "$APKSIGNER" verify --verbose "$RUNNER_TEMP/r5.apk"
+
+          NEW_CERT="$(python3 "$RUNNER_TEMP/apk_cert_sha256.py" "$APK" | tr 'A-F' 'a-f' | tr -d ':[:space:]')"
+          OLD_CERT="$(python3 "$RUNNER_TEMP/apk_cert_sha256.py" "$RUNNER_TEMP/r5.apk" | tr 'A-F' 'a-f' | tr -d ':[:space:]')"
+          test "${#NEW_CERT}" -eq 64
+          test "${#OLD_CERT}" -eq 64
+          test "$NEW_CERT" = "$OLD_CERT"
+
+          BADGING="$("$AAPT" dump badging "$APK" | head -1)"
+          echo "$BADGING"
+          echo "$BADGING" | grep -Fq "package: name='com.aistudio.labtestsdirectory.egypt'"
+          echo "$BADGING" | grep -Fq "versionCode='147'"
+          echo "$BADGING" | grep -Fq "versionName='5.67-v145-ui-polish-r6'"
+
+          cp "$APK" Tahalil-Alakkad-V145-R6-UI-POLISH-SIGNED.apk
+          sha256sum Tahalil-Alakkad-V145-R6-UI-POLISH-SIGNED.apk > Tahalil-Alakkad-V145-R6-UI-POLISH-SIGNED.apk.sha256
+
+      - name: Create source ZIP
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd build_v145
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git checkout -b v145-ui-polish-r6-base
+          git add app/build.gradle.kts app/src/main/java/com/example/ui/LabTestsScreen.kt
+          git commit -m 'Polish V145 packages and compact search only'
+          FINAL_SHA="$(git rev-parse HEAD)"
+          echo "FINAL_SHA=$FINAL_SHA" >> "$GITHUB_ENV"
+          git archive --format=zip --output="$GITHUB_WORKSPACE/Tahalil-Alakkad-V145-R6-SOURCE.zip" HEAD
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Tahalil-Alakkad-V145-R6-UI-POLISH
+          path: |
+            Tahalil-Alakkad-V145-R6-UI-POLISH-SIGNED.apk
+            Tahalil-Alakkad-V145-R6-UI-POLISH-SIGNED.apk.sha256
+            Tahalil-Alakkad-V145-R6-SOURCE.zip
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git -C build_v145 push origin HEAD:refs/heads/v145-ui-polish-r6-base
+          gh release create v145-ui-polish-r6             Tahalil-Alakkad-V145-R6-UI-POLISH-SIGNED.apk             Tahalil-Alakkad-V145-R6-UI-POLISH-SIGNED.apk.sha256             Tahalil-Alakkad-V145-R6-SOURCE.zip             --repo "$GITHUB_REPOSITORY"             --target "$FINAL_SHA"             --title 'Tahalil Alakkad V145 R6 UI Polish'             --notes 'Compact two-column package buttons and smaller multi-test search box only. Existing V145 behavior, image import, selection sections, protected files, catalogue and signer preserved.'
