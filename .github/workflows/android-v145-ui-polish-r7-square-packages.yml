@@ -1,0 +1,210 @@
+name: Android V145 UI POLISH R7 SQUARE PACKAGES
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/android-v145-ui-polish-r7-square-packages.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-v145-ui-polish-r7-square-packages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Gradle 8.11.1
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.11.1"
+
+      - name: Prepare exact R6 source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin '+refs/heads/*:refs/remotes/origin/*'
+          REF='refs/remotes/origin/v145-ui-polish-r6-base'
+          test -n "$(git rev-parse "$REF^{commit}")"
+          R6_SHA="$(git rev-parse "$REF^{commit}")"
+          test "$R6_SHA" = "db8a4945c0133b77889499c40cdcf9cdc47968ac"
+
+          rm -rf build_v145
+          git worktree add --detach build_v145 "$REF"
+          cd build_v145
+
+          grep -Fq 'versionCode = 147' app/build.gradle.kts
+          grep -Fq 'versionName = "5.67-v145-ui-polish-r6"' app/build.gradle.kts
+          grep -Fq 'private fun V145PackagesSection(' app/src/main/java/com/example/ui/LabTestsScreen.kt
+          grep -Fq 'fun LabeledIconAction(' app/src/main/java/com/example/ui/LabeledIconAction.kt
+          grep -Fq 'fun generateQuickTestsImage(' app/src/main/java/com/example/util/PdfGenerator.kt
+          python3 -c 'import json; x=json.load(open("app/src/main/assets/lab_tests_android.json")); assert len(x)==331, len(x)'
+
+          sha256sum             firestore.rules             app/google-services.json             app/src/main/assets/lab_tests_android.json             app/src/main/java/com/example/MainActivity.kt             app/src/main/java/com/example/settings/AppSettings.kt             > "$RUNNER_TEMP/r7-protected.sha256"
+
+      - name: Apply R7 square packages patch
+        shell: bash
+        env:
+          R7_PATCH_GZ_B64: "H4sIAOLlo2oC/+09XXPjxpHv+hVjli8CbC4kUl9clj9OpKiN6rS7OlGxr87aU42IoYgIBGgA1Ic3fHCyTvZS95z3K1duLy47KccX+3x1P4R6zS+57sHgGyAAkrve5EKXtcCgp2emp6enu6fR6FvmkIyoM9C1c6INR6blkCO4XRHXFltZsUzTIe/yYqlyPtZ09eyqtrlVkVfsnsWYcYb1AYDDrZEKHY3WbKu3NqSasfZTekXXeuZwjd3Q4Uhna2Nt7ZCenzDbsbu8unLpVFZoz9HMuTAxnakHPdPY5Rg4spHaL4nJ0fS1I7X/gBnMoo5pcTQXFlV1loaJE0FxnwOoXVkRwAAXqqVYjKpnDrtxJHmF2jYDgq5eMcuGjrZNFaFrmzurRDNErTjQIzpEoMqWsr1zD2l+b6zdG5m6Zg/uWduVcM1Y+9D0SKc9JqW0V012ogGFNTkXSV5/qmk9byQgdyrh5lxSXVuaw1xaucXyimAvQBPiswhNtT5ZFYxKDdUyNfVGgXkdmTZT+ubYUCnnCZ3emmNHofaI9ZxjLFslBswmUM/F3Fwh8KNGb2Ba0FwJnLuWRY0LNmSGc2qsumjcORTY/Db4s9iIfAK7wFWv0ttzDgu6wAm7YrBroFbvkl4wGwf0921enZ7r7NQYWdoVdRjpjw3yAUzNkQDsMr6EpFMDu3qlseuHwB96k3jr9QOvqOqC9Ma2Yw6ZdWRpPfYYZt7SVGY3yUM6eufAcKqk61iacfGeALdhqfYcWK0qwHSZgzDeM1i/qtokkmhKJvfeIz8xNCCqTJ6KDlGdwDrHqYchHZo9qrfdW6U3tiw+Ax6czRwHWrY9wN3RqCuKksDnMIUqPEIZF5YB0JeWeCRogj/D5WyvBQWEDQAiv1cDIIde6JoRgeOtnLjlIcjrAXVskCkJ0A/xAfQ7BDsamCk4j7A0BEVV1WK2nYDbdctDkEA6iyINQfoCOKwmKTys7sC8Fk8PjL4pR8YcekCYbjNSqYQw6+aFeeTKzWgnDsUDF1T2JsGCvozgMVMFM5LzW9h7hmx4zizylAzHDvJu1wG+fdx/x+Wr99+TjLGuy2QSoDkf27cChbshzItoxPjEH7IL2vMwdulVTseOqGa9E1pTVXKo2c47gqvfey/cktsWLkKxUk80R2cSiMFhM7wu5aZYR+Td0CSPRicoAyvT/5y+uPv59HfkzadYU6HWpFIlFXHHjAkRaCpyuEm+g4knB0P4k2y3Shxc9M3oEORwLyLL5cK9Yv841nqXXF64iANwLjP8FSyuqtHnnpDgCACK9yEGky53EGXqg1jt0HL3LmMQqtkbo0TnEwJgifmRA/gIVW1gEEG9R+Z1cZI+DfDhIkwy8RvvEuQb8rOfuRgUze4MR86tJMvAjc7YMgIMydqwD2PPmgFTVEKiyroNt+8Jxb7Gh57OJ2IccrQadp1XE72V43h96Uz7iFt0xt8Ej9kFu5EqH/3L7r1/pvc+Wb93/8nbFRmY+awiK7AChtLp6tnpqpxEGuFDHKq4g70G+3xiPqC6zqxbKVm1CE96P0ET/CcDQtVsGMutp/2c0AHVNf1sV6eXl6C2CEKevfkUSTCBf7u3NlJB7Ekn2pA91HTQkiR5ooyMi0qymdjwJ8HtBHpmwEAT85nGEThBoarupS+VcJb0sOg7YtZQs1GzO6RjUFIY6kmeHPSK9k0L8V9pzu0xs8e6E6I3UtZy95koTFs8sJVj9vEY2CpoShJjBUZCjRSmRgW9IMCJvRRyGldphsQO7Z9ZMj1ODuRkr8Ef/chvI4uvY8tegCt9zbJBCfJubQY0UOVsoqMEsQQNgs7NJUWQMgZjqh0QEwbZ4mbLB53j7sHjR0p37x/ODh6dkHdiD87aj/c6XeUIRh4dptC2UJWkoHMNWO+yy/R+aL6S3Jq9oB5SQ+tDx5WRX1/58PjgpHPW+aeTzvGj3cOz7snj490HnWhdGadBUAJwwF9LOeocPzzo8s4/ON59dNLZOzWisxkjRmIKZ7AG0p84pkv0aK2cJQIaOl5IxYca5g5XrZrNaunCOI2x7AG1vJqv1caE/XotdqboJoLdiu4iL33zsMfnP2VcQoL6lmJfTMg90PKSysikkoEQbEkwGS1PjfF1xrvPpv81fTH9+u4XoDdO/3T3fPo1Xry4e+Zpk6hCdpEEnu5DtKHQIX+w/Uj05IjqQBqu7sE+6Tzuh+ZFFLRN3bSk9Zv9/fXt+vbGLugQoaL1nU7jfqRoY6Ozvrcuy9UZmGob9Y2N/Wi1re3GbiNStFNv7+zvz8a0Ua9txTA1djd2Y5g6m429PEy1nY2dehTTequxv7MeKdqudXZa7Zw+7dU3axuRaq3t7VZtO1K0v99ubO3mYGrVGvWtGKaN9nYjhqnRaG3mjO5+vbMZ7VNtZ7vViE7n9nanhnTyDUr3AgDGw/CGNDRVra9xteWhuIQNWtcf0psPNdUZSOG+gOXgaOg2CLw7qLcEd4oN3MjU1q1UW1fUUaCnBDiOQTxH2b5UF/A3MC3tE7SzZ3Skix1pMeeaMSNW3R+Frl0YXlXvWmnDH2Z9IGD025BJE1+vXGokV74Qe4EpGgiQF9MvXHnyJfz91fSPrkQ5ZlS99daxXZFTxFYfhvsh0y4GiHnfv1E66KpombqaUaerfcI9mTswM9U0NUTnnr3I2qlv7sWElzznuKffTv9n+h2Zfn/37O5fI4KUwOX3IF6/JdPP756T6W+nv7/7FCr8uwv1Bb/5092v754hgU7oiFBf5ILOYQ/MawI9H4AdS1TmUE3Pppugwf2iJNje3NlstNKw4Qg5pwD8iXetdIw06qdx9TWfNKnWl5URVbkDzXaohVRrBMslheqTsN52FfJNgro5Ni6ZKtVlpW9aHdobgFEgKAVLLWIXpC+/uZZg0WWYKg8yFxTXOP2+hwbEdc34UMLKjyPcIkgbsJ9M3VcHJd9hWyUxH0UCiQljQYWF6r2xDgoO95ecYKnkqk/QFbzI7Eq2F+YjrKdo6hPyfpPjUCJw6egm2X0F9gEj7F1fu3xkOkLBRMvMLQXxxWkHzXJ/e+BnnoXZ8zgC8rjz8V3fOZFdXYMKN2ImfC7lhbCL8QlQeiazemzXOWTUdqT1GTMycpWawNfkaTkfuc38XbxcsWGxP5lBtl7PZVKBGUwR6IJ8mjGgNrVUKXuqTaOta71LQPc0G8j1KMcIyVVvr1R2bQVu18ykL+eJavazlGU8u18hiZQDGDpNKQANZoKaKmgShNHZFRWqbpQkNZSILk1qNbis5iODVkdI22M8C2Jq27TATulioVSvo/gpgIMOzzXgkLbYFVx+AY4d3UpUHw0olK0rm9v9IrjskZmDaGc9j5R5lMaVfkIvpIpYCGf2x2OwT858y9F3I1ZIxfUZTiqzOr8IEfleimIY180e69OxDmKoBzecDLaEpiDVAGE7vOsqJ7BhwE6Brr5Z6M9NS+XM3eIXXccyL1kOk0WZqh7wVD5LuX37cACEjM5bFCfMYr3vIl1XNjZnTWjGI3mW+GiZNzlDLL3qOeOI7R2VI0kuAH8O/HVhIVNILWtsDxQ8sKPWA4uquGAkIVDlIrg85adWTyoFhQmTas6UoFGUAgWWc771EzY6cpZ13siydbWSw8vW39J+C5pWuaQraXItRL5iq2fhlRTd+JCZttZns3VqzZ6ujaQUoVvbQmRlsYVWa6YYW1dqW/3ymLnslcrVwl/BTbywFF5X6o2+PAfGTCKXQ1Wmae4CNZxZ7F8MWWHGxx+Gf5WcKKxiK4/HDkp3VWlppsN6g5JEFqPdY3bP0kYhR2ZJPI7GKRXigJII0sQiX6H1Rrn5Lgg6OTVeY7G0sblMsVRbUCyVX7dRtWuWXNjsy+XRcw3OxdoChfkyISzXy2L9Sxat9aWJ1tpfo2jNcIHOlGauezTKxZU//+aPFREo9uff/G+ltKQNm1HziMgsxzJfAnPg8hzOm4o9ehnydSkiWJgNJY4zuOgszCEluSPmOBfxalXPF1RuNSzCEPOcMhRhhq1013vWD3WPH3vdqN0vV3lIbw6hPnoh6iWqmcAMfd28Fp79x+JW6eiwAdqaXVCGvAr+qLz51PXv4q4+IdMvpl/dPfOOSqLP+HVlQQZKOK3Kqd1hRlgvN5dZ/NhlQw3ZcamTUtzaXqrF/RKt7pdheb/CnRJ4uW9aQ+rwE5g9N4RQ4oc08oS8+TQ4aPwSOb/z4KiSHfPx6nfQeYRm2rHt0ndRT5fmR0il5rK86bI0EyZqytR3yiuVuSbN/TksmkyHCz9Jrm/t7dzfldPsk3m066WpunMt5AW8ClHvgjgYUNoYKVmdD9OyXAxLczXkuhxqc7JsySqT4uCTZSrdcz6eFD74TlXsUYyFAgZsLjZBbmYyNt9FLWl2cIac2nrGbTQ0g+peOMoBhizEjsF55PNj69HYO5jHd96Sx+wh7LuGNsRIyw80WzvXdM2Jx+pf4QMexhhu943UxcAlBMZaUpUdGAkNhd1ojnj6eOyED4US5Ay19b6iM2dWiMbC4RnLCc1YUljGJL1/yw/HWFosxVLjKErGUMyInyilEcRU6xmAhSIP+LljjoCfN4igUABBAfdafvDARmOOs2ZOpETQgFjP80UNzBsxMG+0AN+es5CmxwjUFDzgqWaFc6Qfg2VuIrmnzvnGYXAEvpnDU3PG3JZS9fJN34XN3SWbuMsya3M14GJegdn6RJnYgkLjKYCwVHDm/XzVtJCpUNw2XMgedBXqzZLHWdlHWRslDb/isTAFjYilGHaFjbmSBtzCR8LLsNUWss+yj4FLsJC8sBkU2jrSjI6XdLiQfC9qXm9w+P2A1+RQ4Yf0yue648n0D9MX09/jRewVshQnPVoEIy8jwUIzlP36QlEP/ataEDmPC87HS3MTJ0nrvSOXX3cZTB+elkbutMgznSzZD3/sKwp72pWG8QfJcXe2O539uizPwuNydPDKRu57EotpV6XPWn5YDavxl6hhlY2SytSwGgsoWOkmW63e/5t29VK0q5KCLt/vvf3Xr2NxxyEzLjCNWyzj1Q+pYS2gXNXmDrqova5BF3hWwCeKWvRc6+E8uY7alk6NS0l++afakbYXOaeeU8+LTXLJwJoF5nl5c11ividLESYlJhoUUWmuUwZZAa3JPS1YOK4hRWlt7OxvFeaTZVlr5W0KeZFDxJev374mPtKiGmWuNEukiC3A5TrWibzi/9vpt2DWfpqSJmVXVUsZtIXfpY0ZHJoO+htI8cyjNc8mkXguzSIqRvUVOHyZgfkRs48M33BPFOEqJStMPC3M3AorV1ajURlAo7Zm9XRWnaFaZmqM+Yv4VXDlV8CR/+1n8OFJezBnlcjVU44Zs1KPeRmVXg92ecVMglQoyR/uLvRa8Ec4z5Of0ak0XyQyh/3/5gikRjmW2N6rN/aKiIy5uKWA4haLqy7gauSbnJ8Y7A93vyZ3z6DkxfSb6ReY5Qaef0buPoU98Lsmgd3wi+m3UIC14L/n0y/h/38j4ew2It3N9CsOAwX4HIu+4elxxM33d7+Emi/ufkngn8+BcX/OGxKpcp5zZFjz7jmyttvwN9AaoOeIsbM8zc53uEe7ff7+7jNsTymiWFZOBprtik8CF32ev/vjsWbdworQb5uw80JBTx9jullnwHieY3c5eKFCVTJCVbfqp2Gmhsq5BXNfGmNMl2lXeaFqAhJMQ96zGKbjpn7oDulRm2HaH360r1RyODlnYPNaVOUsqOi7DBszNWG5TDBcxm2QIW6yujKiDihHBk9JyjOlazqTrFJZz0+lj07t0+6Tt94HjLjeMit3GbV6g5Z5cyqtVrHBhz85PDk4PHjUkVeGPFqId0axOZzkZnr38/+D9FxNaZ6c6ybIW2QHnuF9NZ78/qPmUOE5lCT5CXmbRBK8v01Wi/VYWgVYgQ+jX1RJbj4Jf8UhnIbf63j42wzh56tenioguCK+pKCMNexJgeT14bCVQhVEtnvX6VWmRij9QZlqdlF4HhakJL3B2ZUx0tHSqL6h4N7SGjuOaRSBDnLei7irIpW6Y6tPe4V6g7tDNpw1NhxtyJQwl2XBjjXFdz3PhApc9jOALiw6Gmg9W8kZNIDyzwGg5FICmz6/gu3cAu/6mc5mVhgbYH7tjfJh1AIwKCVPjbW33gJp9hYXS+R4x9W4VOKuOzdzsqk3CbtisBE5sI0j8b3HhnkNwveK4cmqjWniKMeFSotmI6cQN1MO0aCI9C10yZFrzRnAZmb7YbX8qwaqZoE00m8JsjLwMS54RLYWky0oU7IUVK6Eehnr/Y87cG2ySST/uw7iiacdNn3lMKQnChihADZJyzR1RlEkOtbY8yviqE5A42oSL3gusUq87Nqihks3FAdNsoffXeABNt4nLdx6TRIacLTbvuI4K8XkMDqEmNNjxgFN4MXxz+YimqpYzQUyS/JDiWCs8d1+RjBjLS2YsZeVyCieXb9g7qKMV7n5W8PuhMshjeV+u72/t5V4wWSnnhYZGrzgzuu2W3tbnVqi7mYiqjSFRKp53Yln7vJ6t+HnWFqPjiVhWgRSPoUQgaklrlKoEthA4qpaKrVhauYfDCQX3C7JKZpVhm0hbAm+zGMYZyuMUQUx5dwl7yXIarIjyRyV7iqKgc54VdZj68jMejJFZKoTd2nRtNXIhyA8hfTUWAW1aaT2URsU36KKfLcIRnM2gHs+W6t88CBS8z+gITJMN71U7KHmI9/NiOXxDoEV/WQPshra2FAe4RyvPp7sBN8liX78xW8DP0yTBeR9eoN/XagVfJIj/NEdL61uk+yDQv8+ebrKP2z0N8rlUy4EH/maSQRpkrzCSAnxJ4Zrqf2Amf2A+QCmSoJZ4Z+fwkf2+NwRecdX/eFR44raimrRay5ZvJEo4nNJitbnZ5QgmSo8ifB/gJn/u4TrgHAfwbPp59x58GL6dYVMUKVRQadZI/V+ldS3NuGv14UjCqtXdnmnSLciBAv1aYndJRNAAvviJqbFzu95aFr8AcycGA/KnZrgDibHF0ghUw7K/M+t1Wd8b837PF08S+Zq8Jmzug8Uf+ciFSjH6Zxap6jjJLVyRlLhVFhlwHegA0MaarjN7HDFKBU0vMVEAbgGVucvtwRmdBpRMzUxjk/g8aE9RTD1YboCEAGFKa9nbU8BobMkx6pgv3o6rLcyArD/A/E81DZocgAA"
+        run: |
+          set -euo pipefail
+          printf '%s' "$R7_PATCH_GZ_B64" | base64 --decode > "$RUNNER_TEMP/r7.py.gz"
+          test "$(sha256sum "$RUNNER_TEMP/r7.py.gz" | awk '{print $1}')" = "c1eb360cfbed9afb4fb3ed33d011937be86b714e33ce88a4e8e7add0de84d7fb"
+          gzip -t "$RUNNER_TEMP/r7.py.gz"
+          gzip -dc "$RUNNER_TEMP/r7.py.gz" > "$RUNNER_TEMP/r7.py"
+          python3 -m py_compile "$RUNNER_TEMP/r7.py"
+          python3 "$RUNNER_TEMP/r7.py"
+
+      - name: Safety audit
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd build_v145
+          git diff --check
+
+          EXPECTED="$(printf '%s\n'             app/build.gradle.kts             app/src/main/java/com/example/ui/LabTestsScreen.kt             app/src/main/java/com/example/ui/LabeledIconAction.kt             app/src/main/java/com/example/util/PdfGenerator.kt | sort)"
+          ACTUAL="$(git diff --name-only | sort)"
+          test "$ACTUAL" = "$EXPECTED"
+
+          sha256sum -c "$RUNNER_TEMP/r7-protected.sha256"
+
+          grep -Fq 'versionCode = 148' app/build.gradle.kts
+          grep -Fq 'versionName = "5.68-v145-ui-polish-r7"' app/build.gradle.kts
+          grep -Fq '.aspectRatio(1f)' app/src/main/java/com/example/ui/LabTestsScreen.kt
+          grep -Fq 'package_details_' app/src/main/java/com/example/ui/LabTestsScreen.kt
+          grep -Fq 'requestPackageSave(item, tests)' app/src/main/java/com/example/ui/LabTestsScreen.kt
+          grep -Fq 'documentTitle = packageTitle(item)' app/src/main/java/com/example/ui/LabTestsScreen.kt
+          grep -Fq 'RoundedCornerShape(12.dp)' app/src/main/java/com/example/ui/LabeledIconAction.kt
+          grep -Fq 'documentTitle: String = ""' app/src/main/java/com/example/util/PdfGenerator.kt
+
+          # R7 audit: show any direct IconButton use outside the shared square action component.
+          # This does not fail the build because some system controls may intentionally use it.
+          grep -RIn --include='*.kt' 'IconButton(' app/src/main/java/com/example/ui             | grep -v 'LabeledIconAction.kt' || true
+
+      - name: Load proven production signer
+        shell: bash
+        env:
+          SIGNING_BUNDLE_B64: ${{ secrets.TAHALIL_SIGNING_BUNDLE_B64 }}
+        run: |
+          set -euo pipefail
+          WF='.github/workflows/android-v144-ONLY-SESSION-RELOCK-FIX-FINAL-ONE-RUN-R3-AUDITED.yml'
+          test -s "$WF"
+
+          extract_step() {
+            local name="$1" out="$2"
+            awk -v target="$name" '
+              $0 == "      - name: " target { found=1; next }
+              found && /^        run: \|/ { inrun=1; next }
+              inrun && /^      - name:/ { exit }
+              inrun { sub(/^          /,""); print }
+            ' "$WF" > "$out"
+            test -s "$out"
+          }
+
+          extract_step 'Prepare deterministic APK certificate reader' "$RUNNER_TEMP/cert.sh"
+          extract_step 'Select exact installed Android signer' "$RUNNER_TEMP/signer.sh"
+          bash "$RUNNER_TEMP/cert.sh"
+          bash "$RUNNER_TEMP/signer.sh"
+
+      - name: Confirm signing environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${KEYSTORE_PATH:-}"
+          test -n "${STORE_PASSWORD:-}"
+          test -n "${KEY_ALIAS:-}"
+          test -n "${KEY_PASSWORD:-}"
+          test -f "$KEYSTORE_PATH"
+
+      - name: Compile and build
+        working-directory: build_v145
+        shell: bash
+        run: |
+          set -euo pipefail
+          gradle --no-daemon --no-configuration-cache --no-parallel --max-workers=2 :app:compileReleaseKotlin
+          gradle --no-daemon --no-configuration-cache --no-parallel --max-workers=2 :app:assembleRelease
+
+      - name: Verify signed APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="$(find build_v145/app/build/outputs/apk/release -type f -name '*.apk' | sort | head -1)"
+          test -s "$APK"
+
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -1)"
+          AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -1)"
+          "$APKSIGNER" verify --verbose "$APK"
+
+          curl -fL --retry 3             'https://github.com/ahmedmeshrf22-jpg/lab-tests-directory/releases/download/v145-ui-polish-r6/Tahalil-Alakkad-V145-R6-UI-POLISH-SIGNED.apk'             -o "$RUNNER_TEMP/r6.apk"
+          "$APKSIGNER" verify --verbose "$RUNNER_TEMP/r6.apk"
+
+          NEW_CERT="$(python3 "$RUNNER_TEMP/apk_cert_sha256.py" "$APK" | tr 'A-F' 'a-f' | tr -d ':[:space:]')"
+          OLD_CERT="$(python3 "$RUNNER_TEMP/apk_cert_sha256.py" "$RUNNER_TEMP/r6.apk" | tr 'A-F' 'a-f' | tr -d ':[:space:]')"
+          test "${#NEW_CERT}" -eq 64
+          test "${#OLD_CERT}" -eq 64
+          test "$NEW_CERT" = "$OLD_CERT"
+
+          BADGING="$("$AAPT" dump badging "$APK" | head -1)"
+          echo "$BADGING"
+          echo "$BADGING" | grep -Fq "package: name='com.aistudio.labtestsdirectory.egypt'"
+          echo "$BADGING" | grep -Fq "versionCode='148'"
+          echo "$BADGING" | grep -Fq "versionName='5.68-v145-ui-polish-r7'"
+
+          cp "$APK" Tahalil-Alakkad-V145-R7-SQUARE-PACKAGES-SIGNED.apk
+          sha256sum Tahalil-Alakkad-V145-R7-SQUARE-PACKAGES-SIGNED.apk             > Tahalil-Alakkad-V145-R7-SQUARE-PACKAGES-SIGNED.apk.sha256
+
+      - name: Commit exact R7 source
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd build_v145
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git checkout -B v145-ui-polish-r7-base
+          git add             app/build.gradle.kts             app/src/main/java/com/example/ui/LabTestsScreen.kt             app/src/main/java/com/example/ui/LabeledIconAction.kt             app/src/main/java/com/example/util/PdfGenerator.kt
+          git commit -m 'R7 square 4D packages, toggle details, inquiry image, square actions'
+          FINAL_SHA="$(git rev-parse HEAD)"
+          echo "FINAL_SHA=$FINAL_SHA" >> "$GITHUB_ENV"
+          git archive --format=zip             --output="$GITHUB_WORKSPACE/Tahalil-Alakkad-V145-R7-SOURCE.zip"             HEAD
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Tahalil-Alakkad-V145-R7-SQUARE-PACKAGES
+          path: |
+            Tahalil-Alakkad-V145-R7-SQUARE-PACKAGES-SIGNED.apk
+            Tahalil-Alakkad-V145-R7-SQUARE-PACKAGES-SIGNED.apk.sha256
+            Tahalil-Alakkad-V145-R7-SOURCE.zip
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish R7 branch and release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git -C build_v145 push --force origin HEAD:refs/heads/v145-ui-polish-r7-base
+
+          if gh release view v145-ui-polish-r7 --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload v145-ui-polish-r7               Tahalil-Alakkad-V145-R7-SQUARE-PACKAGES-SIGNED.apk               Tahalil-Alakkad-V145-R7-SQUARE-PACKAGES-SIGNED.apk.sha256               Tahalil-Alakkad-V145-R7-SOURCE.zip               --repo "$GITHUB_REPOSITORY"               --clobber
+          else
+            gh release create v145-ui-polish-r7               Tahalil-Alakkad-V145-R7-SQUARE-PACKAGES-SIGNED.apk               Tahalil-Alakkad-V145-R7-SQUARE-PACKAGES-SIGNED.apk.sha256               Tahalil-Alakkad-V145-R7-SOURCE.zip               --repo "$GITHUB_REPOSITORY"               --target "$FINAL_SHA"               --title 'Tahalil Alakkad V145 R7 Square Packages'               --notes 'R7: square 4D package cards; tap once to show package details and again to hide; inquiry-only branded image save/share with price, logo, address and contacts; shared app action icons changed to square frames; existing R6 search behavior preserved.'
+          fi
