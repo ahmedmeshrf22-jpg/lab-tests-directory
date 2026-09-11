@@ -1,0 +1,272 @@
+name: Android V145 UI POLISH R7 FIX COMPILE
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/android-v145-ui-polish-r7-fix.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-v145-ui-polish-r7-fix
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Gradle 8.11.1
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+
+      - name: Prepare exact R6 source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin '+refs/heads/*:refs/remotes/origin/*'
+          REF='refs/remotes/origin/v145-ui-polish-r6-base'
+          test "$(git rev-parse "$REF^{commit}")" = 'db8a4945c0133b77889499c40cdcf9cdc47968ac'
+          rm -rf build_v145
+          git worktree add --detach build_v145 "$REF"
+          grep -Fq 'versionCode = 147' build_v145/app/build.gradle.kts
+          grep -Fq 'versionName = "5.67-v145-ui-polish-r6"' build_v145/app/build.gradle.kts
+          python3 -c 'import json; x=json.load(open("build_v145/app/src/main/assets/lab_tests_android.json")); assert len(x)==331'
+          sha256sum \
+            build_v145/firestore.rules \
+            build_v145/app/google-services.json \
+            build_v145/app/src/main/assets/lab_tests_android.json \
+            build_v145/app/src/main/java/com/example/MainActivity.kt \
+            build_v145/app/src/main/java/com/example/settings/AppSettings.kt \
+            > "$RUNNER_TEMP/r7-protected.sha256"
+
+      - name: Apply original R7 patch plus compile fix
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import base64, gzip, re, os
+
+          wf = Path('.github/workflows/android-v145-ui-polish-r7-square-packages.yml').read_text()
+          m = re.search(r'R7_PATCH_GZ_B64:\s*"([A-Za-z0-9+/=]+)"', wf)
+          assert m, 'Original R7 patch payload not found'
+          raw = base64.b64decode(m.group(1))
+          patch = gzip.decompress(raw)
+          out = Path(os.environ['RUNNER_TEMP']) / 'r7.py'
+          out.write_bytes(patch)
+          PY
+          python3 -m py_compile "$RUNNER_TEMP/r7.py"
+          python3 "$RUNNER_TEMP/r7.py"
+
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('build_v145/app/src/main/java/com/example/ui/LabTestsScreen.kt')
+          s = p.read_text()
+          a = 'appText("باقة ${item.ar}", "${item.en} Package")'
+          b = 'appText(settings, "باقة ${item.ar}", "${item.en} Package")'
+          c = 'chooserTitle = appText("مشاركة صورة الباقة", "Share package image")'
+          d = 'chooserTitle = appText(settings, "مشاركة صورة الباقة", "Share package image")'
+          assert s.count(a) == 1, s.count(a)
+          assert s.count(c) == 1, s.count(c)
+          s = s.replace(a, b, 1).replace(c, d, 1)
+          p.write_text(s)
+          PY
+
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('build_v145/app/src/main/java/com/example/ui/LoginScreen.kt')
+          s = p.read_text()
+          old_shape = 'modifier = Modifier.shadow(5.dp, CircleShape),\n                                        shape = CircleShape,'
+          new_shape = 'modifier = Modifier.shadow(5.dp, RoundedCornerShape(10.dp)),\n                                        shape = RoundedCornerShape(10.dp),'
+          assert s.count(old_shape) == 2, s.count(old_shape)
+          s = s.replace(old_shape, new_shape, 2)
+          old_eye = '''IconButton(onClick = { passwordVisible = !passwordVisible }, enabled = !isLoading) {
+                                        Icon(
+                                            imageVector = if (passwordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                                            contentDescription = if (passwordVisible) tr("إخفاء كلمة المرور", "Hide password") else tr("إظهار كلمة المرور", "Show password"),
+                                            tint = LoginMuted
+                                        )
+                                    }'''
+          new_eye = '''Surface(
+                                        modifier = Modifier.size(44.dp),
+                                        shape = RoundedCornerShape(10.dp),
+                                        color = Color.Transparent,
+                                        border = BorderStroke(1.dp, Color(0xFFB7DDE2))
+                                    ) {
+                                        IconButton(
+                                            onClick = { passwordVisible = !passwordVisible },
+                                            enabled = !isLoading,
+                                            modifier = Modifier.fillMaxSize()
+                                        ) {
+                                            Icon(
+                                                imageVector = if (passwordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                                                contentDescription = if (passwordVisible) tr("إخفاء كلمة المرور", "Hide password") else tr("إظهار كلمة المرور", "Show password"),
+                                                tint = LoginMuted
+                                            )
+                                        }
+                                    }'''
+          assert s.count(old_eye) == 1, s.count(old_eye)
+          s = s.replace(old_eye, new_eye, 1)
+          p.write_text(s)
+          PY
+
+      - name: Safety audit
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd build_v145
+          git diff --check
+          EXPECTED="$(printf '%s\n' \
+            app/build.gradle.kts \
+            app/src/main/java/com/example/ui/LabTestsScreen.kt \
+            app/src/main/java/com/example/ui/LabeledIconAction.kt \
+            app/src/main/java/com/example/ui/LoginScreen.kt \
+            app/src/main/java/com/example/util/PdfGenerator.kt | sort)"
+          ACTUAL="$(git diff --name-only | sort)"
+          test "$ACTUAL" = "$EXPECTED"
+          sed 's#build_v145/##' "$RUNNER_TEMP/r7-protected.sha256" > "$RUNNER_TEMP/r7-protected-local.sha256"
+          sha256sum -c "$RUNNER_TEMP/r7-protected-local.sha256"
+          grep -Fq 'versionCode = 148' app/build.gradle.kts
+          grep -Fq 'versionName = "5.68-v145-ui-polish-r7"' app/build.gradle.kts
+          grep -Fq '.aspectRatio(1f)' app/src/main/java/com/example/ui/LabTestsScreen.kt
+          grep -Fq 'package_details_' app/src/main/java/com/example/ui/LabTestsScreen.kt
+          grep -Fq 'appText(settings, "باقة ${item.ar}", "${item.en} Package")' app/src/main/java/com/example/ui/LabTestsScreen.kt
+          grep -Fq 'chooserTitle = appText(settings, "مشاركة صورة الباقة", "Share package image")' app/src/main/java/com/example/ui/LabTestsScreen.kt
+          grep -Fq 'RoundedCornerShape(12.dp)' app/src/main/java/com/example/ui/LabeledIconAction.kt
+          grep -Fq 'modifier = Modifier.shadow(5.dp, RoundedCornerShape(10.dp))' app/src/main/java/com/example/ui/LoginScreen.kt
+          grep -Fq 'border = BorderStroke(1.dp, Color(0xFFB7DDE2))' app/src/main/java/com/example/ui/LoginScreen.kt
+          grep -Fq 'documentTitle: String = ""' app/src/main/java/com/example/util/PdfGenerator.kt
+          python3 -c 'import json; x=json.load(open("app/src/main/assets/lab_tests_android.json")); assert len(x)==331'
+
+      - name: Load proven production signer
+        shell: bash
+        env:
+          SIGNING_BUNDLE_B64: ${{ secrets.TAHALIL_SIGNING_BUNDLE_B64 }}
+        run: |
+          set -euo pipefail
+          WF='.github/workflows/android-v144-ONLY-SESSION-RELOCK-FIX-FINAL-ONE-RUN-R3-AUDITED.yml'
+          test -s "$WF"
+          extract_step() {
+            local name="$1" out="$2"
+            awk -v target="$name" '
+              $0 == "      - name: " target { found=1; next }
+              found && /^        run: \|/ { inrun=1; next }
+              inrun && /^      - name:/ { exit }
+              inrun { sub(/^          /,""); print }
+            ' "$WF" > "$out"
+            test -s "$out"
+          }
+          extract_step 'Prepare deterministic APK certificate reader' "$RUNNER_TEMP/cert.sh"
+          extract_step 'Select exact installed Android signer' "$RUNNER_TEMP/signer.sh"
+          bash "$RUNNER_TEMP/cert.sh"
+          bash "$RUNNER_TEMP/signer.sh"
+
+      - name: Confirm signing environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${KEYSTORE_PATH:-}"
+          test -n "${STORE_PASSWORD:-}"
+          test -n "${KEY_ALIAS:-}"
+          test -n "${KEY_PASSWORD:-}"
+          test -f "$KEYSTORE_PATH"
+
+      - name: Compile and build
+        working-directory: build_v145
+        shell: bash
+        run: |
+          set -euo pipefail
+          gradle --no-daemon --no-configuration-cache --no-parallel --max-workers=2 :app:compileReleaseKotlin
+          gradle --no-daemon --no-configuration-cache --no-parallel --max-workers=2 :app:assembleRelease
+
+      - name: Verify signed APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="$(find build_v145/app/build/outputs/apk/release -type f -name '*.apk' | sort | head -1)"
+          test -s "$APK"
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -1)"
+          AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -1)"
+          "$APKSIGNER" verify --verbose "$APK"
+          curl -fL --retry 3 \
+            'https://github.com/ahmedmeshrf22-jpg/lab-tests-directory/releases/download/v145-ui-polish-r6/Tahalil-Alakkad-V145-R6-UI-POLISH-SIGNED.apk' \
+            -o "$RUNNER_TEMP/r6.apk"
+          NEW_CERT="$(python3 "$RUNNER_TEMP/apk_cert_sha256.py" "$APK" | tr 'A-F' 'a-f' | tr -d ':[:space:]')"
+          OLD_CERT="$(python3 "$RUNNER_TEMP/apk_cert_sha256.py" "$RUNNER_TEMP/r6.apk" | tr 'A-F' 'a-f' | tr -d ':[:space:]')"
+          test "$NEW_CERT" = "$OLD_CERT"
+          BADGING="$("$AAPT" dump badging "$APK" | head -1)"
+          echo "$BADGING" | grep -Fq "package: name='com.aistudio.labtestsdirectory.egypt'"
+          echo "$BADGING" | grep -Fq "versionCode='148'"
+          echo "$BADGING" | grep -Fq "versionName='5.68-v145-ui-polish-r7'"
+          cp "$APK" Tahalil-Alakkad-V145-R7-SQUARE-PACKAGES-SIGNED.apk
+          sha256sum Tahalil-Alakkad-V145-R7-SQUARE-PACKAGES-SIGNED.apk > Tahalil-Alakkad-V145-R7-SQUARE-PACKAGES-SIGNED.apk.sha256
+
+      - name: Commit exact R7 source
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd build_v145
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git checkout -B v145-ui-polish-r7-base
+          git add app/build.gradle.kts \
+            app/src/main/java/com/example/ui/LabTestsScreen.kt \
+            app/src/main/java/com/example/ui/LabeledIconAction.kt \
+            app/src/main/java/com/example/ui/LoginScreen.kt \
+            app/src/main/java/com/example/util/PdfGenerator.kt
+          git commit -m 'R7 square packages compile fix'
+          FINAL_SHA="$(git rev-parse HEAD)"
+          echo "FINAL_SHA=$FINAL_SHA" >> "$GITHUB_ENV"
+          git archive --format=zip --output="$GITHUB_WORKSPACE/Tahalil-Alakkad-V145-R7-SOURCE.zip" HEAD
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Tahalil-Alakkad-V145-R7-SQUARE-PACKAGES
+          path: |
+            Tahalil-Alakkad-V145-R7-SQUARE-PACKAGES-SIGNED.apk
+            Tahalil-Alakkad-V145-R7-SQUARE-PACKAGES-SIGNED.apk.sha256
+            Tahalil-Alakkad-V145-R7-SOURCE.zip
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish R7 branch and release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git -C build_v145 push --force origin HEAD:refs/heads/v145-ui-polish-r7-base
+          if gh release view v145-ui-polish-r7 --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload v145-ui-polish-r7 \
+              Tahalil-Alakkad-V145-R7-SQUARE-PACKAGES-SIGNED.apk \
+              Tahalil-Alakkad-V145-R7-SQUARE-PACKAGES-SIGNED.apk.sha256 \
+              Tahalil-Alakkad-V145-R7-SOURCE.zip \
+              --repo "$GITHUB_REPOSITORY" --clobber
+          else
+            gh release create v145-ui-polish-r7 \
+              Tahalil-Alakkad-V145-R7-SQUARE-PACKAGES-SIGNED.apk \
+              Tahalil-Alakkad-V145-R7-SQUARE-PACKAGES-SIGNED.apk.sha256 \
+              Tahalil-Alakkad-V145-R7-SOURCE.zip \
+              --repo "$GITHUB_REPOSITORY" \
+              --target "$FINAL_SHA" \
+              --title 'Tahalil Alakkad V145 R7 Square Packages' \
+              --notes 'R7: square 4D package cards; tap to show/hide details; branded inquiry image save/share; square action icons; compile fix applied; R6 behavior and signer preserved.'
+          fi
