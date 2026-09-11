@@ -4868,74 +4868,129 @@ private fun SelectedTestRow(
     onRemove: () -> Unit
 ) {
     val settings = LocalAppSettings.current
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
-        color = Color(0xFFF8FAFC),
-        border = BorderStroke(1.dp, Color(0xFFE2E8F0))
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 10.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                if (settings.showEnglishName) {
-                    Text(
-                        text = test.englishName,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFF001D35),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-                if (settings.showArabicName && test.arabicName.isNotBlank()) {
-                    Text(
-                        text = test.arabicName,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = Color(0xFF64748B),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-                if (settings.showMarketName && test.marketName.isNotBlank() && test.marketName != test.englishName) {
-                    Text(
-                        text = test.marketName,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = Color(0xFF64748B),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-            }
+    var expanded by remember(test.id) { mutableStateOf(false) }
+    val guide = remember(test.id) { labTestGuideFor(test) }
+    val tubeColor = remember(guide.tubeVisualKey) {
+        when (guide.tubeVisualKey) {
+            "lavender" -> Color(0xFF9B7BEA)
+            "light_blue" -> Color(0xFF77D4F6)
+            "black" -> Color(0xFF202733)
+            "gray" -> Color(0xFF9AA4AE)
+            "green" -> Color(0xFF45C879)
+            "gold" -> Color(0xFFE7B83D)
+            "culture" -> Color(0xFF33B794)
+            "urine" -> Color(0xFFFFD85A)
+            "stool" -> Color(0xFFA9825E)
+            else -> Color(0xFFADB7C0)
+        }
+    }
 
-            if (settings.showCustomerPrice) {
+    Card(
+        onClick = { expanded = !expanded },
+        modifier = Modifier.fillMaxWidth().testTag("selected_test_toggle_${test.id}"),
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFFF8FAFC)),
+        border = BorderStroke(1.dp, if (expanded) Color(0xFF65BCC7) else Color(0xFFE2E8F0))
+    ) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    if (settings.showEnglishName) {
+                        Text(
+                            text = test.englishName,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF001D35),
+                            maxLines = if (expanded) 3 else 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    if (settings.showArabicName && test.arabicName.isNotBlank()) {
+                        Text(
+                            text = test.arabicName,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = Color(0xFF64748B),
+                            maxLines = if (expanded) 3 else 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+
                 Spacer(modifier = Modifier.width(8.dp))
                 Column(horizontalAlignment = Alignment.End) {
                     if (settings.showCustomerPrice) {
                         Text(
-                            text = "عميل: ${customerPrice ?: "0"} جنيه",
+                            text = "${customerPrice ?: "0"} ${appText("ج", "EGP")}",
                             fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
+                            fontWeight = FontWeight.ExtraBold,
                             color = Color(0xFF004A77)
                         )
                     }
+                    Text(
+                        if (expanded) "▲" else "▼",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Black,
+                        color = Color(0xFF007E89)
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(6.dp))
+                LabeledIconAction(label = appText("إزالة", "Remove"), onClick = onRemove) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = appText("إزالة", "Remove"),
+                        tint = Color(0xFFE11D48),
+                        modifier = Modifier.size(18.dp)
+                    )
                 }
             }
 
-            Spacer(modifier = Modifier.width(8.dp))
-            LabeledIconAction(label = tr("إزالة", "Remove"), onClick = onRemove) {
-                Icon(
-                    imageVector = Icons.Default.Close,
-                    contentDescription = tr("إزالة", "Remove"),
-                    tint = Color(0xFFE11D48),
-                    modifier = Modifier.size(18.dp)
-                )
+            AnimatedVisibility(
+                visible = expanded,
+                enter = fadeIn(),
+                exit = fadeOut()
+            ) {
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    HorizontalDivider(color = Color(0xFFE3EAF0))
+                    if (settings.showMarketName && test.marketName.isNotBlank() && test.marketName != test.englishName && test.marketName != test.arabicName) {
+                        V132GuideDetail(Icons.Default.LocalOffer, appText("الاسم الدارج", "Market name"), test.marketName, Color(0xFF64748B))
+                    }
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        V132GuideMetric(
+                            modifier = Modifier.weight(1f),
+                            icon = Icons.Outlined.Biotech,
+                            title = appText("لون الأنبوبة", "Tube color"),
+                            value = guide.tubeColorName,
+                            accent = tubeColor,
+                            secondary = guide.tubeName,
+                            showColorDot = true
+                        )
+                        V132GuideMetric(
+                            modifier = Modifier.weight(1f),
+                            icon = Icons.Default.Schedule,
+                            title = appText("مدة النتيجة", "Result time"),
+                            value = guide.turnaround,
+                            accent = Color(0xFF007E89)
+                        )
+                    }
+                    V132GuideDetail(Icons.Outlined.Biotech, appText("نوع العينة", "Specimen"), guide.specimen)
+                    V132GuideDetail(Icons.Default.Tune, appText("التحضير", "Preparation"), guide.preparation)
+                    if (guide.specialNote.isNotBlank()) {
+                        V132GuideDetail(Icons.Default.NotificationsActive, appText("ملاحظة مهمة", "Important note"), guide.specialNote, Color(0xFFB26A00))
+                    }
+                    TestGuideMoreButton(
+                        test = test,
+                        modifier = Modifier.fillMaxWidth().testTag("selected_test_guide_${test.id}")
+                    )
+                }
             }
         }
     }
@@ -5185,151 +5240,211 @@ private fun SearchCandidateCard(
     onEditPrices: () -> Unit,
     allowSelection: Boolean = true
 ) {
-    val settings = LocalAppSettings.current
-    // V67: price inquiry must always show the identifying names and customer price,
-    // even if the user hid some optional fields in general display settings.
-    val forcePriceInquiry = !allowSelection
-    val showEnglishName = settings.showEnglishName || forcePriceInquiry
-    val showArabicName = settings.showArabicName || forcePriceInquiry
-    val showMarketName = settings.showMarketName || forcePriceInquiry
-    val showCustomerPrice = settings.showCustomerPrice || forcePriceInquiry
+    var expanded by remember(test.id) { mutableStateOf(false) }
+    val guide = remember(test.id) { labTestGuideFor(test) }
+    val tubeColor = remember(guide.tubeVisualKey) {
+        when (guide.tubeVisualKey) {
+            "lavender" -> Color(0xFF9B7BEA)
+            "light_blue" -> Color(0xFF77D4F6)
+            "black" -> Color(0xFF202733)
+            "gray" -> Color(0xFF9AA4AE)
+            "green" -> Color(0xFF45C879)
+            "gold" -> Color(0xFFE7B83D)
+            "culture" -> Color(0xFF33B794)
+            "urine" -> Color(0xFFFFD85A)
+            "stool" -> Color(0xFFA9825E)
+            else -> Color(0xFFADB7C0)
+        }
+    }
+
     Card(
+        onClick = { expanded = !expanded },
         modifier = Modifier
             .fillMaxWidth()
             .shadow(
-                elevation = 4.dp,
-                shape = RoundedCornerShape(22.dp),
-                spotColor = Color(0x14000000)
-            ),
-        shape = RoundedCornerShape(22.dp),
+                elevation = if (expanded) 8.dp else 2.dp,
+                shape = RoundedCornerShape(20.dp),
+                spotColor = Color(0x16000000)
+            )
+            .testTag("search_test_toggle_${test.id}"),
+        shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White),
-        border = BorderStroke(1.dp, Color(0xFFE5ECF2))
+        border = BorderStroke(1.dp, if (expanded) Color(0xFF65BCC7) else Color(0xFFE3EAF0))
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp)
-        ) {
+        Column(modifier = Modifier.fillMaxWidth().padding(14.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.Top
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    if (showEnglishName) {
-                        Text(
-                            text = test.englishName,
-                            fontSize = 17.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = Color(0xFF102A43),
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-
-                    if (showArabicName && test.arabicName.isNotBlank()) {
-                        if (showEnglishName) Spacer(modifier = Modifier.height(5.dp))
-                        Text(
-                            text = test.arabicName,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = Color(0xFF52667A),
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-
-                    if (!showEnglishName && !showArabicName && test.marketName.isNotBlank()) {
-                        Text(
-                            text = test.marketName,
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = Color(0xFF102A43),
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.width(10.dp))
-
                 Box(
                     modifier = Modifier
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(Color(0xFFF0F4F8))
-                        .padding(horizontal = 8.dp, vertical = 5.dp)
+                        .size(44.dp)
+                        .clip(RoundedCornerShape(13.dp))
+                        .background(if (expanded) Color(0xFFDDF5F7) else Color(0xFFEAF4F6)),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        text = "#${test.id}",
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFF718096)
+                    Icon(
+                        Icons.Outlined.Biotech,
+                        contentDescription = null,
+                        tint = Color(0xFF007E89),
+                        modifier = Modifier.size(25.dp)
                     )
                 }
-            }
 
-            if (showMarketName && test.marketName.isNotBlank() && test.marketName != test.englishName) {
-                Spacer(modifier = Modifier.height(9.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
                     Text(
-                        text = tr("الاسم الدارج", "Market Name"),
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFF7B8794)
+                        test.englishName.ifBlank { test.marketName.ifBlank { test.arabicName } },
+                        fontSize = 14.sp,
+                        lineHeight = 19.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = Color(0xFF17324D),
+                        maxLines = if (expanded) 4 else 2,
+                        overflow = TextOverflow.Ellipsis
                     )
-                    Spacer(modifier = Modifier.width(7.dp))
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(9.dp))
-                            .background(Color(0xFFF2F7FA))
-                            .padding(horizontal = 9.dp, vertical = 5.dp)
-                    ) {
+                    if (test.arabicName.isNotBlank() && test.arabicName != test.englishName) {
+                        Spacer(Modifier.height(2.dp))
                         Text(
-                            text = test.marketName,
+                            test.arabicName,
                             fontSize = 12.sp,
+                            lineHeight = 17.sp,
                             fontWeight = FontWeight.SemiBold,
-                            color = Color(0xFF36536B),
-                            maxLines = 1,
+                            color = Color(0xFF475569),
+                            maxLines = if (expanded) 4 else 1,
                             overflow = TextOverflow.Ellipsis
                         )
                     }
                 }
-            }
 
-            if (showCustomerPrice) {
-                Spacer(modifier = Modifier.height(14.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    if (showCustomerPrice) {
-                        PriceBox(
-                            modifier = Modifier.weight(1f),
-                            title = tr("سعر العميل", "Customer Price"),
-                            price = customerPrice,
-                            backgroundColor = Color(0xFFEDF7FF),
-                            borderColor = Color(0xFFCFE8F7),
-                            titleColor = Color(0xFF28607E),
-                            priceColor = Color(0xFF114D6B)
-                        )
-                    }
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        if (expanded) "▲" else "▼",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Black,
+                        color = Color(0xFF007E89)
+                    )
+                    Text(
+                        if (expanded) appText("إخفاء", "Hide") else appText("التفاصيل", "Details"),
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = Color(0xFF64748B)
+                    )
                 }
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            AnimatedVisibility(
+                visible = expanded,
+                enter = fadeIn(),
+                exit = fadeOut()
+            ) {
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(top = 13.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    HorizontalDivider(color = Color(0xFFE3EAF0))
 
-            if (allowSelection) {
-                LabeledIconAction(label = tr("إضافة إلى القائمة", "Add to List"), onClick = onSelect, modifier = Modifier
-                        .fillMaxWidth()
-                        .height(46.dp)
-                        .testTag("select_test_${test.id}")) { Icon(Icons.Default.AddCircle, contentDescription = null) }
+                    if (test.marketName.isNotBlank() && test.marketName != test.englishName && test.marketName != test.arabicName) {
+                        V132GuideDetail(
+                            Icons.Default.LocalOffer,
+                            appText("الاسم الدارج", "Market name"),
+                            test.marketName,
+                            Color(0xFF64748B)
+                        )
+                    }
+
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(17.dp),
+                        color = Color(0xFFEDF7FF),
+                        border = BorderStroke(1.dp, Color(0xFFC7E4F5))
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 13.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier.size(42.dp).background(Color(0xFFD9EEFB), CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(Icons.Default.Payments, contentDescription = null, tint = Color(0xFF006D86), modifier = Modifier.size(24.dp))
+                            }
+                            Spacer(Modifier.width(11.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text(appText("سعر العميل", "Customer price"), fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF28607E))
+                                Row(verticalAlignment = Alignment.Bottom) {
+                                    Text(
+                                        customerPrice?.takeIf { it.isNotBlank() } ?: "—",
+                                        fontSize = 34.sp,
+                                        lineHeight = 38.sp,
+                                        fontWeight = FontWeight.Black,
+                                        color = Color(0xFF0B4F6C)
+                                    )
+                                    if (!customerPrice.isNullOrBlank()) {
+                                        Spacer(Modifier.width(6.dp))
+                                        Text(appText("جنيه", "EGP"), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF28607E), modifier = Modifier.padding(bottom = 4.dp))
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        V132GuideMetric(
+                            modifier = Modifier.weight(1f),
+                            icon = Icons.Outlined.Biotech,
+                            title = appText("لون الأنبوبة", "Tube color"),
+                            value = guide.tubeColorName,
+                            accent = tubeColor,
+                            secondary = guide.tubeName,
+                            showColorDot = true
+                        )
+                        V132GuideMetric(
+                            modifier = Modifier.weight(1f),
+                            icon = Icons.Default.Schedule,
+                            title = appText("مدة النتيجة", "Result time"),
+                            value = guide.turnaround,
+                            accent = Color(0xFF007E89)
+                        )
+                    }
+
+                    V132GuideDetail(Icons.Outlined.Biotech, appText("نوع العينة", "Specimen"), guide.specimen)
+                    V132GuideDetail(Icons.Default.ReceiptLong, appText("اسم الأنبوبة", "Tube"), guide.tubeName)
+                    V132GuideDetail(Icons.Default.CheckCircle, appText("درجة الاعتماد", "Confidence"), guide.tubeConfidence)
+                    V132GuideDetail(Icons.Default.Assessment, appText("عن التحليل", "About the test"), guide.overview)
+                    V132GuideDetail(Icons.Default.Search, appText("متى ولماذا؟", "When & why"), guide.whyWhen)
+                    V132GuideDetail(Icons.Default.Tune, appText("التحضير", "Preparation"), guide.preparation)
+                    if (guide.specialNote.isNotBlank()) {
+                        V132GuideDetail(Icons.Default.NotificationsActive, appText("ملاحظة مهمة", "Important note"), guide.specialNote, Color(0xFFB26A00))
+                    }
+                    V132GuideDetail(Icons.Default.ReceiptLong, appText("المصدر الطبي", "Medical source"), guide.medicalSourceName)
+
+                    if (allowSelection) {
+                        LabeledIconAction(
+                            label = appText("إضافة إلى القائمة", "Add to list"),
+                            onClick = onSelect,
+                            modifier = Modifier.fillMaxWidth().height(46.dp).testTag("select_test_${test.id}")
+                        ) {
+                            Icon(Icons.Default.AddCircle, contentDescription = null)
+                        }
+                    }
+
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        TestGuideMoreButton(
+                            test = test,
+                            modifier = Modifier.weight(1f).testTag("search_test_guide_${test.id}")
+                        )
+                        if (isManager) {
+                            LabeledIconAction(
+                                label = appText("تعديل السعر", "Edit price"),
+                                onClick = onEditPrices,
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Icon(Icons.Default.Edit, contentDescription = null, tint = Color(0xFF006D86))
+                            }
+                        }
+                    }
+                }
             }
-
-            Spacer(modifier = Modifier.height(8.dp))
-            TestGuideMoreButton(
-                test = test,
-                modifier = Modifier.testTag("search_test_guide_${test.id}")
-            )
         }
     }
 }
