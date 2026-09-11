@@ -871,7 +871,8 @@ object PdfGenerator {
         customerPriceOverrides: Map<Int, String> = emptyMap(),
         customerName: String = "",
         customerPhone: String = "",
-        branding: LabBranding = LabBranding()
+        branding: LabBranding = LabBranding(),
+        documentTitle: String = ""
     ): File? {
         if (selectedTests.isEmpty()) {
             Toast.makeText(context, "اختار تحليل واحد على الأقل", Toast.LENGTH_SHORT).show()
@@ -929,7 +930,7 @@ object PdfGenerator {
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
             textAlign = Paint.Align.CENTER
         }
-        canvas.drawText(branding.tagline.ifBlank { "قائمة التحاليل والأسعار" }, width / 2f, 254f, subtitlePaint)
+        canvas.drawText(documentTitle.ifBlank { branding.tagline.ifBlank { "قائمة التحاليل والأسعار" } }.take(48), width / 2f, 254f, subtitlePaint)
 
         if (customerName.isNotBlank() || customerPhone.isNotBlank()) {
             val customerBg = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.parseColor("#163B4B") }

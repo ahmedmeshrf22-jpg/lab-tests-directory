@@ -1,9 +1,13 @@
 package com.example.ui
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalContentColor
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -16,8 +20,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 /**
- * V122 final action control: every tappable action is a transparent icon with
- * its visible name directly underneath. No filled/outlined rectangular action button.
+ * V145 R7 shared action control: every tappable action now lives inside a
+ * consistent square icon frame, with its visible name directly underneath.
  */
 @Composable
 fun LabeledIconAction(
@@ -33,11 +37,23 @@ fun LabeledIconAction(
         modifier = modifier,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        IconButton(
-            onClick = onClick,
-            enabled = enabled,
+        Surface(
             modifier = Modifier.size(actionSize),
-        ) { content() }
+            shape = RoundedCornerShape(12.dp),
+            color = Color.Transparent,
+            border = BorderStroke(
+                1.dp,
+                if (enabled) Color(0xFF9CCFD5).copy(alpha = 0.72f)
+                else Color(0xFFCBD5E1).copy(alpha = 0.48f)
+            ),
+            shadowElevation = if (enabled) 3.dp else 0.dp,
+        ) {
+            IconButton(
+                onClick = onClick,
+                enabled = enabled,
+                modifier = Modifier.fillMaxSize(),
+            ) { content() }
+        }
         Text(
             text = label,
             fontSize = 9.sp,

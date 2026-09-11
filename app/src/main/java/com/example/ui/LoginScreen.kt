@@ -348,8 +348,8 @@ fun LoginScreen(
                                 label = { Text(tr("البريد الإلكتروني", "Email")) },
                                 leadingIcon = {
                                     Surface(
-                                        modifier = Modifier.shadow(5.dp, CircleShape),
-                                        shape = CircleShape,
+                                        modifier = Modifier.shadow(5.dp, RoundedCornerShape(10.dp)),
+                                        shape = RoundedCornerShape(10.dp),
                                         color = Color(0xFFE4F8FB)
                                     ) {
                                         Icon(
@@ -396,8 +396,8 @@ fun LoginScreen(
                                 label = { Text(tr("كلمة المرور", "Password")) },
                                 leadingIcon = {
                                     Surface(
-                                        modifier = Modifier.shadow(5.dp, CircleShape),
-                                        shape = CircleShape,
+                                        modifier = Modifier.shadow(5.dp, RoundedCornerShape(10.dp)),
+                                        shape = RoundedCornerShape(10.dp),
                                         color = Color(0xFFE4F8FB)
                                     ) {
                                         Icon(
@@ -409,14 +409,45 @@ fun LoginScreen(
                                     }
                                 },
                                 trailingIcon = {
-                                    IconButton(onClick = { passwordVisible = !passwordVisible }, enabled = !isLoading) {
-                                        Icon(
-                                            imageVector = if (passwordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
-                                            contentDescription = if (passwordVisible) tr("إخفاء كلمة المرور", "Hide password") else tr("إظهار كلمة المرور", "Show password"),
-                                            tint = LoginMuted
-                                        )
+
+                                    Surface(
+
+                                        modifier = Modifier.size(44.dp),
+
+                                        shape = RoundedCornerShape(10.dp),
+
+                                        color = Color.Transparent,
+
+                                        border = BorderStroke(1.dp, Color(0xFFB7DDE2))
+
+                                    ) {
+
+                                        IconButton(
+
+                                            onClick = { passwordVisible = !passwordVisible },
+
+                                            enabled = !isLoading,
+
+                                            modifier = Modifier.fillMaxSize()
+
+                                        ) {
+
+                                            Icon(
+
+                                                imageVector = if (passwordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+
+                                                contentDescription = if (passwordVisible) tr("إخفاء كلمة المرور", "Hide password") else tr("إظهار كلمة المرور", "Show password"),
+
+                                                tint = LoginMuted
+
+                                            )
+
+                                        }
+
                                     }
+
                                 },
+
                                 visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
                                 singleLine = true,
                                 enabled = !isLoading,

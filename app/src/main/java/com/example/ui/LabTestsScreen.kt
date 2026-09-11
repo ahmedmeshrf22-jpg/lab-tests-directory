@@ -18,6 +18,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -3055,75 +3056,456 @@ private fun V145PackagesSection(
     selectedIds: Set<Int>,
     onAdd: (LabTest) -> Unit
 ) {
+    val context = LocalContext.current
+    val settings = LocalAppSettings.current
+    val branding = PdfGenerator.LabBranding(
+        name = settings.pdfLabName,
+        tagline = settings.brandTagline,
+        whatsapp = settings.brandWhatsApp,
+        phone = settings.brandPhone,
+        address = settings.brandAddress,
+        extraContact = if (settings.pdfShowContactInfo) settings.pdfContactInfo else "",
+        logoPath = settings.brandLogoPath
+    )
+    var expandedPackage by remember { mutableStateOf<String?>(null) }
+    var busyPackageAction by remember { mutableStateOf<String?>(null) }
+    var pendingLegacyPackageSave by remember { mutableStateOf<Pair<V145Package, List<LabTest>>?>(null) }
+
+    fun packageTitle(item: V145Package): String =
+        appText(settings, "باقة ${item.ar}", "${item.en} Package")
+
+    fun buildPackageImage(item: V145Package, tests: List<LabTest>) =
+        PdfGenerator.generateQuickTestsImage(
+            context = context,
+            selectedTests = tests,
+            customerPriceOverrides = customerPriceOverrides,
+            branding = branding,
+            documentTitle = packageTitle(item)
+        )
+
+    fun savePackageNow(item: V145Package, tests: List<LabTest>) {
+        if (busyPackageAction != null || tests.isEmpty()) return
+        busyPackageAction = "save:${item.en}"
+        try {
+            val file = buildPackageImage(item, tests)
+            if (file != null) {
+                val safe = item.en.replace(Regex("[^A-Za-z0-9]+"), "_").trim('_')
+                PdfGenerator.saveGeneratedImageToGallery(
+                    context = context,
+                    file = file,
+                    displayName = "Tahalil_Alakkad_Package_${safe}_${System.currentTimeMillis()}.png"
+                )
+            }
+        } finally {
+            busyPackageAction = null
+        }
+    }
+
+    val legacyPackagePermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        val pending = pendingLegacyPackageSave
+        pendingLegacyPackageSave = null
+        if (granted && pending != null) {
+            savePackageNow(pending.first, pending.second)
+        }
+    }
+
+    fun requestPackageSave(item: V145Package, tests: List<LabTest>) {
+        val needsPermission = Build.VERSION.SDK_INT <= Build.VERSION_CODES.P &&
+            ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.WRITE_EXTERNAL_STORAGE
+            ) != PackageManager.PERMISSION_GRANTED
+
+        if (needsPermission) {
+            pendingLegacyPackageSave = item to tests
+            legacyPackagePermissionLauncher.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+        } else {
+            savePackageNow(item, tests)
+        }
+    }
+
+    fun sharePackage(item: V145Package, tests: List<LabTest>) {
+        if (busyPackageAction != null || tests.isEmpty()) return
+        busyPackageAction = "share:${item.en}"
+        try {
+            val file = buildPackageImage(item, tests)
+            if (file != null) {
+                PdfGenerator.shareGeneratedImage(
+                    context = context,
+                    file = file,
+                    subject = "${settings.pdfLabName} - ${packageTitle(item)}",
+                    chooserTitle = appText(settings, "مشاركة صورة الباقة", "Share package image")
+                )
+            }
+        } finally {
+            busyPackageAction = null
+        }
+    }
+
+    val packagePalettes = listOf(
+        listOf(Color(0xFF06263A), Color(0xFF007E89), Color(0xFF33E0D0)),
+        listOf(Color(0xFF13233F), Color(0xFF3568A8), Color(0xFF72C7FF)),
+        listOf(Color(0xFF32153F), Color(0xFF8A3AA8), Color(0xFFE48DFF)),
+        listOf(Color(0xFF17372F), Color(0xFF0B8F70), Color(0xFF61E7BC)),
+        listOf(Color(0xFF3D2413), Color(0xFFB66B16), Color(0xFFFFC85A)),
+        listOf(Color(0xFF3B1825), Color(0xFFB63C68), Color(0xFFFF88B4)),
+        listOf(Color(0xFF192E43), Color(0xFF176B8A), Color(0xFF66E1FF))
+    )
+
     Column(
         modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+        verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        Text(
-            text = appText("الباقات الجاهزة", "Ready packages"),
-            fontWeight = FontWeight.Bold
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = appText("الباقات الجاهزة", "Ready packages"),
+                fontWeight = FontWeight.ExtraBold,
+                fontSize = 17.sp,
+                color = Color(0xFF17324D)
+            )
+            Text(
+                text = appText("اضغط على الباقة لعرض أو إخفاء التفاصيل", "Tap a package to show or hide details"),
+                fontSize = 9.sp,
+                color = Color(0xFF64748B),
+                textAlign = TextAlign.End,
+                modifier = Modifier.weight(1f).padding(start = 8.dp)
+            )
+        }
 
         v145Packages.chunked(2).forEach { packageRow ->
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 packageRow.forEach { item ->
                     val tests = v145ResolvePackage(viewModel, item)
                     val total = calculatePriceTotal(tests) { test ->
                         customerPriceOverrides[test.id] ?: test.customerPrice
                     }
-                    val added = tests.isNotEmpty() &&
-                        tests.all { it.id in selectedIds }
+                    val added = tests.isNotEmpty() && tests.all { it.id in selectedIds }
+                    val expanded = expandedPackage == item.en
+                    val index = v145Packages.indexOf(item).coerceAtLeast(0)
+                    val palette = packagePalettes[index % packagePalettes.size]
+                    val accent = palette.last()
 
-                    Button(
-                        onClick = { tests.forEach(onAdd) },
-                        enabled = tests.isNotEmpty() && !added,
+                    Card(
+                        onClick = {
+                            expandedPackage = if (expanded) null else item.en
+                        },
                         modifier = Modifier
                             .weight(1f)
-                            .heightIn(min = 78.dp)
-                    ) {
-                        Column(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalArrangement = Arrangement.spacedBy(2.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = appText(item.ar, item.en),
-                                    fontWeight = FontWeight.Bold,
-                                    maxLines = 1
-                                )
-                                Text(
-                                    text = if (added) "✓" else "+",
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-
-                            Text(
-                                text = buildString {
-                                    append(
-                                        appText(
-                                            "${tests.size} تحليل",
-                                            "${tests.size} tests"
-                                        )
-                                    )
-                                    append(" • ")
-                                    append(formatTotalDisplay(total))
-                                    append(" ")
-                                    append(appText("ج", "EGP"))
-                                }
+                            .aspectRatio(1f)
+                            .shadow(
+                                elevation = if (expanded) 18.dp else 11.dp,
+                                shape = RoundedCornerShape(22.dp),
+                                ambientColor = accent.copy(alpha = 0.46f),
+                                spotColor = accent.copy(alpha = 0.70f)
                             )
+                            .testTag("package_square_${item.en.replace(" ", "_")}"),
+                        shape = RoundedCornerShape(22.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+                        border = BorderStroke(
+                            if (expanded) 2.dp else 1.dp,
+                            Color.White.copy(alpha = if (expanded) 0.72f else 0.34f)
+                        )
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(Brush.linearGradient(palette))
+                                .padding(12.dp)
+                        ) {
+                            Column(
+                                modifier = Modifier.fillMaxSize(),
+                                verticalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(50.dp)
+                                            .clip(RoundedCornerShape(15.dp))
+                                            .background(Color.White.copy(alpha = 0.15f))
+                                            .border(
+                                                1.dp,
+                                                Color.White.copy(alpha = 0.28f),
+                                                RoundedCornerShape(15.dp)
+                                            ),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            Icons.Outlined.Biotech,
+                                            contentDescription = null,
+                                            tint = Color.White,
+                                            modifier = Modifier.size(28.dp)
+                                        )
+                                    }
+
+                                    Box(
+                                        modifier = Modifier
+                                            .size(34.dp)
+                                            .clip(RoundedCornerShape(11.dp))
+                                            .background(
+                                                if (expanded) Color.White.copy(alpha = 0.24f)
+                                                else Color.Black.copy(alpha = 0.10f)
+                                            )
+                                            .border(
+                                                1.dp,
+                                                Color.White.copy(alpha = 0.22f),
+                                                RoundedCornerShape(11.dp)
+                                            ),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            text = if (expanded) "▲" else "▼",
+                                            color = Color.White,
+                                            fontWeight = FontWeight.Black,
+                                            fontSize = 14.sp
+                                        )
+                                    }
+                                }
+
+                                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    Text(
+                                        text = appText(item.ar, item.en),
+                                        color = Color.White,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        fontSize = 15.sp,
+                                        lineHeight = 19.sp,
+                                        maxLines = 2,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Text(
+                                        text = appText("${tests.size} تحليل", "${tests.size} tests"),
+                                        color = Color.White.copy(alpha = 0.78f),
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = "${formatTotalDisplay(total)} ${appText("ج", "EGP")}",
+                                            color = Color.White,
+                                            fontWeight = FontWeight.ExtraBold,
+                                            fontSize = 17.sp
+                                        )
+                                        if (added) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(27.dp)
+                                                    .clip(RoundedCornerShape(9.dp))
+                                                    .background(Color(0xFF25D79A).copy(alpha = 0.24f)),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Icon(
+                                                    Icons.Default.Check,
+                                                    contentDescription = null,
+                                                    tint = Color.White,
+                                                    modifier = Modifier.size(17.dp)
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }
 
                 if (packageRow.size == 1) {
                     Spacer(modifier = Modifier.weight(1f))
+                }
+            }
+        }
+
+        val detailsItem = v145Packages.firstOrNull { it.en == expandedPackage }
+        AnimatedVisibility(
+            visible = detailsItem != null,
+            enter = fadeIn(),
+            exit = fadeOut()
+        ) {
+            detailsItem?.let { item ->
+                val tests = v145ResolvePackage(viewModel, item)
+                val total = calculatePriceTotal(tests) { test ->
+                    customerPriceOverrides[test.id] ?: test.customerPrice
+                }
+                val added = tests.isNotEmpty() && tests.all { it.id in selectedIds }
+                val index = v145Packages.indexOf(item).coerceAtLeast(0)
+                val palette = packagePalettes[index % packagePalettes.size]
+                val accent = palette.last()
+
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .shadow(
+                            12.dp,
+                            RoundedCornerShape(22.dp),
+                            ambientColor = accent.copy(alpha = 0.22f),
+                            spotColor = accent.copy(alpha = 0.38f)
+                        )
+                        .testTag("package_details_${item.en.replace(" ", "_")}"),
+                    shape = RoundedCornerShape(22.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    border = BorderStroke(1.5.dp, accent.copy(alpha = 0.45f))
+                ) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth().padding(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(
+                                modifier = Modifier.weight(1f),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(9.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(44.dp)
+                                        .clip(RoundedCornerShape(13.dp))
+                                        .background(Brush.linearGradient(palette)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        Icons.Outlined.Biotech,
+                                        contentDescription = null,
+                                        tint = Color.White,
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                }
+                                Column(Modifier.weight(1f)) {
+                                    Text(
+                                        packageTitle(item),
+                                        color = Color(0xFF17324D),
+                                        fontWeight = FontWeight.ExtraBold,
+                                        fontSize = 15.sp
+                                    )
+                                    Text(
+                                        appText("${tests.size} تحليل داخل الباقة", "${tests.size} tests in package"),
+                                        color = Color(0xFF64748B),
+                                        fontSize = 10.sp
+                                    )
+                                }
+                            }
+                            Text(
+                                "${formatTotalDisplay(total)} ${appText("ج", "EGP")}",
+                                color = Color(0xFF007E89),
+                                fontWeight = FontWeight.ExtraBold,
+                                fontSize = 18.sp
+                            )
+                        }
+
+                        HorizontalDivider(color = Color(0xFFE6EEF2))
+
+                        tests.forEach { test ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(28.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(accent.copy(alpha = 0.12f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        Icons.Outlined.Biotech,
+                                        contentDescription = null,
+                                        tint = Color(0xFF007E89),
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+                                Column(Modifier.weight(1f)) {
+                                    Text(
+                                        test.englishName,
+                                        color = Color(0xFF17324D),
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 11.sp,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    if (test.arabicName.isNotBlank()) {
+                                        Text(
+                                            test.arabicName,
+                                            color = Color(0xFF64748B),
+                                            fontSize = 9.sp,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
+                                }
+                                Text(
+                                    "${(customerPriceOverrides[test.id] ?: test.customerPrice).orEmpty()} ${appText("ج", "EGP")}",
+                                    color = Color(0xFF087F5B),
+                                    fontWeight = FontWeight.ExtraBold,
+                                    fontSize = 10.sp
+                                )
+                            }
+                        }
+
+                        HorizontalDivider(color = Color(0xFFE6EEF2))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            LabeledIconAction(
+                                label = appText("إضافة الباقة", "Add package"),
+                                onClick = {
+                                    tests.filterNot { it.id in selectedIds }.forEach(onAdd)
+                                },
+                                modifier = Modifier.weight(1f),
+                                enabled = tests.isNotEmpty() && !added && busyPackageAction == null
+                            ) {
+                                Icon(Icons.Default.AddCircle, contentDescription = null, tint = Color(0xFF007E89))
+                            }
+
+                            LabeledIconAction(
+                                label = appText("حفظ صورة", "Save image"),
+                                onClick = { requestPackageSave(item, tests) },
+                                modifier = Modifier.weight(1f),
+                                enabled = tests.isNotEmpty() && busyPackageAction == null
+                            ) {
+                                Icon(Icons.Default.Save, contentDescription = null, tint = Color(0xFF087F5B))
+                            }
+
+                            LabeledIconAction(
+                                label = appText("مشاركة", "Share"),
+                                onClick = { sharePackage(item, tests) },
+                                modifier = Modifier.weight(1f),
+                                enabled = tests.isNotEmpty() && busyPackageAction == null
+                            ) {
+                                Icon(Icons.Default.Share, contentDescription = null, tint = Color(0xFF6D28D9))
+                            }
+                        }
+
+                        Text(
+                            text = appText(
+                                "الصورة دي للاستعلام فقط: بتضم اللوجو، تفاصيل التحاليل، السعر، العنوان وأرقام التواصل، ومش بتسجل حالة أو طلب للعميل.",
+                                "This image is for inquiry only: it includes the logo, test details, price, address and contact numbers, and does not create a customer case or order."
+                            ),
+                            color = Color(0xFF64748B),
+                            fontSize = 9.sp,
+                            lineHeight = 13.sp
+                        )
+                    }
                 }
             }
         }
