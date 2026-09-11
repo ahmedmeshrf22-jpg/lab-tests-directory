@@ -85,8 +85,8 @@ jobs:
           curl -fL --retry 3 \
             "https://github.com/${GITHUB_REPOSITORY}/releases/download/v145-ui-polish-r7/Tahalil-Alakkad-V145-R7-SQUARE-PACKAGES-SIGNED.apk" \
             -o r7.apk
-          NEW_CERT="$("$APKSIGNER" verify --print-certs "$ANDROID_APK" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | head -1 | tr 'A-F' 'a-f' | tr -d ':[:space:]')"
-          OLD_CERT="$("$APKSIGNER" verify --print-certs r7.apk | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | head -1 | tr 'A-F' 'a-f' | tr -d ':[:space:]')"
+          NEW_CERT="$("$APKSIGNER" verify --print-certs "$ANDROID_APK" | sed -n -E 's/^.*certificate SHA-256 digest: //p' | head -1 | tr 'A-F' 'a-f' | tr -d ':[:space:]')"
+          OLD_CERT="$("$APKSIGNER" verify --print-certs r7.apk | sed -n -E 's/^.*certificate SHA-256 digest: //p' | head -1 | tr 'A-F' 'a-f' | tr -d ':[:space:]')"
           test -n "$NEW_CERT"
           test "$NEW_CERT" = "$OLD_CERT"
 
