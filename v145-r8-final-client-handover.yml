@@ -1,0 +1,294 @@
+name: V145 R8 FINAL CLIENT HANDOVER
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/v145-r8-final-client-handover.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: tahalil-v145-r8-final-client-handover
+  cancel-in-progress: false
+
+env:
+  ANDROID_TAG: v145-ui-polish-r8-clean-glow
+  ANDROID_APK: Tahalil-Alakkad-V145-R8-CLEAN-GLOW-SIGNED.apk
+  WINDOWS_TAG: v145-r8-windows
+  WINDOWS_SETUP: Tahalil-Alakkad-V145-R8-Windows-Setup.exe
+  WINDOWS_PORTABLE: Tahalil-Alakkad-V145-R8-Windows-Portable.exe
+
+jobs:
+  android-audit:
+    name: Android production audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Download exact production Android release
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="https://github.com/${GITHUB_REPOSITORY}/releases/download/${ANDROID_TAG}"
+          curl -fL --retry 3 "$BASE/$ANDROID_APK" -o "$ANDROID_APK"
+          curl -fL --retry 3 "$BASE/$ANDROID_APK.sha256" -o "$ANDROID_APK.sha256"
+          curl -fL --retry 3 "$BASE/Tahalil-Alakkad-V145-R8-CLEAN-GLOW-SOURCE.zip" -o android-source.zip
+          test -s "$ANDROID_APK"
+          test -s android-source.zip
+
+      - name: Verify Android checksum and source invariants
+        shell: bash
+        run: |
+          set -euo pipefail
+          ACTUAL="$(sha256sum "$ANDROID_APK" | awk '{print $1}')"
+          EXPECTED="$(awk '{print $1}' "$ANDROID_APK.sha256" | head -1 | tr '[:upper:]' '[:lower:]')"
+          test "$ACTUAL" = "$EXPECTED"
+          rm -rf android-src && mkdir android-src
+          unzip -q android-source.zip -d android-src
+          python3 - <<'PY'
+          from pathlib import Path
+          import json, re
+          roots = [p for p in Path('android-src').iterdir()]
+          root = roots[0] if len(roots)==1 and roots[0].is_dir() else Path('android-src')
+          gradle=(root/'app/build.gradle.kts').read_text(encoding='utf-8')
+          assert re.search(r'versionCode\s*=\s*149\b', gradle), 'versionCode != 149'
+          assert 'versionName = "5.69-v145-ui-polish-r8-clean-glow"' in gradle
+          data=json.loads((root/'app/src/main/assets/lab_tests_android.json').read_text(encoding='utf-8'))
+          assert len(data)==331, len(data)
+          ids=set()
+          for item in data:
+              assert 'id' in item and item['id'] not in ids
+              ids.add(item['id'])
+              assert 'customer_price' in item
+              assert 'lab_to_lab_price' not in item
+          print('ANDROID SOURCE INVARIANTS OK')
+          PY
+
+      - name: Verify package identity and production signer
+        shell: bash
+        run: |
+          set -euo pipefail
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -1)"
+          AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -1)"
+          test -x "$APKSIGNER"
+          test -x "$AAPT"
+          "$APKSIGNER" verify --verbose --print-certs "$ANDROID_APK" | tee apksigner.txt
+          BADGING="$("$AAPT" dump badging "$ANDROID_APK" | head -1)"
+          echo "$BADGING"
+          echo "$BADGING" | grep -Fq "package: name='com.aistudio.labtestsdirectory.egypt'"
+          echo "$BADGING" | grep -Fq "versionCode='149'"
+          echo "$BADGING" | grep -Fq "versionName='5.69-v145-ui-polish-r8-clean-glow'"
+
+          curl -fL --retry 3 \
+            "https://github.com/${GITHUB_REPOSITORY}/releases/download/v145-ui-polish-r7/Tahalil-Alakkad-V145-R7-SQUARE-PACKAGES-SIGNED.apk" \
+            -o r7.apk
+          NEW_CERT="$("$APKSIGNER" verify --print-certs "$ANDROID_APK" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | head -1 | tr 'A-F' 'a-f' | tr -d ':[:space:]')"
+          OLD_CERT="$("$APKSIGNER" verify --print-certs r7.apk | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | head -1 | tr 'A-F' 'a-f' | tr -d ':[:space:]')"
+          test -n "$NEW_CERT"
+          test "$NEW_CERT" = "$OLD_CERT"
+
+          {
+            echo 'ANDROID V145 R8 PRODUCTION AUDIT: PASS'
+            echo 'Package: com.aistudio.labtestsdirectory.egypt'
+            echo 'Version code: 149'
+            echo 'Version name: 5.69-v145-ui-polish-r8-clean-glow'
+            echo "APK SHA-256: $(sha256sum "$ANDROID_APK" | awk '{print $1}')"
+            echo "Signer SHA-256: $NEW_CERT"
+            echo 'Catalogue: 331 tests'
+          } > android-audit.txt
+
+      - name: Upload Android audit
+        uses: actions/upload-artifact@v4
+        with:
+          name: Android-V145-R8-Production-Audit
+          path: android-audit.txt
+          if-no-files-found: error
+
+  windows-audit:
+    name: Windows production audit
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Download exact production Windows release
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $base="https://github.com/$env:GITHUB_REPOSITORY/releases/download/$env:WINDOWS_TAG"
+          Invoke-WebRequest "$base/$env:WINDOWS_SETUP" -OutFile $env:WINDOWS_SETUP
+          Invoke-WebRequest "$base/$env:WINDOWS_SETUP.sha256" -OutFile "$env:WINDOWS_SETUP.sha256"
+          Invoke-WebRequest "$base/$env:WINDOWS_PORTABLE" -OutFile $env:WINDOWS_PORTABLE
+          Invoke-WebRequest "$base/$env:WINDOWS_PORTABLE.sha256" -OutFile "$env:WINDOWS_PORTABLE.sha256"
+          if ((Get-Item $env:WINDOWS_SETUP).Length -lt 100MB) { throw 'Windows Setup unexpectedly small' }
+          if ((Get-Item $env:WINDOWS_PORTABLE).Length -lt 80MB) { throw 'Windows Portable unexpectedly small' }
+
+      - name: Verify Windows hashes
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          function ExpectedHash([string]$Path) {
+            return ((Get-Content $Path -Raw).Trim() -split '\s+')[0].ToLowerInvariant()
+          }
+          $setupHash=(Get-FileHash $env:WINDOWS_SETUP -Algorithm SHA256).Hash.ToLowerInvariant()
+          $portableHash=(Get-FileHash $env:WINDOWS_PORTABLE -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($setupHash -ne (ExpectedHash "$env:WINDOWS_SETUP.sha256")) { throw 'Setup SHA256 mismatch' }
+          if ($portableHash -ne (ExpectedHash "$env:WINDOWS_PORTABLE.sha256")) { throw 'Portable SHA256 mismatch' }
+          "SETUP_SHA=$setupHash" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "PORTABLE_SHA=$portableHash" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Check Authenticode status without altering binaries
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $setupSig=Get-AuthenticodeSignature $env:WINDOWS_SETUP
+          $portableSig=Get-AuthenticodeSignature $env:WINDOWS_PORTABLE
+          $lines=@(
+            'WINDOWS V145 R8 PRODUCTION AUDIT',
+            "Setup SHA-256: $env:SETUP_SHA",
+            "Portable SHA-256: $env:PORTABLE_SHA",
+            "Setup Authenticode: $($setupSig.Status)",
+            "Portable Authenticode: $($portableSig.Status)"
+          )
+          if ($setupSig.Status -ne 'Valid' -or $portableSig.Status -ne 'Valid') {
+            $lines += 'WARNING: Windows binaries are integrity-verified but do not currently have a Valid Authenticode publisher signature.'
+            Write-Warning 'Windows Authenticode publisher signature is not Valid. Binaries are not modified.'
+          } else {
+            $lines += "Publisher: $($setupSig.SignerCertificate.Subject)"
+          }
+          $lines | Set-Content windows-audit.txt -Encoding utf8
+
+      - name: Portable startup smoke test
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $env:TAHALIL_SMOKE_TEST='1'
+          $p=Start-Process ".\$env:WINDOWS_PORTABLE" -PassThru
+          if (!$p.WaitForExit(45000)) {
+            Stop-Process -Id $p.Id -Force
+            throw 'Windows Portable smoke test timed out'
+          }
+          if ($p.ExitCode -ne 0) { throw "Windows Portable smoke exit code $($p.ExitCode)" }
+          Remove-Item Env:TAHALIL_SMOKE_TEST -ErrorAction SilentlyContinue
+          Add-Content windows-audit.txt 'Portable startup smoke: PASS'
+
+      - name: Upload Windows audit
+        uses: actions/upload-artifact@v4
+        with:
+          name: Windows-V145-R8-Production-Audit
+          path: windows-audit.txt
+          if-no-files-found: error
+
+  client-package:
+    name: Build final client delivery package
+    runs-on: ubuntu-latest
+    needs: [android-audit, windows-audit]
+    timeout-minutes: 35
+
+    steps:
+      - name: Download verified delivery binaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          ABASE="https://github.com/${GITHUB_REPOSITORY}/releases/download/${ANDROID_TAG}"
+          WBASE="https://github.com/${GITHUB_REPOSITORY}/releases/download/${WINDOWS_TAG}"
+          curl -fL --retry 3 "$ABASE/$ANDROID_APK" -o "$ANDROID_APK"
+          curl -fL --retry 3 "$ABASE/$ANDROID_APK.sha256" -o "$ANDROID_APK.sha256"
+          curl -fL --retry 3 "$WBASE/$WINDOWS_SETUP" -o "$WINDOWS_SETUP"
+          curl -fL --retry 3 "$WBASE/$WINDOWS_SETUP.sha256" -o "$WINDOWS_SETUP.sha256"
+          curl -fL --retry 3 "$WBASE/$WINDOWS_PORTABLE" -o "$WINDOWS_PORTABLE"
+          curl -fL --retry 3 "$WBASE/$WINDOWS_PORTABLE.sha256" -o "$WINDOWS_PORTABLE.sha256"
+
+          test "$(sha256sum "$ANDROID_APK" | awk '{print $1}')" = "$(awk '{print $1}' "$ANDROID_APK.sha256" | head -1 | tr '[:upper:]' '[:lower:]')"
+          test "$(sha256sum "$WINDOWS_SETUP" | awk '{print $1}')" = "$(awk '{print $1}' "$WINDOWS_SETUP.sha256" | head -1 | tr '[:upper:]' '[:lower:]')"
+          test "$(sha256sum "$WINDOWS_PORTABLE" | awk '{print $1}')" = "$(awk '{print $1}' "$WINDOWS_PORTABLE.sha256" | head -1 | tr '[:upper:]' '[:lower:]')"
+
+      - name: Create client handover documentation
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir delivery
+          cp "$ANDROID_APK" "$ANDROID_APK.sha256" delivery/
+          cp "$WINDOWS_SETUP" "$WINDOWS_SETUP.sha256" delivery/
+          cp "$WINDOWS_PORTABLE" "$WINDOWS_PORTABLE.sha256" delivery/
+
+          cat > delivery/CLIENT-README.txt <<'TXT'
+          تحاليل العقاد — V145 R8 — Final Client Delivery
+
+          Android:
+          - Install the signed APK on the approved Android device.
+          - Existing installations can update in place because the production signing certificate is preserved.
+          - Package: com.aistudio.labtestsdirectory.egypt
+          - Version code: 149
+
+          Windows:
+          - Recommended: use the Setup EXE for normal client installation.
+          - Portable EXE is included for diagnostics/emergency use.
+          - SHA-256 files are included for integrity verification.
+          - The automated handover audit checks Authenticode separately and does not alter the Windows binaries.
+
+          Operational checklist:
+          1. Sign in with the assigned user account.
+          2. Approve the device through the authorized manager flow.
+          3. Verify catalogue/search/customer/order/result workflows.
+          4. Verify backup and restore before going live.
+          5. Keep release files and SHA-256 files together.
+
+          No application source or business logic is modified by this handover workflow.
+          TXT
+
+          python3 - <<'PY'
+          import hashlib, json
+          files=[
+            'Tahalil-Alakkad-V145-R8-CLEAN-GLOW-SIGNED.apk',
+            'Tahalil-Alakkad-V145-R8-Windows-Setup.exe',
+            'Tahalil-Alakkad-V145-R8-Windows-Portable.exe'
+          ]
+          data={'release':'V145 R8','files':[]}
+          for name in files:
+              p='delivery/'+name
+              with open(p,'rb') as f:
+                  h=hashlib.sha256(f.read()).hexdigest()
+              data['files'].append({'name':name,'sha256':h})
+          with open('delivery/BUILD-MANIFEST.json','w',encoding='utf-8') as f:
+              json.dump(data,f,ensure_ascii=False,indent=2)
+          PY
+
+          (cd delivery && zip -9 -r ../Tahalil-Alakkad-V145-R8-CLIENT-HANDOVER.zip .)
+          sha256sum Tahalil-Alakkad-V145-R8-CLIENT-HANDOVER.zip > Tahalil-Alakkad-V145-R8-CLIENT-HANDOVER.zip.sha256
+
+      - name: Upload final client package
+        uses: actions/upload-artifact@v4
+        with:
+          name: Tahalil-Alakkad-V145-R8-CLIENT-HANDOVER
+          path: |
+            Tahalil-Alakkad-V145-R8-CLIENT-HANDOVER.zip
+            Tahalil-Alakkad-V145-R8-CLIENT-HANDOVER.zip.sha256
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish final handover release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG='v145-r8-client-handover'
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$TAG" \
+              Tahalil-Alakkad-V145-R8-CLIENT-HANDOVER.zip \
+              Tahalil-Alakkad-V145-R8-CLIENT-HANDOVER.zip.sha256 \
+              --clobber --repo "$GITHUB_REPOSITORY"
+          else
+            gh release create "$TAG" \
+              Tahalil-Alakkad-V145-R8-CLIENT-HANDOVER.zip \
+              Tahalil-Alakkad-V145-R8-CLIENT-HANDOVER.zip.sha256 \
+              --title 'تحاليل العقاد V145 R8 — Final Client Handover' \
+              --notes 'Final client delivery package assembled only from the already-released Android V145 R8 and Windows V145 R8 binaries after checksum, Android signer, package identity and Windows startup audits. No application code is changed.' \
+              --repo "$GITHUB_REPOSITORY"
+          fi
+
+      - name: Final status
+        run: echo 'V145 R8 FINAL CLIENT HANDOVER CREATED WITHOUT MODIFYING APPLICATION CODE'
