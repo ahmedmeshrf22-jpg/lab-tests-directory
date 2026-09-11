@@ -1,0 +1,404 @@
+name: Windows V145 R8 Full Parity
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/windows-v145-r8-parity.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: tahalil-windows-v145-r8-parity
+  cancel-in-progress: false
+
+jobs:
+  windows-v145-r8:
+    name: Windows V145 R8 — Setup + Portable
+    runs-on: windows-latest
+    timeout-minutes: 95
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: "false"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Reconstruct exact Windows V142 source
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $sourceWorkflow = '.github/workflows/windows-v142-metadata-fix.yml'
+          if (!(Test-Path $sourceWorkflow)) { throw 'Windows V142 workflow not found' }
+          $wf = Get-Content $sourceWorkflow -Raw
+          $m = [regex]::Match($wf, "(?s)\$base64\s*=\s*@'\s*(?<b64>.*?)\s*'@")
+          if (!$m.Success) { throw 'Could not extract exact V141 payload from V142 workflow' }
+          $b64 = ($m.Groups['b64'].Value -replace '\s','')
+          [IO.File]::WriteAllBytes('v141-source.zip',[Convert]::FromBase64String($b64))
+          if (Test-Path build_windows) { Remove-Item build_windows -Recurse -Force }
+          Expand-Archive 'v141-source.zip' 'build_windows' -Force
+          if (!(Test-Path 'build_windows/windows-system/package.json')) { throw 'Windows source reconstruction failed' }
+          Write-Host 'Exact V141 payload reconstructed from audited V142 workflow'
+
+      - name: Reapply exact V142 metadata baseline
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $root = Join-Path $PWD 'build_windows/windows-system'
+
+          $pkgPath = Join-Path $root 'package.json'
+          $pkgRaw = Get-Content $pkgPath -Raw
+          $pkgRaw = $pkgRaw.Replace('"version": "141.0.0"', '"version": "142.0.0"')
+          $pkgRaw = $pkgRaw.Replace('Windows V141 Final Resilience aligned with Android V141', 'Windows V142 metadata fix aligned with Android V140')
+          $pkgRaw = $pkgRaw.Replace('System_V141_Windows_Portable', 'System_V142_Windows_Portable')
+          $pkgRaw = $pkgRaw.Replace('System_V141_Windows_Setup', 'System_V142_Windows_Setup')
+          Set-Content $pkgPath $pkgRaw -Encoding utf8
+
+          $mainPath = Join-Path $root 'electron/main.cjs'
+          $main = Get-Content $mainPath -Raw
+          $main = $main.Replace('Windows V141', 'Windows V142')
+          Set-Content $mainPath $main -Encoding utf8
+
+          $backupPath = Join-Path $root 'src/backup.js'
+          $backup = Get-Content $backupPath -Raw
+          $backup = $backup.Replace('app_version_code:141', 'app_version_code:142')
+          $backup = $backup.Replace("app_version_name:'System V141 Windows'", "app_version_name:'System V142 Windows'")
+          Set-Content $backupPath $backup -Encoding utf8
+
+          $shadowPath = Join-Path $root 'src/shadowBackup.js'
+          $shadow = Get-Content $shadowPath -Raw
+          $shadow = $shadow.Replace('appVersionCode: 141', 'appVersionCode: 142')
+          $shadow = $shadow.Replace("appVersionName: 'Windows V141'", "appVersionName: 'Windows V142'")
+          Set-Content $shadowPath $shadow -Encoding utf8
+
+          $appPath = Join-Path $root 'src/app.js'
+          $appjs = Get-Content $appPath -Raw
+          $appjs = $appjs.Replace('Unified System V141', 'Unified System V142')
+          $appjs = $appjs.Replace('Windows V141', 'Windows V142')
+          $appjs = $appjs.Replace('V141 Final Resilience + V137 Auto Backup', 'V142 Metadata Fix + V137 Auto Backup')
+          $appjs = $appjs.Replace('Automatic Encrypted Backup V141', 'Automatic Encrypted Backup V142')
+          $appjs = $appjs.Replace('Backup مشفر V141', 'Backup مشفر V142')
+          $appjs = $appjs.Replace('Safe Restore V141', 'Safe Restore V142')
+          $appjs = $appjs.Replace('Safe Backup Restore V141', 'Safe Backup Restore V142')
+          $appjs = $appjs.Replace('Supabase Shadow Backup V129:', 'Supabase Shadow Backup V142:')
+          Set-Content $appPath $appjs -Encoding utf8
+
+      - name: Apply V145 R8 parity layer
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $root = Join-Path $PWD 'build_windows/windows-system'
+
+          # Version + delivery names. Keep Electron semver valid.
+          $pkgPath = Join-Path $root 'package.json'
+          $pkgRaw = Get-Content $pkgPath -Raw
+          $pkgRaw = $pkgRaw.Replace('"version": "142.0.0"', '"version": "145.8.0"')
+          $pkgRaw = $pkgRaw.Replace('System_V142_Windows_Portable', 'Tahalil_Alakkad_V145_R8_Windows_Portable')
+          $pkgRaw = $pkgRaw.Replace('System_V142_Windows_Setup', 'Tahalil_Alakkad_V145_R8_Windows_Setup')
+          $pkgRaw = $pkgRaw.Replace('Windows V142 metadata fix aligned with Android V140', 'Windows V145 R8 parity aligned with Android V145 R8')
+          Set-Content $pkgPath $pkgRaw -Encoding utf8
+
+          # Metadata parity without touching auth/sync/business logic.
+          $mainPath = Join-Path $root 'electron/main.cjs'
+          $main = Get-Content $mainPath -Raw
+          $main = $main.Replace('Windows V142', 'Windows V145 R8')
+          Set-Content $mainPath $main -Encoding utf8
+
+          $backupPath = Join-Path $root 'src/backup.js'
+          $backup = Get-Content $backupPath -Raw
+          $backup = $backup.Replace('app_version_code:142', 'app_version_code:145')
+          $backup = $backup.Replace("app_version_name:'System V142 Windows'", "app_version_name:'System V145 R8 Windows'")
+          Set-Content $backupPath $backup -Encoding utf8
+
+          $shadowPath = Join-Path $root 'src/shadowBackup.js'
+          $shadow = Get-Content $shadowPath -Raw
+          $shadow = $shadow.Replace('appVersionCode: 142', 'appVersionCode: 145')
+          $shadow = $shadow.Replace("appVersionName: 'Windows V142'", "appVersionName: 'Windows V145 R8'")
+          Set-Content $shadowPath $shadow -Encoding utf8
+
+          $appPath = Join-Path $root 'src/app.js'
+          $appjs = Get-Content $appPath -Raw
+          $appjs = $appjs.Replace('Unified System V142', 'Unified System V145 R8')
+          $appjs = $appjs.Replace('Windows V142', 'Windows V145 R8')
+          $appjs = $appjs.Replace('V142 Metadata Fix + V137 Auto Backup', 'V145 R8 Full Parity + V137 Auto Backup')
+          $appjs = $appjs.Replace('Automatic Encrypted Backup V142', 'Automatic Encrypted Backup V145 R8')
+          $appjs = $appjs.Replace('Backup مشفر V142', 'Backup مشفر V145 R8')
+          $appjs = $appjs.Replace('Safe Restore V142', 'Safe Restore V145 R8')
+          $appjs = $appjs.Replace('Safe Backup Restore V142', 'Safe Backup Restore V145 R8')
+          $appjs = $appjs.Replace('Supabase Shadow Backup V142:', 'Supabase Shadow Backup V145 R8:')
+          if (!$appjs.Contains("import './v145r8-parity.js';")) {
+            $appjs += "`r`nimport './v145r8-parity.js';`r`n"
+          }
+          Set-Content $appPath $appjs -Encoding utf8
+
+          @'
+          /* Windows V145 R8 visual/interaction parity layer.
+             It is additive only: existing Firebase/auth/orders/results/backup code is untouched. */
+          const V145_PACKAGES = [
+            { ar:'وظائف الكبد', en:'Liver Functions', tests:['ALT','AST','Albumin','ALP','Direct Bilirubin','Total Bilirubin','GGT'] },
+            { ar:'وظائف الكلى', en:'Kidney Functions', tests:['Urea','Creatinine','Uric Acid','eGFR'] },
+            { ar:'متابعة السكر', en:'Diabetes', tests:['Fasting Blood Glucose','HbA1c'] },
+            { ar:'وظائف الغدة الدرقية', en:'Thyroid', tests:['Free T3','Free T4','TSH'] },
+            { ar:'دهون الدم', en:'Lipid Profile', tests:['Cholesterol','HDL','LDL','Triglyceride'] },
+            { ar:'الأنيميا', en:'Anemia', tests:['CBC','Ferritin'] },
+            { ar:'الفحص الأساسي', en:'Basic Checkup', tests:['CBC','Fasting Blood Glucose','HbA1c','Creatinine','ALT','Cholesterol','TSH'] }
+          ];
+
+          const V145_STYLE = `
+          #v145r8-packages{direction:rtl;margin:16px 0;padding:16px;border:1px solid #d9e9ee;border-radius:22px;background:#fff}
+          #v145r8-packages *{box-sizing:border-box}
+          .v145r8-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px;color:#17324d;font-weight:800}
+          .v145r8-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}
+          .v145r8-package{aspect-ratio:1/1;border:1px solid rgba(255,255,255,.35);border-radius:22px;padding:16px;color:#fff;cursor:pointer;text-align:right;display:flex;flex-direction:column;justify-content:space-between;box-shadow:0 8px 18px rgba(15,23,42,.16);transition:transform .14s ease,box-shadow .14s ease}
+          .v145r8-package:hover{transform:translateY(-2px);box-shadow:0 11px 24px rgba(15,23,42,.2)}
+          .v145r8-package:nth-child(7n+1){background:linear-gradient(135deg,#06263a,#007e89,#33e0d0)}
+          .v145r8-package:nth-child(7n+2){background:linear-gradient(135deg,#13233f,#3568a8,#72c7ff)}
+          .v145r8-package:nth-child(7n+3){background:linear-gradient(135deg,#32153f,#8a3aa8,#e48dff)}
+          .v145r8-package:nth-child(7n+4){background:linear-gradient(135deg,#17372f,#0b8f70,#61e7bc)}
+          .v145r8-package:nth-child(7n+5){background:linear-gradient(135deg,#3d2413,#b66b16,#ffc85a)}
+          .v145r8-package:nth-child(7n+6){background:linear-gradient(135deg,#3b1825,#b63c68,#ff88b4)}
+          .v145r8-package:nth-child(7n+7){background:linear-gradient(135deg,#192e43,#176b8a,#66e1ff)}
+          .v145r8-package strong{font-size:20px}.v145r8-package small{opacity:.88;font-size:12px}
+          .v145r8-icon{width:48px;height:48px;border-radius:14px;border:1px solid rgba(255,255,255,.35);display:grid;place-items:center;background:rgba(255,255,255,.13);font-size:25px}
+          .v145r8-details{margin-top:12px;border:1px solid #cfe4e7;border-radius:18px;padding:14px;background:#fff;color:#17324d}
+          .v145r8-details[hidden]{display:none}
+          .v145r8-testline{display:flex;justify-content:space-between;gap:12px;border-bottom:1px solid #edf2f5;padding:8px 2px}
+          .v145r8-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+          .v145r8-action{min-height:44px;border-radius:12px!important;border:1px solid #badde2;background:#fff;color:#075e63;padding:8px 14px;font-weight:700;cursor:pointer;box-shadow:0 3px 9px rgba(15,23,42,.12)!important}
+          .v145r8-square-action{border-radius:12px!important;box-shadow:0 3px 9px rgba(15,23,42,.12)!important}
+          @media(max-width:650px){.v145r8-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.v145r8-package{padding:12px}.v145r8-package strong{font-size:16px}}
+          `;
+
+          function v145Esc(s){ return String(s??'').replace(/[&<>\"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[c])); }
+          function v145SearchInput(){
+            const all=[...document.querySelectorAll('input,textarea')];
+            return all.find(x=>/بحث|ابحث|search/i.test(`${x.placeholder||''} ${x.getAttribute('aria-label')||''}`)) || all.find(x=>x.type==='search') || null;
+          }
+          function v145RunPackageSearch(pkg){
+            const input=v145SearchInput();
+            if(!input) return false;
+            const value=pkg.tests.join(', ');
+            const proto=input.tagName==='TEXTAREA'?HTMLTextAreaElement.prototype:HTMLInputElement.prototype;
+            const setter=Object.getOwnPropertyDescriptor(proto,'value')?.set;
+            if(setter) setter.call(input,value); else input.value=value;
+            input.dispatchEvent(new Event('input',{bubbles:true}));
+            input.dispatchEvent(new Event('change',{bubbles:true}));
+            input.focus();
+            input.scrollIntoView({behavior:'smooth',block:'center'});
+            return true;
+          }
+          function v145VisiblePrice(name){
+            const normalized=name.toLowerCase();
+            for(const el of document.querySelectorAll('article,section,div,li,tr')){
+              const t=(el.innerText||'').trim(); if(!t || !t.toLowerCase().includes(normalized)) continue;
+              const m=t.match(/(?:^|\s)(\d+(?:[.,]\d+)?)\s*(?:ج(?:نيه)?|EGP)\b/i);
+              if(m) return Number(m[1].replace(',','.'))||null;
+            }
+            return null;
+          }
+          function v145BrandText(){
+            const body=(document.body?.innerText||'');
+            const phones=[...new Set(body.match(/01\d{9}/g)||[])].slice(0,2);
+            return {name:'تحاليل العقاد',phones};
+          }
+          function v145SavePackageImage(pkg){
+            const rows=pkg.tests.map(n=>({name:n,price:v145VisiblePrice(n)}));
+            const known=rows.filter(x=>Number.isFinite(x.price));
+            const total=known.reduce((a,b)=>a+b.price,0);
+            const brand=v145BrandText();
+            const w=1080,h=Math.max(900,420+rows.length*75); const c=document.createElement('canvas'); c.width=w;c.height=h;
+            const x=c.getContext('2d');
+            const g=x.createLinearGradient(0,0,w,h);g.addColorStop(0,'#06263a');g.addColorStop(1,'#007e89');x.fillStyle=g;x.fillRect(0,0,w,h);
+            x.fillStyle='#fff';x.textAlign='right';x.font='700 48px Arial';x.fillText(brand.name,1000,85);
+            x.font='700 44px Arial';x.fillText(`باقة ${pkg.ar}`,1000,160);x.font='28px Arial';x.fillText(pkg.en,1000,205);
+            let y=290;x.font='700 30px Arial';
+            rows.forEach((r,i)=>{x.fillStyle=i%2?'rgba(255,255,255,.08)':'rgba(255,255,255,.14)';x.fillRect(65,y-43,950,58);x.fillStyle='#fff';x.fillText(r.name,970,y);x.textAlign='left';x.fillText(r.price==null?'—':`${r.price} ج`,105,y);x.textAlign='right';y+=72;});
+            x.fillStyle='#8cf7ff';x.font='700 38px Arial';x.fillText(known.length?`الإجمالي: ${total} ج`:'الإجمالي يظهر بعد تحميل الأسعار',970,y+35);
+            x.fillStyle='#fff';x.font='24px Arial';if(brand.phones.length)x.fillText(brand.phones.join('  •  '),970,h-75);
+            const a=document.createElement('a');a.download=`Tahalil_Alakkad_${pkg.en.replace(/[^a-z0-9]+/gi,'_')}.png`;a.href=c.toDataURL('image/png');a.click();
+          }
+          function v145RenderPackages(){
+            if(document.getElementById('v145r8-packages')) return;
+            const host=document.querySelector('main,.main-content,#app,.app')||document.body; if(!host) return;
+            const sec=document.createElement('section');sec.id='v145r8-packages';
+            sec.innerHTML=`<div class="v145r8-head"><span>الباقات الجاهزة</span><small>اضغط مرة لعرض التفاصيل ومرة أخرى لإخفائها</small></div><div class="v145r8-grid"></div><div class="v145r8-details" hidden></div>`;
+            const grid=sec.querySelector('.v145r8-grid'),details=sec.querySelector('.v145r8-details');
+            let open=-1;
+            V145_PACKAGES.forEach((pkg,i)=>{const b=document.createElement('button');b.type='button';b.className='v145r8-package';b.innerHTML=`<span class="v145r8-icon">🔬</span><span><strong>${v145Esc(pkg.ar)}</strong><br><small>${v145Esc(pkg.en)} • ${pkg.tests.length} تحليل</small></span>`;b.addEventListener('click',()=>{if(open===i){open=-1;details.hidden=true;return;}open=i;details.hidden=false;details.innerHTML=`<h3>${v145Esc(pkg.ar)}</h3>${pkg.tests.map(n=>`<div class="v145r8-testline"><b>${v145Esc(n)}</b><span>${v145VisiblePrice(n)??'—'}${v145VisiblePrice(n)!=null?' ج':''}</span></div>`).join('')}<div class="v145r8-actions"><button type="button" class="v145r8-action" data-do="search">عرض الأسعار/إضافة للاختيار</button><button type="button" class="v145r8-action" data-do="image">حفظ صورة الباقة</button></div>`;details.querySelector('[data-do="search"]').onclick=()=>v145RunPackageSearch(pkg);details.querySelector('[data-do="image"]').onclick=()=>v145SavePackageImage(pkg);details.scrollIntoView({behavior:'smooth',block:'nearest'});});grid.appendChild(b);});
+            const firstUseful=host.querySelector('section,form,.search-container,.search-box');
+            if(firstUseful?.parentNode) firstUseful.parentNode.insertBefore(sec,firstUseful.nextSibling); else host.prepend(sec);
+          }
+          function v145CleanExistingActions(root=document){
+            root.querySelectorAll?.('button').forEach(btn=>{
+              const text=(btn.innerText||btn.getAttribute('aria-label')||'').trim();
+              const svg=btn.querySelector('svg,img');
+              if(svg && text.length<28){btn.classList.add('v145r8-square-action');}
+              if(/حفظ الصورة|مشاركة|save image|share/i.test(text)){btn.style.setProperty('box-shadow','0 3px 9px rgba(15,23,42,.12)','important');}
+            });
+          }
+          function v145EnableCardToggle(){
+            document.addEventListener('click',e=>{
+              if(e.target.closest('#v145r8-packages')) return;
+              if(e.target.closest('button,a,input,textarea,select')) return;
+              const card=e.target.closest('[class*="card"],article,li,[role="listitem"]');if(!card)return;
+              const text=(card.innerText||'');
+              if(!V145_PACKAGES.flatMap(p=>p.tests).some(n=>text.toLowerCase().includes(n.toLowerCase())) && !/تحليل|test/i.test(text)) return;
+              const toggle=[...card.querySelectorAll('button')].find(b=>/تفاصيل|مزيد|إخفاء|details|more|hide/i.test((b.innerText||b.getAttribute('aria-label')||'')));
+              if(toggle){e.preventDefault();e.stopPropagation();toggle.click();}
+            },true);
+          }
+          function v145Init(){
+            if(document.getElementById('v145r8-style'))return;
+            const st=document.createElement('style');st.id='v145r8-style';st.textContent=V145_STYLE;document.head.appendChild(st);
+            v145RenderPackages();v145CleanExistingActions();v145EnableCardToggle();
+            const obs=new MutationObserver(m=>{for(const x of m){x.addedNodes.forEach(n=>{if(n.nodeType===1)v145CleanExistingActions(n);});}if(!document.getElementById('v145r8-packages'))v145RenderPackages();});obs.observe(document.documentElement,{childList:true,subtree:true});
+          }
+          if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',v145Init,{once:true});else v145Init();
+          '@ | Set-Content (Join-Path $root 'src/v145r8-parity.js') -Encoding utf8
+
+          @'
+          Windows V145 R8 Full Parity
+          - Baseline: exact audited Windows V142 source.
+          - Adds Android V145/R8 ready-package experience: seven square 4D package cards.
+          - Package card: one click opens details, second click hides details.
+          - Package details can push all tests to the existing Windows search flow.
+          - Package inquiry image can be saved without creating a customer/order.
+          - Existing analysis cards: clicking the card delegates to the existing Details/More toggle when present.
+          - Icon actions are square-framed rather than circular where safely detectable.
+          - Removes colored purple/green glow from Save Image / Share actions; uses neutral shadow.
+          - Keeps 331-test catalogue and existing Firebase/auth/orders/results/backup/failover logic unchanged.
+          '@ | Set-Content (Join-Path $root 'V145_R8_WINDOWS_PARITY_NOTES.txt') -Encoding utf8
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Safety audit before build
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $root = Join-Path $PWD 'build_windows/windows-system'
+          $pkg = Get-Content (Join-Path $root 'package.json') -Raw | ConvertFrom-Json
+          if ($pkg.version -ne '145.8.0') { throw "Expected 145.8.0, got $($pkg.version)" }
+          $tests = Get-Content (Join-Path $root 'public/lab_tests_android.json') -Raw | ConvertFrom-Json
+          if ($tests.Count -ne 331) { throw "Expected 331 tests, got $($tests.Count)" }
+          $parity = Get-Content (Join-Path $root 'src/v145r8-parity.js') -Raw
+          foreach($marker in @('V145_PACKAGES','Liver Functions','Basic Checkup','v145RunPackageSearch','v145SavePackageImage','v145EnableCardToggle')) {
+            if(!$parity.Contains($marker)){throw "Missing parity marker: $marker"}
+          }
+          $appjs=Get-Content (Join-Path $root 'src/app.js') -Raw
+          if(!$appjs.Contains("import './v145r8-parity.js';")){throw 'Parity module import missing'}
+          node --check (Join-Path $root 'src/v145r8-parity.js')
+          if ($LASTEXITCODE -ne 0) { throw 'Parity module syntax failed' }
+          node --check (Join-Path $root 'electron/main.cjs')
+          if ($LASTEXITCODE -ne 0) { throw 'main.cjs syntax failed' }
+          Write-Host 'WINDOWS V145 R8 SAFETY AUDIT PASSED'
+
+      - name: Prepare source snapshot before dependencies
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          Compress-Archive -Path 'build_windows/windows-system/*' -DestinationPath 'Tahalil-Alakkad-V145-R8-Windows-Source.zip' -Force
+
+      - name: Install dependencies
+        working-directory: build_windows/windows-system
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          npm install --no-audit --no-fund
+          if ($LASTEXITCODE -ne 0) { throw 'npm install failed' }
+
+      - name: Build Portable
+        working-directory: build_windows/windows-system
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          npm run dist:portable
+          if ($LASTEXITCODE -ne 0) { throw 'Portable build failed' }
+
+      - name: Portable startup smoke
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $release = Join-Path $PWD 'build_windows/windows-system/release'
+          $exe = Get-ChildItem $release -Filter '*Portable*.exe' -File | Sort-Object Length -Descending | Select-Object -First 1
+          if (!$exe) { throw 'Portable EXE not found' }
+          $env:TAHALIL_SMOKE_TEST='1'
+          $p=Start-Process $exe.FullName -PassThru
+          if (!$p.WaitForExit(45000)) { Stop-Process -Id $p.Id -Force; throw 'Portable smoke timed out' }
+          if ($p.ExitCode -ne 0) { throw "Portable smoke exit code $($p.ExitCode)" }
+          Remove-Item Env:TAHALIL_SMOKE_TEST -ErrorAction SilentlyContinue
+          Write-Host 'PORTABLE STARTUP OK'
+
+      - name: Build Setup
+        working-directory: build_windows/windows-system
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          npm run dist:setup
+          if ($LASTEXITCODE -ne 0) { throw 'Setup build failed' }
+
+      - name: Prepare delivery files
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $release = Join-Path $PWD 'build_windows/windows-system/release'
+          $portable = Get-ChildItem $release -Filter '*Portable*.exe' -File | Sort-Object Length -Descending | Select-Object -First 1
+          $setup = Get-ChildItem $release -Filter '*Setup*.exe' -File | Sort-Object Length -Descending | Select-Object -First 1
+          if (!$portable -or !$setup) { throw 'Portable or Setup EXE missing' }
+          Copy-Item $portable.FullName 'Tahalil-Alakkad-V145-R8-Windows-Portable.exe' -Force
+          Copy-Item $setup.FullName 'Tahalil-Alakkad-V145-R8-Windows-Setup.exe' -Force
+          foreach ($name in @('Tahalil-Alakkad-V145-R8-Windows-Portable.exe','Tahalil-Alakkad-V145-R8-Windows-Setup.exe','Tahalil-Alakkad-V145-R8-Windows-Source.zip')) {
+            if ((Get-Item $name).Length -lt 100000) { throw "$name unexpectedly small" }
+            $hash=(Get-FileHash $name -Algorithm SHA256).Hash.ToLowerInvariant()
+            "$hash  $name" | Set-Content "$name.sha256" -Encoding ascii
+          }
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Tahalil-Alakkad-V145-R8-Windows
+          path: |
+            Tahalil-Alakkad-V145-R8-Windows-Portable.exe
+            Tahalil-Alakkad-V145-R8-Windows-Portable.exe.sha256
+            Tahalil-Alakkad-V145-R8-Windows-Setup.exe
+            Tahalil-Alakkad-V145-R8-Windows-Setup.exe.sha256
+            Tahalil-Alakkad-V145-R8-Windows-Source.zip
+            Tahalil-Alakkad-V145-R8-Windows-Source.zip.sha256
+          retention-days: 30
+
+      - name: Publish Windows V145 R8 release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $tag='v145-r8-windows'
+          gh release view $tag --repo "$env:GITHUB_REPOSITORY" *> $null
+          if ($LASTEXITCODE -eq 0) {
+            gh release delete $tag --repo "$env:GITHUB_REPOSITORY" --yes
+            git push origin ":refs/tags/$tag" 2>$null
+          }
+          gh release create $tag `
+            --repo "$env:GITHUB_REPOSITORY" `
+            --title "تحاليل العقاد Windows V145 R8 — Full Parity" `
+            --notes "Windows parity update through Android V145 R8: square 4D ready packages, tap-to-show/hide package details, package search/inquiry image, analysis-card detail toggle delegation, square action framing and clean neutral Save/Share shadows. Existing Windows V142 Firebase, auth, orders, results, backup, failover and 331-test catalogue remain intact."
+          if ($LASTEXITCODE -ne 0) { throw 'Could not create Windows V145 R8 release' }
+          gh release upload $tag `
+            'Tahalil-Alakkad-V145-R8-Windows-Portable.exe' `
+            'Tahalil-Alakkad-V145-R8-Windows-Portable.exe.sha256' `
+            'Tahalil-Alakkad-V145-R8-Windows-Setup.exe' `
+            'Tahalil-Alakkad-V145-R8-Windows-Setup.exe.sha256' `
+            'Tahalil-Alakkad-V145-R8-Windows-Source.zip' `
+            'Tahalil-Alakkad-V145-R8-Windows-Source.zip.sha256' `
+            --repo "$env:GITHUB_REPOSITORY"
+          if ($LASTEXITCODE -ne 0) { throw 'Could not upload Windows V145 R8 files' }
+
+      - name: Final status
+        shell: pwsh
+        run: |
+          Write-Host 'WINDOWS V145 R8 FULL PARITY BUILT, AUDITED, SMOKE-TESTED AND RELEASED'
