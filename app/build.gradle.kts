@@ -20,8 +20,8 @@ android {
     applicationId = "com.aistudio.labtestsdirectory.egypt"
     minSdk = 24
     targetSdk = 36
-    versionCode = 148
-    versionName = "5.68-v145-ui-polish-r7"
+    versionCode = 149
+    versionName = "5.69-v145-ui-polish-r8-clean-glow"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }

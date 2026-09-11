@@ -4310,10 +4310,10 @@ private fun QuickImageSelectedSection(
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 LabeledIconAction(label = appText("حفظ الصورة", "Save image"), onClick = { requestSave() }, modifier = Modifier
                         .weight(1f)
-                        .shadow(13.dp, RoundedCornerShape(13.dp), ambientColor = Color(0xFF25F0A7), spotColor = Color(0xFF25F0A7)), enabled = busyAction == null) { Icon(Icons.Default.Save, contentDescription = null) }
+                        , enabled = busyAction == null) { Icon(Icons.Default.Save, contentDescription = null) }
                 LabeledIconAction(label = appText("مشاركة", "Share"), onClick = { shareNow() }, modifier = Modifier
                         .weight(1f)
-                        .shadow(11.dp, RoundedCornerShape(13.dp), ambientColor = Color(0xFFAE72FF), spotColor = Color(0xFFAE72FF)), enabled = busyAction == null) { Icon(Icons.Default.Share, contentDescription = null) }
+                        , enabled = busyAction == null) { Icon(Icons.Default.Share, contentDescription = null) }
             }
         }
     }
