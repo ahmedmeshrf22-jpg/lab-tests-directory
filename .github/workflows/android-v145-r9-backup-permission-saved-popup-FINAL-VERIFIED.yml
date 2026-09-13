@@ -1,0 +1,458 @@
+name: Android V145 R9 BACKUP FIX FINAL VERIFIED
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/android-v145-r9-backup-permission-saved-popup.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-v145-r9-backup-permission-saved-popup
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Gradle 8.11.1
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+
+      - name: Prepare exact released R8 source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin '+refs/heads/*:refs/remotes/origin/*'
+          REF='refs/remotes/origin/v145-ui-polish-r8-clean-glow'
+          EXPECTED='ae682c504d7a52b94a2f71c0c4088bb169a943df'
+          test "$(git rev-parse "$REF^{commit}")" = "$EXPECTED"
+
+          rm -rf build_v145_r9
+          git worktree add --detach build_v145_r9 "$REF"
+
+          grep -Fq 'versionCode = 149' build_v145_r9/app/build.gradle.kts
+          grep -Fq 'versionName = "5.69-v145-ui-polish-r8-clean-glow"' build_v145_r9/app/build.gradle.kts
+          python3 -c 'import json; x=json.load(open("build_v145_r9/app/src/main/assets/lab_tests_android.json")); assert len(x)==331'
+
+          sha256sum \
+            build_v145_r9/firestore.rules \
+            build_v145_r9/app/google-services.json \
+            build_v145_r9/app/src/main/assets/lab_tests_android.json \
+            build_v145_r9/app/src/main/java/com/example/MainActivity.kt \
+            build_v145_r9/app/src/main/java/com/example/settings/AppSettings.kt \
+            > "$RUNNER_TEMP/r9-protected.sha256"
+
+      - name: Apply R9 backup permission fix and explicit saved popup
+        shell: bash
+        env:
+          FIXED_BACKUP_GZ_B64: >-
+            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
+        run: |
+          set -euo pipefail
+
+          BACKUP='build_v145_r9/app/src/main/java/com/example/util/CommercialBackupManager.kt'
+          OPS='build_v145_r9/app/src/main/java/com/example/ui/OperationsV14Dialog.kt'
+          GRADLE='build_v145_r9/app/build.gradle.kts'
+
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          import textwrap
+
+          gradle = Path('build_v145_r9/app/build.gradle.kts')
+          g = gradle.read_text(encoding='utf-8')
+          assert g.count('versionCode = 149') == 1
+          assert g.count('versionName = "5.69-v145-ui-polish-r8-clean-glow"') == 1
+          g = g.replace('versionCode = 149', 'versionCode = 150', 1)
+          g = g.replace(
+              'versionName = "5.69-v145-ui-polish-r8-clean-glow"',
+              'versionName = "5.70-v145-ui-polish-r9-backup-fix"',
+              1
+          )
+          gradle.write_text(g, encoding='utf-8')
+
+          ops = Path('build_v145_r9/app/src/main/java/com/example/ui/OperationsV14Dialog.kt')
+          s = ops.read_text(encoding='utf-8')
+
+          # Explicit visible confirmation after a successful MANUAL backup save.
+          if 'R9_MANUAL_BACKUP_SAVED_POPUP' not in s:
+              state_marker = 'var quickBackupMessage by remember { mutableStateOf("") }'
+              assert state_marker in s, 'quickBackupMessage state marker missing'
+              s = s.replace(
+                  state_marker,
+                  state_marker + '\n    // R9_MANUAL_BACKUP_SAVED_POPUP\n    var showManualBackupSaved by remember { mutableStateOf(false) }',
+                  1
+              )
+
+              success_marker = 'quickBackupMessage = quickBackupSuccessText'
+              assert s.count(success_marker) >= 1, 'manual backup success marker missing'
+              s = s.replace(
+                  success_marker,
+                  success_marker + '\n                        showManualBackupSaved = true',
+                  1
+              )
+
+              dialog_anchor = 'if (showQuickBackupPassword) {'
+              assert dialog_anchor in s, 'backup password dialog marker missing'
+              saved_dialog = textwrap.dedent(r'''
+              if (showManualBackupSaved) {
+                  AlertDialog(
+                      onDismissRequest = { showManualBackupSaved = false },
+                      title = {
+                          Text(
+                              appText("تم الحفظ ✓", "Saved ✓"),
+                              fontWeight = FontWeight.ExtraBold
+                          )
+                      },
+                      text = {
+                          Text(
+                              appText(
+                                  "تم حفظ النسخة الاحتياطية بنجاح على الهاتف.",
+                                  "The backup was saved successfully on this phone."
+                              ),
+                              textAlign = TextAlign.Center
+                          )
+                      },
+                      confirmButton = {
+                          LabeledIconAction(
+                              label = appText("موافق", "OK"),
+                              onClick = { showManualBackupSaved = false },
+                              actionSize = 58.dp
+                          ) {
+                              Icon(
+                                  Icons.Default.CheckCircle,
+                                  contentDescription = null,
+                                  modifier = Modifier.size(38.dp)
+                              )
+                          }
+                      }
+                  )
+              }
+
+          ''')
+              # Make the injected Kotlin diff-clean: no trailing spaces on any inserted line.
+              saved_dialog = '\n'.join(line.rstrip() for line in saved_dialog.lstrip('\n').splitlines()) + '\n'
+              s = s.replace(dialog_anchor, saved_dialog + '    ' + dialog_anchor, 1)
+
+          ops.write_text(s, encoding='utf-8')
+          PY
+
+          # Restore the proven permission-safe manager only if R8 lost it.
+          # Core operational collections remain mandatory. Firestore-denied
+          # users/audit/device security archive is best-effort and must not abort backup.
+          if grep -Fq 'fun optionalSecurity(name: String)' "$BACKUP" \
+             && grep -Fq 'optionalSecurity("users")' "$BACKUP" \
+             && grep -Fq 'optionalSecurity("audit_logs")' "$BACKUP" \
+             && grep -Fq 'security_archive_complete' "$BACKUP"; then
+            echo 'R8 already contains the proven permission-safe backup manager.'
+          else
+            ACTUAL_SHA="$(sha256sum "$BACKUP" | awk '{print $1}')"
+            BAD_V142_SHA='aab39abf98ccf7b39db0fad8404f034eb1f999b028cef25b9f389b4426e54599'
+            FIXED_SHA='0beed05a03d3c192a19b4e43b3aca04d358c1678dccd98eba9a85bf00c5fb3b6'
+
+            if [ "$ACTUAL_SHA" != "$BAD_V142_SHA" ]; then
+              echo "::error::R8 backup manager has neither permission-safe markers nor the known V142 bad hash."
+              echo "::error::Refusing an unsafe blind replacement. Actual SHA256: $ACTUAL_SHA"
+              exit 1
+            fi
+
+            printf '%s' "$FIXED_BACKUP_GZ_B64" \
+              | tr -d '[:space:]' \
+              | base64 --decode \
+              | gzip -dc > "$BACKUP"
+            test "$(sha256sum "$BACKUP" | awk '{print $1}')" = "$FIXED_SHA"
+            echo 'Restored proven permission-safe CommercialBackupManager.'
+          fi
+
+      - name: Safety audit R9 scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd build_v145_r9
+
+          git diff --check
+          grep -Fq 'versionCode = 150' app/build.gradle.kts
+          grep -Fq 'versionName = "5.70-v145-ui-polish-r9-backup-fix"' app/build.gradle.kts
+
+          BACKUP='app/src/main/java/com/example/util/CommercialBackupManager.kt'
+          OPS='app/src/main/java/com/example/ui/OperationsV14Dialog.kt'
+
+          grep -Fq 'fun optionalSecurity(name: String)' "$BACKUP"
+          grep -Fq 'optionalSecurity("users")' "$BACKUP"
+          grep -Fq 'optionalSecurity("audit_logs")' "$BACKUP"
+          grep -Fq 'securityArchiveWarnings += "devices/$uid:' "$BACKUP"
+          grep -Fq 'security_archive_complete' "$BACKUP"
+          grep -Fq 'security_archive_warnings' "$BACKUP"
+
+          grep -Fq 'val labOrders = simple("lab_orders")' "$BACKUP"
+          grep -Fq 'val customerPrices = simple("customer_price_overrides")' "$BACKUP"
+          grep -Fq 'val labPrices = simple("lab2lab_prices")' "$BACKUP"
+          grep -Fq 'val phoneRegistry = simple("phone_registry")' "$BACKUP"
+          grep -Fq 'val catalogOverrides = simple("lab_catalog_overrides")' "$BACKUP"
+
+          grep -Fq 'R9_MANUAL_BACKUP_SAVED_POPUP' "$OPS"
+          grep -Fq 'showManualBackupSaved = true' "$OPS"
+          grep -Fq 'تم الحفظ ✓' "$OPS"
+          grep -Fq 'تم حفظ النسخة الاحتياطية بنجاح على الهاتف.' "$OPS"
+
+          # Firestore rules/config/catalogue and protected app core must be untouched.
+          sed 's#build_v145_r9/##' "$RUNNER_TEMP/r9-protected.sha256" > "$RUNNER_TEMP/r9-protected-local.sha256"
+          sha256sum -c "$RUNNER_TEMP/r9-protected-local.sha256"
+
+          python3 - <<'PY'
+          import json
+          x=json.load(open('app/src/main/assets/lab_tests_android.json', encoding='utf-8'))
+          assert len(x)==331
+          ids=[i['id'] for i in x]
+          assert len(ids)==len(set(ids))
+          assert all('customer_price' in i for i in x)
+          assert all('lab_to_lab_price' not in i for i in x)
+          print('R9 CATALOGUE + PROTECTED CORE AUDIT PASS')
+          PY
+
+      - name: Load proven production signer
+        shell: bash
+        env:
+          SIGNING_BUNDLE_B64: ${{ secrets.TAHALIL_SIGNING_BUNDLE_B64 }}
+        run: |
+          set -euo pipefail
+          WF='.github/workflows/android-v144-ONLY-SESSION-RELOCK-FIX-FINAL-ONE-RUN-R3-AUDITED.yml'
+          test -s "$WF"
+
+          extract_step() {
+            local name="$1" out="$2"
+            awk -v target="$name" '
+              $0 == "      - name: " target { found=1; next }
+              found && /^        run: \|/ { inrun=1; next }
+              inrun && /^      - name:/ { exit }
+              inrun { sub(/^          /,""); print }
+            ' "$WF" > "$out"
+            test -s "$out"
+          }
+
+          extract_step 'Prepare deterministic APK certificate reader' "$RUNNER_TEMP/cert.sh"
+          extract_step 'Select exact installed Android signer' "$RUNNER_TEMP/signer.sh"
+          bash "$RUNNER_TEMP/cert.sh"
+          bash "$RUNNER_TEMP/signer.sh"
+
+          test -n "${KEYSTORE_PATH:-}"
+          test -n "${STORE_PASSWORD:-}"
+          test -n "${KEY_ALIAS:-}"
+          test -n "${KEY_PASSWORD:-}"
+          test -f "$KEYSTORE_PATH"
+
+      - name: Compile and build signed release
+        working-directory: build_v145_r9
+        shell: bash
+        run: |
+          set -euo pipefail
+          gradle --no-daemon --no-configuration-cache --no-parallel --max-workers=2 :app:compileReleaseKotlin
+          gradle --no-daemon --no-configuration-cache --no-parallel --max-workers=2 :app:assembleRelease
+
+      - name: Verify APK identity and exact signer lineage
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="$(find build_v145_r9/app/build/outputs/apk/release -type f -name '*.apk' | sort | head -1)"
+          test -s "$APK"
+
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -1)"
+          AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -1)"
+          test -x "$APKSIGNER"
+          test -x "$AAPT"
+
+          "$APKSIGNER" verify --verbose --print-certs "$APK"
+
+          curl -fL --retry 3 \
+            'https://github.com/ahmedmeshrf22-jpg/lab-tests-directory/releases/download/v145-ui-polish-r8-clean-glow/Tahalil-Alakkad-V145-R8-CLEAN-GLOW-SIGNED.apk' \
+            -o "$RUNNER_TEMP/r8.apk"
+
+          NEW_CERT="$(python3 "$RUNNER_TEMP/apk_cert_sha256.py" "$APK" | tr 'A-F' 'a-f' | tr -d ':[:space:]')"
+          OLD_CERT="$(python3 "$RUNNER_TEMP/apk_cert_sha256.py" "$RUNNER_TEMP/r8.apk" | tr 'A-F' 'a-f' | tr -d ':[:space:]')"
+          test "$NEW_CERT" = "$OLD_CERT"
+          test "$NEW_CERT" = 'd20457a1cf78ed2598242fb858b32579793a856a94dd8f88829223221b8bc29c'
+
+          BADGING="$("$AAPT" dump badging "$APK" | head -1)"
+          echo "$BADGING"
+          echo "$BADGING" | grep -Fq "package: name='com.aistudio.labtestsdirectory.egypt'"
+          echo "$BADGING" | grep -Fq "versionCode='150'"
+          echo "$BADGING" | grep -Fq "versionName='5.70-v145-ui-polish-r9-backup-fix'"
+
+          cp "$APK" Tahalil-Alakkad-V145-R9-BACKUP-FIX-SIGNED.apk
+          sha256sum Tahalil-Alakkad-V145-R9-BACKUP-FIX-SIGNED.apk \
+            > Tahalil-Alakkad-V145-R9-BACKUP-FIX-SIGNED.apk.sha256
+
+      - name: Commit exact R9 source snapshot
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd build_v145_r9
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git checkout -B v145-ui-polish-r9-backup-fix
+          git add app/build.gradle.kts \
+            app/src/main/java/com/example/util/CommercialBackupManager.kt \
+            app/src/main/java/com/example/ui/OperationsV14Dialog.kt
+          git commit -m 'R9 fix backup permission handling and add saved popup'
+          FINAL_SHA="$(git rev-parse HEAD)"
+          echo "FINAL_SHA=$FINAL_SHA" >> "$GITHUB_ENV"
+          git archive --format=zip \
+            --output="$GITHUB_WORKSPACE/Tahalil-Alakkad-V145-R9-BACKUP-FIX-SOURCE.zip" \
+            HEAD
+
+      - name: Upload R9 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Tahalil-Alakkad-V145-R9-BACKUP-FIX
+          path: |
+            Tahalil-Alakkad-V145-R9-BACKUP-FIX-SIGNED.apk
+            Tahalil-Alakkad-V145-R9-BACKUP-FIX-SIGNED.apk.sha256
+            Tahalil-Alakkad-V145-R9-BACKUP-FIX-SOURCE.zip
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish R9 branch and release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git -C build_v145_r9 push --force origin HEAD:refs/heads/v145-ui-polish-r9-backup-fix
+
+          TAG='v145-ui-polish-r9-backup-fix'
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$TAG" \
+              Tahalil-Alakkad-V145-R9-BACKUP-FIX-SIGNED.apk \
+              Tahalil-Alakkad-V145-R9-BACKUP-FIX-SIGNED.apk.sha256 \
+              Tahalil-Alakkad-V145-R9-BACKUP-FIX-SOURCE.zip \
+              --repo "$GITHUB_REPOSITORY" --clobber
+          else
+            gh release create "$TAG" \
+              Tahalil-Alakkad-V145-R9-BACKUP-FIX-SIGNED.apk \
+              Tahalil-Alakkad-V145-R9-BACKUP-FIX-SIGNED.apk.sha256 \
+              Tahalil-Alakkad-V145-R9-BACKUP-FIX-SOURCE.zip \
+              --repo "$GITHUB_REPOSITORY" \
+              --target "$FINAL_SHA" \
+              --title 'Tahalil Alakkad V145 R9 Backup Fix' \
+              --notes 'R9 fixes the Android manual/04:00 encrypted backup permission regression by preserving mandatory operational data while treating Firestore-denied users/audit/device security archives as best-effort, without relaxing Firestore rules. Manual backup now shows a clear in-app تم الحفظ ✓ confirmation only after the .tahbak file is successfully saved. Based exactly on released V145 R8; 331-test catalogue, Firebase configuration, package identity and production signer are preserved.'
+          fi
+
+      - name: Final status
+        run: echo 'R9 BACKUP PERMISSION FIX + MANUAL SAVED POPUP BUILT, SIGNER VERIFIED AND RELEASED'
