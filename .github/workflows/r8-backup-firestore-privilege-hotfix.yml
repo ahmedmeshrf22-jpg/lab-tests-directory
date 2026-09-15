@@ -1,0 +1,240 @@
+name: R8 BACKUP FIRESTORE PRIVILEGE HOTFIX
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: r8-backup-firestore-privilege-hotfix
+  cancel-in-progress: false
+
+jobs:
+  fix-backup-rules:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Prepare exact released R8 rules
+        shell: bash
+        run: |
+          set -euo pipefail
+          R8='ae682c504d7a52b94a2f71c0c4088bb169a943df'
+          git fetch origin '+refs/heads/*:refs/remotes/origin/*' '+refs/tags/*:refs/tags/*'
+          test "$(git rev-parse "$R8^{commit}")" = "$R8"
+
+          rm -rf r8_backup_rules
+          git worktree add --detach r8_backup_rules "$R8"
+
+          test -s r8_backup_rules/firestore.rules
+          grep -Fq "request.auth.uid == 'Wps5Y19pZSbeGooEzFfW5UFsshq2'" r8_backup_rules/firestore.rules
+          grep -Fq "request.auth.token.email == 'tahalil.admin.gate.v60@tahali.com'" r8_backup_rules/firestore.rules
+
+          BEFORE_SHA="$(sha256sum r8_backup_rules/firestore.rules | awk '{print $1}')"
+          echo "BEFORE_SHA=$BEFORE_SHA" >> "$GITHUB_ENV"
+          echo "Exact R8 firestore.rules SHA256=$BEFORE_SHA"
+
+      - name: Apply manager identity parity fix only
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p = Path('r8_backup_rules/firestore.rules')
+          s = p.read_text(encoding='utf-8')
+
+          old = (
+              "        request.auth.uid == 'Wps5Y19pZSbeGooEzFfW5UFsshq2'\n"
+              "        || request.auth.token.email == 'tahalil.admin.gate.v60@tahali.com'\n"
+          )
+          new = (
+              "        request.auth.uid == 'Wps5Y19pZSbeGooEzFfW5UFsshq2'\n"
+              "        || request.auth.token.email == 'abdelrahman@tahali.com'\n"
+              "        || request.auth.token.email == 'tahalil.admin.gate.v60@tahali.com'\n"
+          )
+
+          if old not in s:
+              if "request.auth.token.email == 'abdelrahman@tahali.com'" in s:
+                  raise SystemExit('Manager-email privilege parity fix is already present in exact R8 rules')
+              raise SystemExit('Expected R8 isPrivilegedAdmin block not found; refusing blind rules edit')
+
+          s = s.replace(old, new, 1)
+          p.write_text(s, encoding='utf-8')
+          PY
+
+          RULES='r8_backup_rules/firestore.rules'
+
+          grep -Fq "request.auth.uid == 'Wps5Y19pZSbeGooEzFfW5UFsshq2'" "$RULES"
+          grep -Fq "request.auth.token.email == 'abdelrahman@tahali.com'" "$RULES"
+          grep -Fq "request.auth.token.email == 'tahalil.admin.gate.v60@tahali.com'" "$RULES"
+
+          grep -Fq 'match /lab_orders/{orderId}' "$RULES"
+          grep -Fq 'allow read: if isLabOperator() || isPrivilegedAdmin();' "$RULES"
+          grep -Fq 'match /lab2lab_prices/{document=**} { allow read, write: if isPrivilegedAdmin(); }' "$RULES"
+          grep -Fq 'match /customers/{customerId}' "$RULES"
+          grep -Fq 'match /audit_logs/{logId}' "$RULES"
+
+          AFTER_SHA="$(sha256sum "$RULES" | awk '{print $1}')"
+          test "$AFTER_SHA" != "$BEFORE_SHA"
+          echo "AFTER_SHA=$AFTER_SHA" >> "$GITHUB_ENV"
+          echo "Patched firestore.rules SHA256=$AFTER_SHA"
+
+      - name: Verify one-line security scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd r8_backup_rules
+
+          CHANGED="$(git diff --name-only)"
+          test "$CHANGED" = 'firestore.rules'
+
+          python3 - <<'PY'
+          import subprocess
+
+          diff = subprocess.check_output(
+              ['git','diff','--unified=3','--','firestore.rules'],
+              text=True
+          )
+          print(diff)
+
+          plus = [x for x in diff.splitlines() if x.startswith('+') and not x.startswith('+++')]
+          minus = [x for x in diff.splitlines() if x.startswith('-') and not x.startswith('---')]
+
+          assert plus == ["+        || request.auth.token.email == 'abdelrahman@tahali.com'"], plus
+          assert minus == [], minus
+          print('RULE SCOPE PASS: exactly one authorization condition added.')
+          PY
+
+      - name: Deploy rules and verify active ruleset
+        shell: bash
+        env:
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+        run: |
+          set -euo pipefail
+          test -n "${FIREBASE_SERVICE_ACCOUNT_JSON:-}" || {
+            echo '::error::FIREBASE_SERVICE_ACCOUNT_JSON secret missing'
+            exit 1
+          }
+
+          CREDS="$RUNNER_TEMP/firebase-service-account.json"
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT_JSON" > "$CREDS"
+          chmod 600 "$CREDS"
+          export GOOGLE_APPLICATION_CREDENTIALS="$CREDS"
+
+          RULES_DIR="$RUNNER_TEMP/r8-backup-rules-api"
+          rm -rf "$RULES_DIR"
+          mkdir -p "$RULES_DIR"
+          cd "$RULES_DIR"
+          npm init -y >/dev/null 2>&1
+          npm install firebase-admin@13 --no-audit --no-fund >/dev/null
+
+          FIRESTORE_RULES_PATH="$GITHUB_WORKSPACE/r8_backup_rules/firestore.rules" node <<'NODE'
+          const fs = require('node:fs');
+          const crypto = require('node:crypto');
+          const admin = require('firebase-admin');
+
+          (async () => {
+            const rulesPath = process.env.FIRESTORE_RULES_PATH;
+            const source = fs.readFileSync(rulesPath, 'utf8');
+
+            const required = [
+              "request.auth.uid == 'Wps5Y19pZSbeGooEzFfW5UFsshq2'",
+              "request.auth.token.email == 'abdelrahman@tahali.com'",
+              "request.auth.token.email == 'tahalil.admin.gate.v60@tahali.com'",
+              "match /lab_orders/{orderId}",
+              "match /lab2lab_prices/{document=**} { allow read, write: if isPrivilegedAdmin(); }"
+            ];
+            for (const marker of required) {
+              if (!source.includes(marker)) throw new Error(`Patched rule marker missing: ${marker}`);
+            }
+
+            admin.initializeApp({
+              credential: admin.credential.applicationDefault(),
+              projectId: 'tahalil-alakkad'
+            });
+
+            const securityRules = admin.securityRules();
+            const released = await securityRules.releaseFirestoreRulesetFromSource(source);
+            if (!released || !released.name) throw new Error('Rules API returned no released ruleset name');
+
+            const active = await securityRules.getFirestoreRuleset();
+            if (!active || !active.name) throw new Error('Unable to read active Firestore ruleset');
+
+            let activeSource = '';
+            if (Array.isArray(active.source)) {
+              activeSource = active.source.map(x => x && x.content ? x.content : '').join('\n');
+            } else if (active.source && Array.isArray(active.source.files)) {
+              activeSource = active.source.files.map(x => x && x.content ? x.content : '').join('\n');
+            } else if (typeof active.source === 'string') {
+              activeSource = active.source;
+            }
+
+            if (!activeSource.includes("request.auth.token.email == 'abdelrahman@tahali.com'")) {
+              throw new Error('Active Firestore rules do not contain manager-email privilege parity fix');
+            }
+            if (!activeSource.includes("match /lab_orders/{orderId}")) {
+              throw new Error('Active Firestore rules lost lab_orders protection');
+            }
+            if (!activeSource.includes("match /lab2lab_prices/{document=**} { allow read, write: if isPrivilegedAdmin(); }")) {
+              throw new Error('Active Firestore rules lost lab2lab_prices protection');
+            }
+
+            const sha = crypto.createHash('sha256').update(source).digest('hex');
+            console.log('Released ruleset:', released.name);
+            console.log('Active ruleset:', active.name);
+            console.log('Deployed source SHA256:', sha);
+            console.log('BACKUP RULES HOTFIX VERIFIED');
+          })().catch(err => {
+            console.error(err && err.stack ? err.stack : err);
+            process.exit(1);
+          });
+          NODE
+
+      - name: Commit audited rules hotfix source
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd r8_backup_rules
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git checkout -B v145-r8-backup-rules-hotfix
+          git add firestore.rules
+          git commit -m 'R8 backup: align manager Firestore privilege with app identity'
+          HOTFIX_SHA="$(git rev-parse HEAD)"
+          echo "HOTFIX_SHA=$HOTFIX_SHA" >> "$GITHUB_ENV"
+          git push --force origin HEAD:refs/heads/v145-r8-backup-rules-hotfix
+
+      - name: Upload audit
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > R8-BACKUP-RULES-HOTFIX-AUDIT.txt <<EOF
+          R8 BACKUP FIRESTORE PRIVILEGE HOTFIX
+          Base commit: ae682c504d7a52b94a2f71c0c4088bb169a943df
+          Before rules SHA256: $BEFORE_SHA
+          After rules SHA256:  $AFTER_SHA
+          Change: add authenticated manager email to isPrivilegedAdmin()
+          Application APK changed: NO
+          Windows changed: NO
+          Firestore collection permissions otherwise changed: NO
+          Source branch: v145-r8-backup-rules-hotfix
+          Source commit: $HOTFIX_SHA
+          EOF
+
+      - name: Upload audit artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: R8-BACKUP-RULES-HOTFIX-AUDIT
+          path: R8-BACKUP-RULES-HOTFIX-AUDIT.txt
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Final status
+        run: echo 'R8 BACKUP FIRESTORE PRIVILEGE HOTFIX DEPLOYED AND VERIFIED'
