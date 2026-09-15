@@ -8,6 +8,7 @@ service cloud.firestore {
     function isPrivilegedAdmin() {
       return signedIn() && (
         request.auth.uid == 'Wps5Y19pZSbeGooEzFfW5UFsshq2'
+        || request.auth.token.email == 'abdelrahman@tahali.com'
         || request.auth.token.email == 'tahalil.admin.gate.v60@tahali.com'
       );
     }
