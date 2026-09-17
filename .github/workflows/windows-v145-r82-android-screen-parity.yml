@@ -1,0 +1,457 @@
+name: Windows V145 R8.2 Android Screen Parity
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/windows-v145-r82-android-screen-parity.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: tahalil-windows-v145-r82-android-screen-parity
+  cancel-in-progress: false
+
+jobs:
+  windows-v145-r82:
+    name: Windows V145 R8.2 — Android Screen Parity
+    runs-on: windows-latest
+    timeout-minutes: 95
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: "false"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download audited Windows V145 R8 source
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if (Test-Path 'Tahalil-Alakkad-V145-R8-Windows-Source.zip') { Remove-Item 'Tahalil-Alakkad-V145-R8-Windows-Source.zip' -Force }
+          if (Test-Path 'build_windows') { Remove-Item 'build_windows' -Recurse -Force }
+          gh release download v145-r8-windows `
+            --repo "$env:GITHUB_REPOSITORY" `
+            --pattern 'Tahalil-Alakkad-V145-R8-Windows-Source.zip' `
+            --dir '.'
+          if ($LASTEXITCODE -ne 0) { throw 'Could not download V145 R8 Windows source' }
+          New-Item -ItemType Directory -Force -Path 'build_windows/windows-system' | Out-Null
+          Expand-Archive 'Tahalil-Alakkad-V145-R8-Windows-Source.zip' 'build_windows/windows-system' -Force
+          if (!(Test-Path 'build_windows/windows-system/package.json')) { throw 'Windows V145 R8 source extraction failed' }
+          if (!(Test-Path 'build_windows/windows-system/src/v145r8-parity.js')) { throw 'V145 R8 parity module missing' }
+
+      - name: Apply Android-equivalent package price resolver
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $root = Join-Path $PWD 'build_windows/windows-system'
+
+          $pkgPath = Join-Path $root 'package.json'
+          $pkgRaw = Get-Content $pkgPath -Raw
+          if (!$pkgRaw.Contains('"version": "145.8.0"')) { throw 'Unexpected source version; expected 145.8.0' }
+          $pkgRaw = $pkgRaw.Replace('"version": "145.8.0"', '"version": "145.8.2"')
+          Set-Content $pkgPath $pkgRaw -Encoding utf8
+
+          $parityPath = Join-Path $root 'src/v145r8-parity.js'
+          $parity = Get-Content $parityPath -Raw
+          $before = $parity
+
+          $resolver = @'
+          /* V145_PRICE_PARITY_R81
+             Package prices are resolved from the existing Windows live test cards/search results.
+             Those cards already carry the effective customer price loaded by the app, so the
+             package layer now follows the same effective price instead of guessing from package DOM. */
+          const V145_PRICE_CACHE = new Map();
+          function v145NormalizeDigits(value){
+            const ar='٠١٢٣٤٥٦٧٨٩', fa='۰۱۲۳۴۵۶۷۸۹', en='0123456789';
+            return String(value??'')
+              .replace(/[٠-٩]/g,d=>en[ar.indexOf(d)])
+              .replace(/[۰-۹]/g,d=>en[fa.indexOf(d)])
+              .replace(/٫/g,'.').replace(/٬/g,',').replace(/\u00a0/g,' ');
+          }
+          function v145Norm(value){
+            return v145NormalizeDigits(value).toLowerCase().replace(/\s+/g,' ').trim();
+          }
+          function v145Number(raw){
+            let s=String(raw??'').trim();
+            if(/^\d{1,3},\d{3}(?:\.\d+)?$/.test(s)) s=s.replace(',','');
+            else if(/^\d{1,3}\.\d{3},\d+$/.test(s)) s=s.replace('.','').replace(',','.');
+            else s=s.replace(',','.');
+            const n=Number(s); return Number.isFinite(n)?n:null;
+          }
+          function v145ExtractPrice(text){
+            const s=v145NormalizeDigits(text);
+            const patterns=[
+              /(?:السعر|price)\s*[:：-]?\s*(\d{1,6}(?:[.,]\d{1,3})?)\s*(?:جنيه|ج(?:\.?\s*م\.?)?|egp|l\.?e\.?)?/i,
+              /(\d{1,6}(?:[.,]\d{1,3})?)\s*(?:جنيه|ج(?:\.?\s*م\.?)?|egp|l\.?e\.?)(?=\s|$|[^\p{L}\p{N}_])/iu,
+              /(?:جنيه|ج(?:\.?\s*م\.?)?|egp|l\.?e\.?)\s*[:：-]?\s*(\d{1,6}(?:[.,]\d{1,3})?)/i
+            ];
+            for(const re of patterns){ const m=s.match(re); if(m){ const n=v145Number(m[1]); if(n!=null) return n; } }
+            return null;
+          }
+          function v145NameScore(text,name){
+            const t=v145Norm(text), n=v145Norm(name); if(!t||!n) return 0;
+            if(t===n) return 1000;
+            if(t.includes(n)) return 800-Math.min(300,t.length-n.length);
+            const tokens=n.split(/[^a-z0-9\u0600-\u06ff]+/i).filter(x=>x.length>=2);
+            if(!tokens.length) return 0;
+            const hits=tokens.filter(x=>t.includes(x)).length;
+            return hits===tokens.length?500+hits:0;
+          }
+          function v145PriceCandidates(name){
+            const primary=[...document.querySelectorAll('article,li,tr,[role="row"],[role="listitem"],[class*="test"],[class*="card"],[class*="item"]')];
+            const fallback=[...document.querySelectorAll('div,section')].filter(el=>(el.innerText||'').length<420);
+            return [...new Set([...primary,...fallback])]
+              .filter(el=>!el.closest('#v145r8-packages'))
+              .map(el=>({el,text:(el.innerText||'').trim(),score:v145NameScore((el.innerText||''),name)}))
+              .filter(x=>x.text&&x.score>0&&x.text.length<800)
+              .sort((a,b)=>(b.score-a.score)||(a.text.length-b.text.length));
+          }
+          function v145VisiblePrice(name){
+            const key=v145Norm(name);
+            for(const c of v145PriceCandidates(name)){
+              const p=v145ExtractPrice(c.text);
+              if(Number.isFinite(p)){
+                V145_PRICE_CACHE.set(key,{price:p,at:Date.now()});
+                return p;
+              }
+            }
+            const cached=V145_PRICE_CACHE.get(key);
+            return cached&&Number.isFinite(cached.price)?cached.price:null;
+          }
+          function v145SetSearchValue(input,value){
+            const proto=input.tagName==='TEXTAREA'?HTMLTextAreaElement.prototype:HTMLInputElement.prototype;
+            const setter=Object.getOwnPropertyDescriptor(proto,'value')?.set;
+            if(setter) setter.call(input,value); else input.value=value;
+            input.dispatchEvent(new Event('input',{bubbles:true}));
+            input.dispatchEvent(new Event('change',{bubbles:true}));
+          }
+          function v145WarmPackagePrices(pkg){
+            const input=v145SearchInput(); if(!input) return false;
+            const before=input.value||'', value=pkg.tests.join(', ');
+            if(before===value) return true;
+            v145SetSearchValue(input,value);
+            setTimeout(()=>{
+              if(input.value===value){
+                v145SetSearchValue(input,before);
+              }
+            },1500);
+            return true;
+          }
+          function v145FormatPrice(value){
+            return Number.isInteger(value)?String(value):Number(value).toFixed(2).replace(/\.00$/,'');
+          }
+          function v145RefreshPackagePriceSpans(){
+            const details=document.querySelector('#v145r8-packages .v145r8-details:not([hidden])');
+            if(!details) return;
+            let known=0,total=0;
+            details.querySelectorAll('.v145r8-testline').forEach(line=>{
+              const name=(line.querySelector('b')?.textContent||'').trim();
+              const span=line.querySelector('span'); if(!name||!span) return;
+              const price=v145VisiblePrice(name);
+              if(Number.isFinite(price)){
+                known++; total+=price;
+                const next=`${v145FormatPrice(price)} ج`;
+                if(span.textContent!==next) span.textContent=next;
+              }
+            });
+            let totalEl=details.querySelector('.v145r8-price-total');
+            if(!totalEl){
+              totalEl=document.createElement('div');
+              totalEl.className='v145r8-price-total';
+              totalEl.style.cssText='margin-top:10px;padding:10px 12px;border-radius:12px;background:#eefbfb;color:#075e63;font-weight:800;text-align:right';
+              const actions=details.querySelector('.v145r8-actions');
+              if(actions) details.insertBefore(totalEl,actions); else details.appendChild(totalEl);
+            }
+            const count=details.querySelectorAll('.v145r8-testline').length;
+            const nextTotal=known?`الإجمالي: ${v145FormatPrice(total)} ج${known<count?' (المتاح حتى الآن)':''}`:'جاري تحميل أسعار الباقة…';
+            if(totalEl.textContent!==nextTotal) totalEl.textContent=nextTotal;
+          }
+          '@
+
+          $pattern = '(?s)\s*function v145VisiblePrice\(name\)\{.*?\}\s*function v145BrandText'
+          $replacement = "`r`n$resolver`r`n          function v145BrandText"
+          $parity = [regex]::Replace($parity, $pattern, $replacement, 1)
+          if ($parity -eq $before) { throw 'Could not replace old package price resolver' }
+
+          $needle = "details.scrollIntoView({behavior:'smooth',block:'nearest'});"
+          if (!$parity.Contains($needle)) { throw 'Package click marker missing' }
+          $warm = "const __known=pkg.tests.filter(n=>v145VisiblePrice(n)!=null).length;if(__known<pkg.tests.length)v145WarmPackagePrices(pkg);v145RefreshPackagePriceSpans();setTimeout(v145RefreshPackagePriceSpans,220);setTimeout(v145RefreshPackagePriceSpans,700);setTimeout(v145RefreshPackagePriceSpans,1400);$needle"
+          $parity = $parity.Replace($needle, $warm)
+
+          $obsNeedle = "if(!document.getElementById('v145r8-packages'))v145RenderPackages();"
+          if (!$parity.Contains($obsNeedle)) { throw 'Mutation observer marker missing' }
+          $parity = $parity.Replace($obsNeedle, "$obsNeedle v145RefreshPackagePriceSpans();")
+
+          Set-Content $parityPath $parity -Encoding utf8
+
+          @'
+          Windows V145 R8.2 Android Screen Parity
+          - Fixes package prices showing as dashes on Arabic Windows UI.
+          - Removes the Arabic-currency word-boundary bug in the old DOM resolver.
+          - Supports Arabic/Persian digits, جنيه, ج, ج.م, EGP and LE price formats.
+          - Resolves package prices from the live Windows test/search cards that already carry the effective synced customer price.
+          - Silently warms the existing search flow when package prices are not yet present, caches the resolved prices, then restores the prior query.
+          - Package image export uses the same resolved live prices.
+          - Shows a package total from the resolved prices.
+          - Existing Firebase/auth/orders/results/backup/failover/catalogue behavior is unchanged.
+          '@ | Set-Content (Join-Path $root 'V145_R81_PACKAGE_PRICE_PARITY_NOTES.txt') -Encoding utf8
+
+      - name: Apply Android screen placement parity
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $root = Join-Path $PWD 'build_windows/windows-system'
+          $parityPath = Join-Path $root 'src/v145r8-parity.js'
+          $parity = Get-Content $parityPath -Raw
+          $beforeUi = $parity
+
+          # Android V145 behavior:
+          # - Home is only the task launcher/dashboard.
+          # - Ready packages exist only inside "Test inquiry".
+          # - Packages are directly below the search area.
+          # - Two package cards per row, matching Android instead of spreading across the desktop.
+
+          $helpers = @'
+          /* V145_ANDROID_SCREEN_PARITY_R82 */
+          let V145_LAST_WORKSPACE = null;
+          function v145ElementVisible(el){
+            if(!el) return false;
+            const s=getComputedStyle(el);
+            const r=el.getBoundingClientRect();
+            return s.display!=='none' && s.visibility!=='hidden' && r.width>2 && r.height>2;
+          }
+          function v145WorkspaceText(){
+            const input=v145SearchInput();
+            const scope=input?.closest('main,.main-content,.content,.workspace,#app,.app') || document.body;
+            return (scope?.innerText||'').replace(/\s+/g,' ').trim();
+          }
+          function v145IsInquiryWorkspace(){
+            const input=v145SearchInput();
+            if(!input || !v145ElementVisible(input)) return false;
+            const t=v145WorkspaceText();
+            if(/استعلام\s*(?:عن)?\s*تحليل|استعلام\s*أسعار|قائمة\s*الاستعلام|test\s*inquiry|price\s*inquiry|inquiry\s*list/i.test(t)) return true;
+            if(V145_LAST_WORKSPACE==='inquiry') return true;
+            return false;
+          }
+          function v145SyncPackagePlacement(){
+            const current=document.getElementById('v145r8-packages');
+            if(!v145IsInquiryWorkspace()){
+              if(current) current.remove();
+              return;
+            }
+            if(!current) v145RenderPackages();
+          }
+          function v145TrackWorkspaceIntent(e){
+            const hit=e.target?.closest?.('button,a,[role="button"],[tabindex]');
+            if(!hit) return;
+            const t=(hit.innerText||hit.getAttribute('aria-label')||hit.getAttribute('title')||'').replace(/\s+/g,' ').trim();
+            if(/استعلام\s*(?:عن)?\s*تحليل|استعلام\s*أسعار|test\s*inquiry|price\s*inquiry/i.test(t)){
+              V145_LAST_WORKSPACE='inquiry';
+            } else if(/الرئيسية|home|سجل\s*الطلبات|orders|دليل\s*التحاليل|test\s*guide|طلب\s*جديد|new\s*order|العملاء|customers|الإدارة|admin|الإعدادات|settings/i.test(t)){
+              V145_LAST_WORKSPACE=null;
+            }
+            setTimeout(v145SyncPackagePlacement,80);
+            setTimeout(v145SyncPackagePlacement,250);
+          }
+          '@
+
+          if(!$parity.Contains('function v145RenderPackages(){')) { throw 'Package render function missing' }
+          $parity = $parity.Replace('function v145RenderPackages(){', "$helpers`r`n          function v145RenderPackages(){")
+
+          # Never render ready packages on Home or other workspaces.
+          $oldGuard = "if(document.getElementById('v145r8-packages')) return;"
+          $newGuard = "if(!v145IsInquiryWorkspace()) return; if(document.getElementById('v145r8-packages')) return;"
+          if(!$parity.Contains($oldGuard)) { throw 'Package render guard missing' }
+          $parity = $parity.Replace($oldGuard, $newGuard)
+
+          # Put the package block under the inquiry search box, not after an arbitrary Home section.
+          $oldHost = "const host=document.querySelector('main,.main-content,#app,.app')||document.body; if(!host) return;"
+          $newHost = "const input=v145SearchInput(); const searchBlock=input?.closest('.search-container,.search-box,form,[class*=`"search`"]')||input; const host=searchBlock?.closest('main,.main-content,.content,.workspace,#app,.app')||document.querySelector('main,.main-content,#app,.app')||document.body; if(!host||!searchBlock) return;"
+          if(!$parity.Contains($oldHost)) { throw 'Package host marker missing' }
+          $parity = $parity.Replace($oldHost, $newHost)
+
+          $oldInsert = "const firstUseful=host.querySelector('section,form,.search-container,.search-box');`r`n            if(firstUseful?.parentNode) firstUseful.parentNode.insertBefore(sec,firstUseful.nextSibling); else host.prepend(sec);"
+          if(!$parity.Contains($oldInsert)) {
+            $oldInsert = "const firstUseful=host.querySelector('section,form,.search-container,.search-box');`n            if(firstUseful?.parentNode) firstUseful.parentNode.insertBefore(sec,firstUseful.nextSibling); else host.prepend(sec);"
+          }
+          $newInsert = "if(searchBlock?.parentNode) searchBlock.parentNode.insertBefore(sec,searchBlock.nextSibling); else host.prepend(sec);"
+          if(!$parity.Contains($oldInsert)) { throw 'Package insertion marker missing' }
+          $parity = $parity.Replace($oldInsert, $newInsert)
+
+          # Android uses exactly two package cards per row. Keep a phone-like readable width
+          # on desktop instead of stretching 4-7 cards across the monitor.
+          $oldGrid = ".v145r8-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}"
+          $newGrid = ".v145r8-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;width:100%}"
+          if(!$parity.Contains($oldGrid)) { throw 'Package grid CSS marker missing' }
+          $parity = $parity.Replace($oldGrid, $newGrid)
+
+          $oldSection = "#v145r8-packages{direction:rtl;margin:16px 0;padding:16px;border:1px solid #d9e9ee;border-radius:22px;background:#fff}"
+          $newSection = "#v145r8-packages{direction:rtl;margin:12px 0;padding:14px;border:1px solid #d9e9ee;border-radius:22px;background:#fff;width:min(100%,620px);max-width:620px}"
+          if(!$parity.Contains($oldSection)) { throw 'Package section CSS marker missing' }
+          $parity = $parity.Replace($oldSection, $newSection)
+
+          # Remove the old mobile CSS that could alter the fixed two-column Android layout.
+          $oldMedia = "@media(max-width:650px){.v145r8-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.v145r8-package{padding:12px}.v145r8-package strong{font-size:16px}}"
+          $newMedia = "@media(max-width:650px){#v145r8-packages{width:100%;max-width:none;padding:10px}.v145r8-package{padding:12px}.v145r8-package strong{font-size:16px}}"
+          if($parity.Contains($oldMedia)) { $parity = $parity.Replace($oldMedia, $newMedia) }
+
+          # Initial load + SPA navigation always synchronize placement:
+          # Home => remove packages; Inquiry => mount below search.
+          $oldInit = "v145RenderPackages();v145CleanExistingActions();v145EnableCardToggle();"
+          $newInit = "v145SyncPackagePlacement();v145CleanExistingActions();v145EnableCardToggle();document.addEventListener('click',v145TrackWorkspaceIntent,true);window.addEventListener('hashchange',()=>setTimeout(v145SyncPackagePlacement,80));window.addEventListener('popstate',()=>setTimeout(v145SyncPackagePlacement,80));"
+          if(!$parity.Contains($oldInit)) { throw 'Init package marker missing' }
+          $parity = $parity.Replace($oldInit, $newInit)
+
+          $oldObserver = "if(!document.getElementById('v145r8-packages'))v145RenderPackages(); v145RefreshPackagePriceSpans();"
+          if(!$parity.Contains($oldObserver)) {
+            $oldObserver = "if(!document.getElementById('v145r8-packages'))v145RenderPackages();v145RefreshPackagePriceSpans();"
+          }
+          $newObserver = "v145SyncPackagePlacement();v145RefreshPackagePriceSpans();"
+          if(!$parity.Contains($oldObserver)) { throw 'Observer package marker missing' }
+          $parity = $parity.Replace($oldObserver, $newObserver)
+
+          if($parity -eq $beforeUi) { throw 'Android screen parity patch made no changes' }
+          Set-Content $parityPath $parity -Encoding utf8
+
+          @'
+          Windows V145 R8.2 Android Screen Parity
+          - Home opens clean, without ready-package cards.
+          - Ready packages are mounted only inside Test Inquiry, matching Android V145 behavior.
+          - Package block sits directly below the search box.
+          - Exactly two package cards per row, matching Android layout instead of spreading across desktop width.
+          - One package details panel opens under the cards; clicking the same package hides it.
+          - V145 R8.1 live synchronized package pricing remains intact.
+          - Existing Firebase/auth/orders/results/backup/failover/catalogue logic remains unchanged.
+          '@ | Set-Content (Join-Path $root 'V145_R82_ANDROID_SCREEN_PARITY_NOTES.txt') -Encoding utf8
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Safety audit package pricing
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $root = Join-Path $PWD 'build_windows/windows-system'
+          $pkg = Get-Content (Join-Path $root 'package.json') -Raw | ConvertFrom-Json
+          if ($pkg.version -ne '145.8.2') { throw "Expected 145.8.2, got $($pkg.version)" }
+          $tests = Get-Content (Join-Path $root 'public/lab_tests_android.json') -Raw | ConvertFrom-Json
+          if ($tests.Count -ne 331) { throw "Expected 331 tests, got $($tests.Count)" }
+          $parity = Get-Content (Join-Path $root 'src/v145r8-parity.js') -Raw
+          foreach($marker in @('V145_PRICE_PARITY_R81','V145_ANDROID_SCREEN_PARITY_R82','v145IsInquiryWorkspace','v145SyncPackagePlacement','v145TrackWorkspaceIntent','v145NormalizeDigits','v145ExtractPrice','v145WarmPackagePrices','v145RefreshPackagePriceSpans','V145_PACKAGES','Liver Functions','Basic Checkup')) {
+            if(!$parity.Contains($marker)){throw "Missing price parity marker: $marker"}
+          }
+          node --check (Join-Path $root 'src/v145r8-parity.js')
+          if ($LASTEXITCODE -ne 0) { throw 'Parity module syntax failed' }
+          @'
+          function norm(v){const ar='٠١٢٣٤٥٦٧٨٩',fa='۰۱۲۳۴۵۶۷۸۹',en='0123456789';return String(v).replace(/[٠-٩]/g,d=>en[ar.indexOf(d)]).replace(/[۰-۹]/g,d=>en[fa.indexOf(d)]).replace(/٫/g,'.').replace(/٬/g,',');}
+          function read(t){const s=norm(t);const ps=[/(?:السعر|price)\s*[:：-]?\s*(\d{1,6}(?:[.,]\d{1,3})?)\s*(?:جنيه|ج(?:\.?\s*م\.?)?|egp|l\.?e\.?)?/i,/(\d{1,6}(?:[.,]\d{1,3})?)\s*(?:جنيه|ج(?:\.?\s*م\.?)?|egp|l\.?e\.?)(?=\s|$|[^\p{L}\p{N}_])/iu,/(?:جنيه|ج(?:\.?\s*م\.?)?|egp|l\.?e\.?)\s*[:：-]?\s*(\d{1,6}(?:[.,]\d{1,3})?)/i];for(const p of ps){const m=s.match(p);if(m)return Number(m[1].replace(',','.'));}return null;}
+          const cases=[['250 جنيه',250],['السعر: ٣٧٥ جنيه',375],['450 ج',450],['EGP 525',525],['Price 600 EGP',600]];
+          for(const [s,e] of cases){if(read(s)!==e){console.error(s,read(s),e);process.exit(1)}}
+          console.log('Arabic/English package price parser OK');
+          '@ | Set-Content 'price-parser-smoke.js' -Encoding utf8
+          node price-parser-smoke.js
+          if ($LASTEXITCODE -ne 0) { throw 'Package price parser smoke failed' }
+          Write-Host 'WINDOWS V145 R8.1 PACKAGE PRICE SAFETY AUDIT PASSED'
+
+      - name: Install dependencies
+        working-directory: build_windows/windows-system
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          npm install --no-audit --no-fund
+          if ($LASTEXITCODE -ne 0) { throw 'npm install failed' }
+
+      - name: Build Portable
+        working-directory: build_windows/windows-system
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          npm run dist:portable
+          if ($LASTEXITCODE -ne 0) { throw 'Portable build failed' }
+
+      - name: Portable startup smoke
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $release = Join-Path $PWD 'build_windows/windows-system/release'
+          $exe = Get-ChildItem $release -Filter '*Portable*.exe' -File | Sort-Object Length -Descending | Select-Object -First 1
+          if (!$exe) { throw 'Portable EXE not found' }
+          $env:TAHALIL_SMOKE_TEST='1'
+          $p=Start-Process $exe.FullName -PassThru
+          if (!$p.WaitForExit(45000)) { Stop-Process -Id $p.Id -Force; throw 'Portable smoke timed out' }
+          if ($p.ExitCode -ne 0) { throw "Portable smoke exit code $($p.ExitCode)" }
+          Remove-Item Env:TAHALIL_SMOKE_TEST -ErrorAction SilentlyContinue
+          Write-Host 'PORTABLE STARTUP OK'
+
+      - name: Build Setup
+        working-directory: build_windows/windows-system
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          npm run dist:setup
+          if ($LASTEXITCODE -ne 0) { throw 'Setup build failed' }
+
+      - name: Prepare delivery files
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $release = Join-Path $PWD 'build_windows/windows-system/release'
+          $portable = Get-ChildItem $release -Filter '*Portable*.exe' -File | Sort-Object Length -Descending | Select-Object -First 1
+          $setup = Get-ChildItem $release -Filter '*Setup*.exe' -File | Sort-Object Length -Descending | Select-Object -First 1
+          if (!$portable -or !$setup) { throw 'Portable or Setup EXE missing' }
+          Copy-Item $portable.FullName 'Tahalil-Alakkad-V145-R8.2-Windows-Portable.exe' -Force
+          Copy-Item $setup.FullName 'Tahalil-Alakkad-V145-R8.2-Windows-Setup.exe' -Force
+          foreach ($name in @('Tahalil-Alakkad-V145-R8.2-Windows-Portable.exe','Tahalil-Alakkad-V145-R8.2-Windows-Setup.exe')) {
+            if ((Get-Item $name).Length -lt 100000) { throw "$name unexpectedly small" }
+            $hash=(Get-FileHash $name -Algorithm SHA256).Hash.ToLowerInvariant()
+            "$hash  $name" | Set-Content "$name.sha256" -Encoding ascii
+          }
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Tahalil-Alakkad-V145-R8.2-Windows
+          path: |
+            Tahalil-Alakkad-V145-R8.2-Windows-Portable.exe
+            Tahalil-Alakkad-V145-R8.2-Windows-Portable.exe.sha256
+            Tahalil-Alakkad-V145-R8.2-Windows-Setup.exe
+            Tahalil-Alakkad-V145-R8.2-Windows-Setup.exe.sha256
+          retention-days: 30
+
+      - name: Publish Windows V145 R8.1 release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $tag='v145-r8.2-windows'
+          gh release view $tag --repo "$env:GITHUB_REPOSITORY" *> $null
+          if ($LASTEXITCODE -eq 0) {
+            gh release delete $tag --repo "$env:GITHUB_REPOSITORY" --yes
+            git push origin ":refs/tags/$tag" 2>$null
+          }
+          gh release create $tag `
+            --repo "$env:GITHUB_REPOSITORY" `
+            --title "تحاليل العقاد Windows V145 R8.2 — Android Screen Parity" `
+            --notes "Matches Android V145 screen placement on Windows: Home opens clean with no ready-package cards; packages appear only inside Test Inquiry directly below search, exactly two cards per row with expand/hide details. Keeps the V145 R8.1 synchronized live package pricing fix, package total and image export. Existing Firebase, auth, orders, results, backup, failover and the 331-test catalogue remain unchanged."
+          if ($LASTEXITCODE -ne 0) { throw 'Could not create Windows V145 R8.1 release' }
+          gh release upload $tag `
+            'Tahalil-Alakkad-V145-R8.2-Windows-Portable.exe' `
+            'Tahalil-Alakkad-V145-R8.2-Windows-Portable.exe.sha256' `
+            'Tahalil-Alakkad-V145-R8.2-Windows-Setup.exe' `
+            'Tahalil-Alakkad-V145-R8.2-Windows-Setup.exe.sha256' `
+            --repo "$env:GITHUB_REPOSITORY"
+          if ($LASTEXITCODE -ne 0) { throw 'Could not upload Windows V145 R8.1 files' }
+
+      - name: Final status
+        shell: pwsh
+        run: |
+          Write-Host 'WINDOWS V145 R8.2 ANDROID SCREEN PARITY BUILT, AUDITED, SMOKE-TESTED AND RELEASED'
