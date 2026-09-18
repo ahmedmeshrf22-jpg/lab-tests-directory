@@ -1,0 +1,501 @@
+name: Windows V145 R8.9 3D Square Icons UI
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: tahalil-windows-v145-r89-3d-square-icons
+  cancel-in-progress: false
+
+jobs:
+  windows-v145-r89:
+    name: Windows V145 R8.9 — 3D Square Icons UI
+    runs-on: windows-latest
+    timeout-minutes: 110
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: "false"
+      R88_TAG: "v145-r8.8-windows"
+      R88_SOURCE: "Tahalil-Alakkad-V145-R8.8-Windows-Source.zip"
+      R88_SOURCE_SHA256: "2fe6c595648ffac29c7c907cf93ac5f4a52479bc7d81a5da8f9db4d22bdd67a5"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Restore exact R8.8 source and lock all logic
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          $zip = Join-Path $PWD $env:R88_SOURCE
+          if (Test-Path $zip) { Remove-Item $zip -Force }
+
+          gh release download $env:R88_TAG --repo "$env:GITHUB_REPOSITORY" --pattern $env:R88_SOURCE --dir $PWD
+          if ($LASTEXITCODE -ne 0 -or !(Test-Path $zip)) { throw 'Could not download exact R8.8 source release' }
+
+          $hash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($hash -ne $env:R88_SOURCE_SHA256) { throw "R8.8 source hash mismatch: $hash" }
+
+          $root = Join-Path $PWD 'build_windows/windows-system'
+          if (Test-Path (Join-Path $PWD 'build_windows')) { Remove-Item (Join-Path $PWD 'build_windows') -Recurse -Force }
+          New-Item -ItemType Directory -Force -Path $root | Out-Null
+          Expand-Archive -Path $zip -DestinationPath $root -Force
+
+          foreach ($required in @(
+            'package.json',
+            'src/app.js',
+            'src/styles.css',
+            'src/data.js',
+            'src/firebase.js',
+            'src/v145r8-parity.js',
+            'electron/main.cjs',
+            'electron/preload.cjs'
+          )) {
+            if (!(Test-Path (Join-Path $root $required))) { throw "R8.8 source missing: $required" }
+          }
+
+          $locked = @{
+            R89_APP_SHA256      = (Get-FileHash (Join-Path $root 'src/app.js') -Algorithm SHA256).Hash.ToLowerInvariant()
+            R89_DATA_SHA256     = (Get-FileHash (Join-Path $root 'src/data.js') -Algorithm SHA256).Hash.ToLowerInvariant()
+            R89_FIREBASE_SHA256 = (Get-FileHash (Join-Path $root 'src/firebase.js') -Algorithm SHA256).Hash.ToLowerInvariant()
+            R89_PARITY_SHA256   = (Get-FileHash (Join-Path $root 'src/v145r8-parity.js') -Algorithm SHA256).Hash.ToLowerInvariant()
+            R89_MAIN_SHA256     = (Get-FileHash (Join-Path $root 'electron/main.cjs') -Algorithm SHA256).Hash.ToLowerInvariant()
+            R89_PRELOAD_SHA256  = (Get-FileHash (Join-Path $root 'electron/preload.cjs') -Algorithm SHA256).Hash.ToLowerInvariant()
+          }
+
+          foreach ($pair in $locked.GetEnumerator()) {
+            "$($pair.Key)=$($pair.Value)" | Add-Content $env:GITHUB_ENV
+          }
+
+          Write-Host "Exact R8.8 source restored: $hash"
+          Write-Host 'All logic locked. R8.9 may change CSS + package metadata only.'
+
+      - name: Apply R8.9 3D square icons CSS only
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $root = Join-Path $PWD 'build_windows/windows-system'
+
+          $patcher = @'
+          from pathlib import Path
+          import json
+          import sys
+
+          root = Path(sys.argv[1])
+          css_path = root / 'src' / 'styles.css'
+          pkg_path = root / 'package.json'
+          app_path = root / 'src' / 'app.js'
+
+          css = css_path.read_text(encoding='utf-8-sig')
+          app = app_path.read_text(encoding='utf-8-sig')
+
+          for marker in ('TAH_MAIN_REDESIGN_R88', 'TAH_MAIN_HOME_R87', 'TAH_CUSTOMER_OPTIONAL_FIELDS_R86'):
+              if marker not in css and marker not in app:
+                  raise SystemExit(f'Missing inherited marker: {marker}')
+
+          if 'TAH_3D_SQUARE_HOME_ICONS_R89' in css:
+              raise SystemExit('R8.9 patch already installed')
+
+          css_add = r'''
+          /* TAH_3D_SQUARE_HOME_ICONS_R89
+             CSS-only visual upgrade over exact R8.8 source.
+             Goal: luminous 3D square shortcuts instead of flat rectangles.
+          */
+
+          body.dashboard-white .homeactions{
+            display:grid !important;
+            grid-template-columns:repeat(auto-fit,minmax(118px,118px)) !important;
+            justify-content:flex-start !important;
+            gap:12px !important;
+            margin:0 0 12px !important;
+            align-items:start !important;
+          }
+
+          body.dashboard-white .homeaction{
+            width:118px !important;
+            min-width:118px !important;
+            max-width:118px !important;
+            height:118px !important;
+            min-height:118px !important;
+            aspect-ratio:1 / 1 !important;
+            padding:11px 8px 10px !important;
+            border-radius:22px !important;
+            border:1px solid rgba(255,255,255,.78) !important;
+            background:
+              linear-gradient(180deg, rgba(255,255,255,.98) 0%, rgba(244,248,252,.96) 58%, rgba(232,240,247,.95) 100%) !important;
+            box-shadow:
+              0 14px 28px rgba(10,56,93,.10),
+              0 4px 10px rgba(10,56,93,.08),
+              inset 0 1px 0 rgba(255,255,255,.95),
+              inset 0 -8px 16px rgba(13,65,108,.05) !important;
+            display:flex !important;
+            flex-direction:column !important;
+            align-items:center !important;
+            justify-content:center !important;
+            gap:10px !important;
+            text-align:center !important;
+            color:#0e416c !important;
+            font-size:12px !important;
+            font-weight:800 !important;
+            letter-spacing:0 !important;
+            overflow:hidden !important;
+            position:relative !important;
+            transition:transform .18s ease, box-shadow .18s ease, border-color .18s ease !important;
+          }
+
+          body.dashboard-white .homeaction::before{
+            content:"" !important;
+            position:absolute !important;
+            left:10px !important;
+            right:10px !important;
+            top:8px !important;
+            height:24px !important;
+            border-radius:18px !important;
+            background:linear-gradient(180deg, rgba(255,255,255,.92), rgba(255,255,255,0)) !important;
+            pointer-events:none !important;
+          }
+
+          body.dashboard-white .homeaction:hover{
+            transform:translateY(-3px) scale(1.02) !important;
+            border-color:rgba(61,128,191,.45) !important;
+            box-shadow:
+              0 18px 34px rgba(10,56,93,.16),
+              0 8px 18px rgba(22,94,164,.14),
+              0 0 0 1px rgba(117,182,255,.22),
+              inset 0 1px 0 rgba(255,255,255,.98),
+              inset 0 -12px 18px rgba(13,65,108,.06) !important;
+          }
+
+          body.dashboard-white .homeiconbox{
+            width:58px !important;
+            height:58px !important;
+            flex:0 0 58px !important;
+            padding:11px !important;
+            border-radius:18px !important;
+            background:
+              radial-gradient(circle at 30% 22%, rgba(255,255,255,.90) 0%, rgba(255,255,255,.28) 20%, rgba(255,255,255,0) 34%),
+              linear-gradient(180deg, #2d77b8 0%, #155389 54%, #0a3f69 100%) !important;
+            color:#ffffff !important;
+            box-shadow:
+              0 10px 18px rgba(17,78,132,.34),
+              0 0 18px rgba(52,143,240,.24),
+              inset 0 2px 3px rgba(255,255,255,.46),
+              inset 0 -4px 6px rgba(0,0,0,.14) !important;
+          }
+
+          body.dashboard-white .homeiconbox svg,
+          body.dashboard-white .homeiconbox i{
+            filter:drop-shadow(0 0 8px rgba(255,255,255,.34)) !important;
+          }
+
+          body.dashboard-white .homeaction > span:last-child{
+            width:100% !important;
+            text-align:center !important;
+            line-height:1.24 !important;
+            white-space:normal !important;
+            display:-webkit-box !important;
+            -webkit-line-clamp:2 !important;
+            -webkit-box-orient:vertical !important;
+            overflow:hidden !important;
+            text-overflow:ellipsis !important;
+          }
+
+          /* Give sidebar icons a soft 3D light without changing nav layout */
+          body.dashboard-white .navglyph,
+          body.dashboard-white .sideicon{
+            background:
+              radial-gradient(circle at 30% 25%, rgba(255,255,255,.95) 0%, rgba(255,255,255,.32) 18%, rgba(255,255,255,0) 32%),
+              linear-gradient(180deg, #2d77b8 0%, #16558b 54%, #0d416c 100%) !important;
+            color:#ffffff !important;
+            box-shadow:
+              0 6px 12px rgba(17,78,132,.18),
+              0 0 12px rgba(49,139,235,.16),
+              inset 0 1px 2px rgba(255,255,255,.46),
+              inset 0 -3px 5px rgba(0,0,0,.13) !important;
+          }
+
+          body.dashboard-white .nav button.active .navglyph{
+            box-shadow:
+              0 8px 14px rgba(17,78,132,.26),
+              0 0 16px rgba(49,139,235,.23),
+              inset 0 1px 2px rgba(255,255,255,.48),
+              inset 0 -3px 5px rgba(0,0,0,.13) !important;
+          }
+
+          body.dashboard-white .home-reorder-hint{
+            margin-top:4px !important;
+          }
+
+          @media(max-width:1280px){
+            body.dashboard-white .homeactions{
+              grid-template-columns:repeat(auto-fit,minmax(110px,110px)) !important;
+            }
+            body.dashboard-white .homeaction{
+              width:110px !important;
+              min-width:110px !important;
+              max-width:110px !important;
+              height:110px !important;
+              min-height:110px !important;
+            }
+            body.dashboard-white .homeiconbox{
+              width:54px !important;
+              height:54px !important;
+              flex:0 0 54px !important;
+            }
+          }
+
+          @media(max-width:980px){
+            body.dashboard-white .homeactions{
+              grid-template-columns:repeat(auto-fit,minmax(102px,102px)) !important;
+              gap:10px !important;
+            }
+            body.dashboard-white .homeaction{
+              width:102px !important;
+              min-width:102px !important;
+              max-width:102px !important;
+              height:102px !important;
+              min-height:102px !important;
+              border-radius:18px !important;
+            }
+            body.dashboard-white .homeiconbox{
+              width:50px !important;
+              height:50px !important;
+              flex:0 0 50px !important;
+              border-radius:16px !important;
+            }
+          }
+          '''
+
+          css = css.rstrip() + '\n\n' + css_add.strip() + '\n'
+
+          pkg = json.loads(pkg_path.read_text(encoding='utf-8-sig'))
+          if str(pkg.get('version')) != '145.8.8':
+              raise SystemExit(f"Expected exact R8.8 package version, got {pkg.get('version')}")
+
+          pkg['version'] = '145.8.9'
+          pkg['description'] = 'Tahalil Alakkad Windows V145 R8.9 — luminous 3D square home icons; CSS only over R8.8'
+
+          css_path.write_text(css, encoding='utf-8')
+          pkg_path.write_text(json.dumps(pkg, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+
+          (root / 'V145_R89_3D_SQUARE_ICONS_NOTES.txt').write_text(
+              'Windows V145 R8.9 — 3D Square Icons UI\\n\\n'
+              '- CSS-only upgrade over exact R8.8 source.\\n'
+              '- Main Home shortcuts are now square instead of rectangular.\\n'
+              '- Shortcut icons are rendered as luminous 3D navy tiles.\\n'
+              '- Sidebar icons receive a soft 3D glow while keeping navigation logic untouched.\\n'
+              '- R8.8 layout protection remains: app.js, data.js, Firebase, core and Electron files are byte-for-byte unchanged.\\n',
+              encoding='utf-8'
+          )
+
+          print('R89_3D_SQUARE_ICONS_APPLIED')
+          '@
+
+          $patcherPath = Join-Path $env:RUNNER_TEMP 'patch_r89.py'
+          $patcher | Set-Content $patcherPath -Encoding utf8
+          python $patcherPath $root
+          if ($LASTEXITCODE -ne 0) { throw 'R8.9 CSS-only 3D square icons patch failed' }
+
+      - name: Audit R8.9 and prove all logic unchanged
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $root = Join-Path $PWD 'build_windows/windows-system'
+
+          $pkg = Get-Content (Join-Path $root 'package.json') -Raw | ConvertFrom-Json
+          if ($pkg.version -ne '145.8.9') { throw "Expected 145.8.9, got $($pkg.version)" }
+
+          $css = Get-Content (Join-Path $root 'src/styles.css') -Raw
+          foreach ($requiredCss in @(
+            'TAH_3D_SQUARE_HOME_ICONS_R89',
+            'aspect-ratio:1 / 1',
+            'width:118px',
+            'height:118px',
+            'linear-gradient(180deg, #2d77b8 0%, #155389 54%, #0a3f69 100%)'
+          )) {
+            if (!$css.Contains($requiredCss)) { throw "Missing R8.9 style contract: $requiredCss" }
+          }
+
+          $actualApp = (Get-FileHash (Join-Path $root 'src/app.js') -Algorithm SHA256).Hash.ToLowerInvariant()
+          $actualData = (Get-FileHash (Join-Path $root 'src/data.js') -Algorithm SHA256).Hash.ToLowerInvariant()
+          $actualFirebase = (Get-FileHash (Join-Path $root 'src/firebase.js') -Algorithm SHA256).Hash.ToLowerInvariant()
+          $actualParity = (Get-FileHash (Join-Path $root 'src/v145r8-parity.js') -Algorithm SHA256).Hash.ToLowerInvariant()
+          $actualMain = (Get-FileHash (Join-Path $root 'electron/main.cjs') -Algorithm SHA256).Hash.ToLowerInvariant()
+          $actualPreload = (Get-FileHash (Join-Path $root 'electron/preload.cjs') -Algorithm SHA256).Hash.ToLowerInvariant()
+
+          if ($actualApp -ne $env:R89_APP_SHA256) { throw 'R8.9 changed src/app.js — blocked' }
+          if ($actualData -ne $env:R89_DATA_SHA256) { throw 'R8.9 changed src/data.js — blocked' }
+          if ($actualFirebase -ne $env:R89_FIREBASE_SHA256) { throw 'R8.9 changed src/firebase.js — blocked' }
+          if ($actualParity -ne $env:R89_PARITY_SHA256) { throw 'R8.9 changed src/v145r8-parity.js — blocked' }
+          if ($actualMain -ne $env:R89_MAIN_SHA256) { throw 'R8.9 changed electron/main.cjs — blocked' }
+          if ($actualPreload -ne $env:R89_PRELOAD_SHA256) { throw 'R8.9 changed electron/preload.cjs — blocked' }
+
+          node --check (Join-Path $root 'src/app.js')
+          if ($LASTEXITCODE -ne 0) { throw 'app.js syntax failed' }
+          node --check (Join-Path $root 'src/data.js')
+          if ($LASTEXITCODE -ne 0) { throw 'data.js syntax failed' }
+          node --check (Join-Path $root 'src/v145r8-parity.js')
+          if ($LASTEXITCODE -ne 0) { throw 'v145r8-parity.js syntax failed' }
+          node --check (Join-Path $root 'electron/main.cjs')
+          if ($LASTEXITCODE -ne 0) { throw 'main.cjs syntax failed' }
+          node --check (Join-Path $root 'electron/preload.cjs')
+          if ($LASTEXITCODE -ne 0) { throw 'preload.cjs syntax failed' }
+
+          Write-Host 'R8.9 AUDIT PASSED — CSS-ONLY 3D SQUARE ICONS, ALL LOGIC UNCHANGED'
+
+      - name: Package R8.9 source before dependencies
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $root = Join-Path $PWD 'build_windows/windows-system'
+          $stage = Join-Path $env:RUNNER_TEMP 'source_stage_r89'
+          if (Test-Path $stage) { Remove-Item $stage -Recurse -Force }
+          New-Item -ItemType Directory -Force -Path $stage | Out-Null
+
+          Get-ChildItem -LiteralPath $root -Force |
+            Where-Object { @('node_modules','release','.git') -notcontains $_.Name } |
+            ForEach-Object {
+              Copy-Item -LiteralPath $_.FullName -Destination $stage -Recurse -Force
+            }
+
+          $zip = Join-Path $PWD 'Tahalil-Alakkad-V145-R8.9-Windows-Source.zip'
+          if (Test-Path $zip) { Remove-Item $zip -Force }
+
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          [System.IO.Compression.ZipFile]::CreateFromDirectory($stage,$zip,[System.IO.Compression.CompressionLevel]::Optimal,$false)
+
+          if (!(Test-Path $zip) -or (Get-Item $zip).Length -lt 50000) { throw 'R8.9 source ZIP invalid' }
+          $hash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  Tahalil-Alakkad-V145-R8.9-Windows-Source.zip" | Set-Content 'Tahalil-Alakkad-V145-R8.9-Windows-Source.zip.sha256' -Encoding ascii
+
+          Copy-Item (Join-Path $root 'V145_R89_3D_SQUARE_ICONS_NOTES.txt') 'V145_R89_3D_SQUARE_ICONS_NOTES.txt' -Force
+
+      - name: Install dependencies
+        working-directory: build_windows/windows-system
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          npm install --no-audit --no-fund
+          if ($LASTEXITCODE -ne 0) { throw 'npm install failed' }
+
+      - name: Build Portable
+        working-directory: build_windows/windows-system
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          npm run dist:portable
+          if ($LASTEXITCODE -ne 0) { throw 'Portable build failed' }
+
+      - name: Portable startup smoke
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $release = Join-Path $PWD 'build_windows/windows-system/release'
+          $portable = Get-ChildItem $release -Filter '*Portable*.exe' -File | Sort-Object Length -Descending | Select-Object -First 1
+          if (!$portable) { throw 'Portable EXE missing for smoke test' }
+
+          $proc = Start-Process -FilePath $portable.FullName -PassThru
+          Start-Sleep -Seconds 12
+          if ($proc.HasExited) {
+            if ($proc.ExitCode -ne 0) { throw "Portable exited during smoke test with code $($proc.ExitCode)" }
+            throw 'Portable exited unexpectedly during smoke window'
+          }
+          Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
+          Write-Host 'Portable startup smoke passed'
+
+      - name: Build Setup
+        working-directory: build_windows/windows-system
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          npm run dist:setup
+          if ($LASTEXITCODE -ne 0) { throw 'Setup build failed' }
+
+      - name: Prepare R8.9 delivery files
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $release = Join-Path $PWD 'build_windows/windows-system/release'
+          $portable = Get-ChildItem $release -Filter '*Portable*.exe' -File | Sort-Object Length -Descending | Select-Object -First 1
+          $setup = Get-ChildItem $release -Filter '*Setup*.exe' -File | Sort-Object Length -Descending | Select-Object -First 1
+          if (!$portable -or !$setup) { throw 'Portable or Setup EXE missing' }
+
+          Copy-Item $portable.FullName 'Tahalil-Alakkad-V145-R8.9-Windows-Portable.exe' -Force
+          Copy-Item $setup.FullName 'Tahalil-Alakkad-V145-R8.9-Windows-Setup.exe' -Force
+
+          foreach ($name in @('Tahalil-Alakkad-V145-R8.9-Windows-Portable.exe','Tahalil-Alakkad-V145-R8.9-Windows-Setup.exe')) {
+            if ((Get-Item $name).Length -lt 100000) { throw "$name unexpectedly small" }
+            $hash = (Get-FileHash $name -Algorithm SHA256).Hash.ToLowerInvariant()
+            "$hash  $name" | Set-Content "$name.sha256" -Encoding ascii
+          }
+
+      - name: Upload R8.9 workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Tahalil-Alakkad-V145-R8.9-Windows-3D-Square-Icons
+          path: |
+            Tahalil-Alakkad-V145-R8.9-Windows-Portable.exe
+            Tahalil-Alakkad-V145-R8.9-Windows-Portable.exe.sha256
+            Tahalil-Alakkad-V145-R8.9-Windows-Setup.exe
+            Tahalil-Alakkad-V145-R8.9-Windows-Setup.exe.sha256
+            Tahalil-Alakkad-V145-R8.9-Windows-Source.zip
+            Tahalil-Alakkad-V145-R8.9-Windows-Source.zip.sha256
+            V145_R89_3D_SQUARE_ICONS_NOTES.txt
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Publish Windows V145 R8.9 release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $tag = 'v145-r8.9-windows'
+          $title = 'تحاليل العقاد Windows V145 R8.9 — 3D Square Icons UI'
+
+          $notes = @'
+          Windows V145 R8.9 — 3D Square Icons UI
+
+          - CSS-only upgrade over exact R8.8 source.
+          - Main screen shortcuts are now square instead of rectangular.
+          - Shortcut icon tiles are luminous 3D navy buttons.
+          - Sidebar icons receive a soft 3D glow.
+          - app.js, data.js, Firebase, core and Electron files are byte-for-byte unchanged.
+          '@
+
+          $files = @(
+            'Tahalil-Alakkad-V145-R8.9-Windows-Portable.exe',
+            'Tahalil-Alakkad-V145-R8.9-Windows-Portable.exe.sha256',
+            'Tahalil-Alakkad-V145-R8.9-Windows-Setup.exe',
+            'Tahalil-Alakkad-V145-R8.9-Windows-Setup.exe.sha256',
+            'Tahalil-Alakkad-V145-R8.9-Windows-Source.zip',
+            'Tahalil-Alakkad-V145-R8.9-Windows-Source.zip.sha256',
+            'V145_R89_3D_SQUARE_ICONS_NOTES.txt'
+          )
+
+          gh release view $tag --repo "$env:GITHUB_REPOSITORY" *> $null
+          if ($LASTEXITCODE -eq 0) {
+            gh release edit $tag --repo "$env:GITHUB_REPOSITORY" --title $title --notes $notes
+            if ($LASTEXITCODE -ne 0) { throw 'Could not update R8.9 release metadata' }
+          } else {
+            gh release create $tag --repo "$env:GITHUB_REPOSITORY" --title $title --notes $notes
+            if ($LASTEXITCODE -ne 0) { throw 'Could not create R8.9 release' }
+          }
+
+          gh release upload $tag @files --repo "$env:GITHUB_REPOSITORY" --clobber
+          if ($LASTEXITCODE -ne 0) { throw 'Could not upload R8.9 release files' }
+
+      - name: Final status
+        shell: pwsh
+        run: |
+          Write-Host 'WINDOWS V145 R8.9 3D SQUARE ICONS — CSS ONLY, LOGIC LOCKED, BUILT AND RELEASED'
