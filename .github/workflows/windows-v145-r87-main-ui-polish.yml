@@ -1,0 +1,506 @@
+name: Windows V145 R8.7 Main Screen UI Polish
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: tahalil-windows-v145-r87-main-ui-polish
+  cancel-in-progress: false
+
+jobs:
+  windows-v145-r87:
+    name: Windows V145 R8.7 — Main Screen UI Polish
+    runs-on: windows-latest
+    timeout-minutes: 110
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: "false"
+      R86_TAG: "v145-r8.6-windows"
+      R86_SOURCE: "Tahalil-Alakkad-V145-R8.6-Windows-Source.zip"
+      R86_SOURCE_SHA256: "682ec85b289aff116f6fb10eabdce7088c6a75da688e7cb98dfab68fce3dcf8b"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Restore exact R8.6 source and lock core hashes
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $zip = Join-Path $PWD $env:R86_SOURCE
+          if (Test-Path $zip) { Remove-Item $zip -Force }
+
+          gh release download $env:R86_TAG `
+            --repo "$env:GITHUB_REPOSITORY" `
+            --pattern $env:R86_SOURCE `
+            --dir $PWD
+          if ($LASTEXITCODE -ne 0 -or !(Test-Path $zip)) {
+            throw 'Could not download exact R8.6 source release'
+          }
+
+          $hash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($hash -ne $env:R86_SOURCE_SHA256) {
+            throw "R8.6 source hash mismatch: $hash"
+          }
+
+          $root = Join-Path $PWD 'build_windows/windows-system'
+          if (Test-Path (Join-Path $PWD 'build_windows')) {
+            Remove-Item (Join-Path $PWD 'build_windows') -Recurse -Force
+          }
+          New-Item -ItemType Directory -Force -Path $root | Out-Null
+          Expand-Archive -Path $zip -DestinationPath $root -Force
+
+          foreach ($required in @(
+            'package.json',
+            'src/app.js',
+            'src/styles.css',
+            'src/data.js',
+            'src/firebase.js',
+            'src/v145r8-parity.js',
+            'electron/main.cjs',
+            'electron/preload.cjs'
+          )) {
+            if (!(Test-Path (Join-Path $root $required))) {
+              throw "R8.6 source missing: $required"
+            }
+          }
+
+          $locked = @{
+            R87_DATA_SHA256     = (Get-FileHash (Join-Path $root 'src/data.js') -Algorithm SHA256).Hash.ToLowerInvariant()
+            R87_FIREBASE_SHA256 = (Get-FileHash (Join-Path $root 'src/firebase.js') -Algorithm SHA256).Hash.ToLowerInvariant()
+            R87_PARITY_SHA256   = (Get-FileHash (Join-Path $root 'src/v145r8-parity.js') -Algorithm SHA256).Hash.ToLowerInvariant()
+            R87_MAIN_SHA256     = (Get-FileHash (Join-Path $root 'electron/main.cjs') -Algorithm SHA256).Hash.ToLowerInvariant()
+            R87_PRELOAD_SHA256  = (Get-FileHash (Join-Path $root 'electron/preload.cjs') -Algorithm SHA256).Hash.ToLowerInvariant()
+          }
+          foreach ($pair in $locked.GetEnumerator()) {
+            "$($pair.Key)=$($pair.Value)" | Add-Content $env:GITHUB_ENV
+          }
+
+          Write-Host "Exact R8.6 source restored: $hash"
+          Write-Host 'Core/business/data files locked before UI-only patch.'
+
+      - name: Apply R8.7 main screen UI only
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $root = Join-Path $PWD 'build_windows/windows-system'
+
+          $patcher = @'
+          from pathlib import Path
+          import json
+          import re
+          import sys
+
+          root = Path(sys.argv[1])
+          app_path = root / 'src' / 'app.js'
+          css_path = root / 'src' / 'styles.css'
+          pkg_path = root / 'package.json'
+
+          app = app_path.read_text(encoding='utf-8-sig')
+          css = css_path.read_text(encoding='utf-8-sig')
+
+          for marker in ('TAH_UNIFIED_FORMS_R85', 'TAH_CUSTOMER_OPTIONAL_FIELDS_R86'):
+              if marker not in app:
+                  raise SystemExit(f'Missing inherited UI/data contract marker: {marker}')
+          if 'TAH_MAIN_HOME_R87' in app or 'TAH_MAIN_HOME_R87' in css:
+              raise SystemExit('R8.7 UI patch already installed')
+
+          def replace_once(old, new, label):
+              nonlocal_holder = None
+              global app
+              count = app.count(old)
+              if count != 1:
+                  raise SystemExit(f'{label}: expected exactly one target, got {count}')
+              app = app.replace(old, new, 1)
+
+          # Unify the two dashboard names.
+          replace_once("['dashboard','لوحة اليوم']", "['dashboard','الشاشة الرئيسية']", 'dashboard nav label')
+          replace_once("setPage('لوحة تشغيل اليوم',", "setPage('الشاشة الرئيسية',", 'dashboard page title')
+
+          # Consistent monochrome SVG icons for both the sidebar and the compact Home actions.
+          nav_old = "function navGlyph(k){return ({dashboard:'⌂',new:'＋',worklist:'▤',quickimage:'▧',customers:'♙',vision:'⌁',guide:'⚗',prices:'¤',reports:'▥',adminops:'⚙',staff:'♟',devices:'▣',audit:'≡',system:'◉'}[k]||'•')}"
+          nav_new = r'''/* TAH_MAIN_HOME_R87 — consistent navy outline icon system. */
+          function navGlyph(k){
+           const p={
+            dashboard:'<path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10.5V20h13v-9.5"/><path d="M9.5 20v-6h5v6"/>',
+            new:'<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M12 8v7M8.5 11.5h7"/>',
+            worklist:'<rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 8h6M9 12h6M9 16h4"/>',
+            quickimage:'<circle cx="10.5" cy="10.5" r="5.5"/><path d="m15 15 5 5"/><path d="M8 10.5h5"/>',
+            customers:'<circle cx="9" cy="8" r="3"/><circle cx="16.5" cy="9.5" r="2.5"/><path d="M3.5 20c.5-4 2.4-6 5.5-6s5 2 5.5 6"/><path d="M14.5 15c3.2-.6 5.3 1 6 4"/>',
+            vision:'<path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/><rect x="8" y="8" width="3" height="3"/><rect x="13" y="8" width="3" height="3"/><rect x="8" y="13" width="3" height="3"/><path d="M14 14h2v2h-2z"/>',
+            guide:'<path d="M9 3h6M10 3v6l-5 9a2 2 0 0 0 1.8 3h10.4A2 2 0 0 0 19 18l-5-9V3"/><path d="M8 15h8"/>',
+            prices:'<circle cx="12" cy="12" r="8"/><path d="M14.8 9.2c-.6-.8-1.6-1.2-2.8-1.2-1.7 0-3 .8-3 2s1.1 1.8 3 2c1.9.2 3 .8 3 2s-1.3 2-3 2c-1.3 0-2.4-.4-3.1-1.3M12 6v12"/>',
+            reports:'<path d="M4 20V10M10 20V5M16 20v-8M22 20H2"/>',
+            adminops:'<circle cx="12" cy="12" r="3"/><path d="M19 13.5v-3l-2-.7a7 7 0 0 0-.7-1.7l.9-1.9-2.1-2.1-1.9.9a7 7 0 0 0-1.7-.7L10.5 2h-3l-.7 2a7 7 0 0 0-1.7.7l-1.9-.9-2.1 2.1.9 1.9a7 7 0 0 0-.7 1.7l-2 .7v3l2 .7a7 7 0 0 0 .7 1.7l-.9 1.9 2.1 2.1 1.9-.9a7 7 0 0 0 1.7.7l.7 2h3l.7-2a7 7 0 0 0 1.7-.7l1.9.9 2.1-2.1-.9-1.9a7 7 0 0 0 .7-1.7z" transform="scale(.86) translate(1.95 1.95)"/>',
+            staff:'<circle cx="12" cy="8" r="3.5"/><path d="M5 20c.7-4.2 3-6.3 7-6.3s6.3 2.1 7 6.3"/>',
+            devices:'<rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4"/>',
+            audit:'<path d="M6 4h12v16H6z"/><path d="M9 8h6M9 12h6M9 16h4"/><path d="m4 11 1 1 2-2"/>',
+            system:'<path d="M12 3 4.5 6v5.5c0 4.7 3 7.8 7.5 9.5 4.5-1.7 7.5-4.8 7.5-9.5V6z"/><path d="m9 12 2 2 4-4"/>',
+            settings:'<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.9 4.9 7 7M17 17l2.1 2.1M2 12h3M19 12h3M4.9 19.1 7 17M17 7l2.1-2.1"/>',
+            logout:'<path d="M10 4H5v16h5"/><path d="M14 8l4 4-4 4M8 12h10"/>',
+            switchuser:'<circle cx="8" cy="8" r="3"/><path d="M2.5 18c.5-3.5 2.3-5.2 5.5-5.2 2.3 0 4 .9 4.9 2.8"/><path d="M16 7h5l-2-2M21 7l-2 2M21 17h-5l2 2M16 17l2-2"/>'
+           };
+           return `<svg class="ui-svg-icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${p[k]||p.system}</svg>`;
+          }'''
+          if nav_old not in app:
+              raise SystemExit('Original navGlyph function not found')
+          app = app.replace(nav_old, nav_new, 1)
+
+          # Bottom sidebar controls use the same icon language.
+          replace_once('<span class="sideicon settingsicon">⚙</span>', '<span class="sideicon settingsicon">${navGlyph(\'settings\')}</span>', 'sidebar settings icon')
+          replace_once('<span class="sideicon">↪</span>', '<span class="sideicon">${navGlyph(\'logout\')}</span>', 'sidebar logout icon')
+
+          # Home shortcuts: remove the bulky coloured artwork and use the same navy SVGs.
+          replace_once('<span class="homeiconbox"><img src="./home-icons/${icon}" alt=""></span>', '<span class="homeiconbox">${navGlyph(tab)}</span>', 'home action icons')
+
+          # Hide Daily Collection from the public Home screen only. Data/report logic stays untouched.
+          old_calc = "const paid=tt.reduce((a,o)=>a+Number(o.paid_amount||0),0),rem=worklist.filter(o=>!o.is_voided).reduce((a,o)=>a+Number(o.remaining_amount||0),0);"
+          new_calc = "const rem=worklist.filter(o=>!o.is_voided).reduce((a,o)=>a+Number(o.remaining_amount||0),0);"
+          replace_once(old_calc, new_calc, 'dashboard finance calculation')
+
+          old_stats = '<div class="grid"><div class="card stat"><span class="muted">طلبات اليوم</span><b>${tt.length}</b></div><div class="card stat"><span class="muted">جاري التنفيذ</span><b>${tt.filter(x=>x.workflow_status===\'processing\').length}</b></div><div class="card stat"><span class="muted">جاهز</span><b>${tt.filter(x=>x.workflow_status===\'ready\').length}</b></div><div class="card stat"><span class="muted">تحصيل اليوم</span><b>${D.money(paid)} EGP</b></div></div>'
+          new_stats = '<div class="grid home-stats"><div class="card stat"><span class="muted">طلبات اليوم</span><b>${tt.length}</b></div><div class="card stat"><span class="muted">جاري التنفيذ</span><b>${tt.filter(x=>x.workflow_status===\'processing\').length}</b></div><div class="card stat"><span class="muted">جاهز</span><b>${tt.filter(x=>x.workflow_status===\'ready\').length}</b></div></div>'
+          replace_once(old_stats, new_stats, 'dashboard stats without daily collection')
+
+          # Device-local clock and date in the top bar. new Date() follows Windows time/timezone.
+          clock_anchor = 'function onlineState(){const b=$(\'#onlineBadge\');if(!b)return;b.textContent=navigator.onLine?\'متصل\':\'Offline\';b.className=\'badge \'+(navigator.onLine?\'ok\':\'warn\');}'
+          if clock_anchor not in app:
+              raise SystemExit('onlineState anchor missing')
+          clock_code = r'''
+          let deviceClockTimer=null,deviceClockHooks=false;
+          function syncDeviceClock(){
+           const box=$('#deviceClock');if(!box)return;
+           const now=new Date();
+           const time=new Intl.DateTimeFormat('ar-EG',{hour:'2-digit',minute:'2-digit',second:'2-digit'}).format(now);
+           const date=new Intl.DateTimeFormat('ar-EG',{weekday:'long',year:'numeric',month:'long',day:'numeric'}).format(now);
+           box.innerHTML=`<b>${esc(time)}</b><span>${esc(date)}</span>`;
+          }
+          function startDeviceClock(){
+           if(deviceClockTimer)clearInterval(deviceClockTimer);
+           syncDeviceClock();deviceClockTimer=setInterval(syncDeviceClock,1000);
+           if(!deviceClockHooks){
+            deviceClockHooks=true;
+            window.addEventListener('focus',syncDeviceClock);
+            document.addEventListener('visibilitychange',()=>{if(!document.hidden)syncDeviceClock()});
+           }
+          }
+          '''
+          app = app.replace(clock_anchor, clock_code + clock_anchor, 1)
+
+          top_old = '<div><span class="badge ok" id="onlineBadge">متصل</span> <span class="badge" id="userBadge"></span> ${switchControls}</div></div><div id="content">'
+          top_new = '<div class="top-status"><span class="badge ok" id="onlineBadge">متصل</span><span class="badge" id="userBadge"></span>${switchControls}<div class="device-clock" id="deviceClock" title="متزامن مع تاريخ ووقت الجهاز"></div></div></div><div id="content">'
+          replace_once(top_old, top_new, 'top status clock container')
+
+          start_anchor = "window.addEventListener('offline',onlineState);onlineState();$('#userBadge').textContent=`${profile.display_name||profile.email||''} • ${profile.role||''}`;renderTab(lab?'worklist':'dashboard');"
+          start_new = "window.addEventListener('offline',onlineState);onlineState();startDeviceClock();$('#userBadge').textContent=`${profile.display_name||profile.email||''} • ${profile.role||''}`;renderTab(lab?'worklist':'dashboard');"
+          replace_once(start_anchor, start_new, 'clock startup')
+
+          tab_anchor = "currentTab=tab;$$('[data-tab]').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));"
+          tab_new = "currentTab=tab;document.body.classList.toggle('dashboard-white',tab==='dashboard');$$('[data-tab]').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));"
+          replace_once(tab_anchor, tab_new, 'dashboard white mode switch')
+
+          css_add = r'''
+          /* TAH_MAIN_HOME_R87 — Home screen only: white canvas, compact navy icons, refined sidebar. */
+          .ui-svg-icon{width:100%;height:100%;display:block}
+          .top-status{display:flex;align-items:center;justify-content:flex-end;gap:7px;flex-wrap:wrap}
+          .device-clock{direction:rtl;display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:218px;padding:6px 11px;border:1px solid #294967;border-radius:12px;background:#0d2138;color:#eef3fb;line-height:1.22}
+          .device-clock b{font-size:16px;letter-spacing:.2px}.device-clock span{font-size:11px;color:#9fb4ca;margin-top:3px}
+
+          body.dashboard-white{background:#fff;color:#17324d}
+          body.dashboard-white .app{grid-template-columns:230px 1fr;background:#f8fbff}
+          body.dashboard-white .main{background:#f8fbff;color:#17324d;padding:20px 22px}
+          body.dashboard-white .top{background:#fff;border:1px solid #dce7f0;border-radius:15px;padding:11px 14px;margin-bottom:14px;box-shadow:0 5px 18px rgba(30,72,105,.05)}
+          body.dashboard-white .top h1{color:#123d66;font-size:22px}
+          body.dashboard-white .top .muted{color:#6c8193}
+          body.dashboard-white .device-clock{background:#f5f9fc;color:#0b3f69;border-color:#cddde9}
+          body.dashboard-white .device-clock span{color:#5d7386}
+          body.dashboard-white .badge{background:#eef5fa;color:#234b6c;border:1px solid #d3e2ed}
+          body.dashboard-white .badge.ok{background:#edf8f2;color:#236b49;border-color:#c9e6d7}
+          body.dashboard-white .badge.warn{background:#fff6e9;color:#895b18;border-color:#f0ddbd}
+
+          body.dashboard-white .side{background:#fff;border-left:1px solid #d9e5ef;padding:16px 13px;box-shadow:-5px 0 20px rgba(25,63,94,.04)}
+          body.dashboard-white .brand{gap:10px;margin-bottom:14px;padding:2px 4px 10px;border-bottom:1px solid #e4edf4}
+          body.dashboard-white .brand img{width:42px;height:42px;border-radius:12px;border:1px solid #dbe7ef}
+          body.dashboard-white .brand b{color:#0b3f69;font-size:16px}
+          body.dashboard-white .brand small{color:#71879a;font-size:11px}
+          body.dashboard-white .nav button{color:#244963;padding:8px 9px;border-radius:10px;margin:2px 0;gap:9px;font-size:13px;font-weight:650}
+          body.dashboard-white .nav button:hover,body.dashboard-white .nav button.active{background:#eaf3fa;color:#0b3f69}
+          body.dashboard-white .navglyph{width:28px;height:28px;flex:0 0 28px;padding:5px;border-radius:9px;background:#eef5fa;border:1px solid #d6e4ee;color:#0a416e}
+          body.dashboard-white .nav button.active .navglyph,body.dashboard-white .nav button:hover .navglyph{background:#0b416d;border-color:#0b416d;color:#fff}
+          body.dashboard-white .sidebottom{padding-top:10px;border-top-color:#e1ebf2;grid-template-columns:1fr;gap:4px}
+          body.dashboard-white .sideaction{flex-direction:row;justify-content:flex-start;gap:9px;color:#234963;padding:7px 9px;border-radius:10px;font-size:13px}
+          body.dashboard-white .sideaction:hover{background:#eaf3fa;color:#0b3f69}
+          body.dashboard-white .sideicon{width:28px;height:28px;flex:0 0 28px;padding:5px;border-radius:9px;background:#eef5fa;border:1px solid #d6e4ee;color:#0a416e;font-size:inherit}
+          body.dashboard-white .logoutaction{color:#9f3540}
+          body.dashboard-white .logoutaction .sideicon{color:#9f3540;background:#fff2f3;border-color:#f2d7da}
+
+          body.dashboard-white .homeactions{display:flex;flex-wrap:wrap;align-items:stretch;justify-content:flex-start;gap:9px;margin:0 0 12px}
+          body.dashboard-white .homeaction{width:auto;min-width:136px;max-width:215px;min-height:0;border:1px solid #d4e2ec;background:#fff;color:#0c3f68;border-radius:13px;padding:8px 11px;display:flex;flex-direction:row;align-items:center;justify-content:flex-start;gap:8px;font-size:13px;font-weight:750;box-shadow:0 3px 12px rgba(26,67,99,.04)}
+          body.dashboard-white .homeaction:hover{background:#f1f7fb;border-color:#9fc2dc;transform:translateY(-1px)}
+          body.dashboard-white .homeiconbox{width:34px;height:34px;flex:0 0 34px;padding:5px;border-radius:10px;background:#edf5fb;color:#0a416e}
+          body.dashboard-white .homeaction>span:last-child{line-height:1.25;text-align:right}
+          body.dashboard-white .home-reorder-hint{color:#7a8e9f;margin:-2px 0 12px;text-align:right;font-size:11px}
+          body.dashboard-white .homeaction.dragging{opacity:.55;transform:scale(1.02);border-style:dashed}
+
+          body.dashboard-white .home-stats{grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+          body.dashboard-white .card{background:#fff;border-color:#d5e3ed;color:#17324d;box-shadow:0 4px 16px rgba(24,64,95,.04)}
+          body.dashboard-white .stat{padding:12px 14px;border-radius:13px}
+          body.dashboard-white .stat .muted{color:#6b8091}
+          body.dashboard-white .stat b{color:#0a416e;font-size:23px;margin-top:5px}
+          body.dashboard-white .section-title{color:#173f60}
+
+          @media(max-width:1050px){
+            body.dashboard-white .app{grid-template-columns:210px 1fr}
+            body.dashboard-white .home-stats{grid-template-columns:repeat(3,minmax(120px,1fr))}
+            .device-clock{min-width:190px}
+          }
+          @media(max-width:760px){
+            body.dashboard-white .home-stats{grid-template-columns:1fr}
+            body.dashboard-white .homeaction{min-width:128px;max-width:calc(50% - 5px)}
+            .device-clock{width:100%;min-width:0}
+          }
+          '''
+          css = css.rstrip() + '\n\n' + css_add.strip() + '\n'
+
+          pkg = json.loads(pkg_path.read_text(encoding='utf-8-sig'))
+          if str(pkg.get('version')) != '145.8.6':
+              raise SystemExit(f"Expected exact R8.6 package version, got {pkg.get('version')}")
+          pkg['version'] = '145.8.7'
+          pkg['description'] = 'Tahalil Alakkad Windows V145 R8.7 — Main Screen UI Polish only, preserving R8.6 data/core behavior'
+
+          app_path.write_text(app, encoding='utf-8')
+          css_path.write_text(css, encoding='utf-8')
+          pkg_path.write_text(json.dumps(pkg, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+
+          (root / 'V145_R87_MAIN_UI_NOTES.txt').write_text(
+              'Windows V145 R8.7 — Main Screen UI Polish\n\n'
+              '- لوحة اليوم + لوحة تشغيل اليوم => الشاشة الرئيسية.\n'
+              '- Home background is white; action and sidebar icons use one navy outline SVG system.\n'
+              '- Home shortcuts are compact: icon + label only, no oversized cards/artwork.\n'
+              '- Daily Collection is hidden from Home only; finance data/report logic is untouched.\n'
+              '- Device date/time is shown in the top bar and refreshed every second from Windows local time.\n'
+              '- Sidebar spacing/icons are normalized and compact.\n'
+              '- R8.6 optional customer fields, R8.5 unified forms, prompt fix, Firebase, pricing, orders, results and backups are untouched.\n',
+              encoding='utf-8'
+          )
+
+          print('R87_MAIN_UI_PATCH_APPLIED')
+          '@
+
+          $patcherPath = Join-Path $env:RUNNER_TEMP 'patch_r87.py'
+          $patcher | Set-Content $patcherPath -Encoding utf8
+          python $patcherPath $root
+          if ($LASTEXITCODE -ne 0) { throw 'R8.7 UI-only patch failed' }
+
+      - name: Audit R8.7 UI and prove core unchanged
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $root = Join-Path $PWD 'build_windows/windows-system'
+
+          $pkg = Get-Content (Join-Path $root 'package.json') -Raw | ConvertFrom-Json
+          if ($pkg.version -ne '145.8.7') { throw "Expected 145.8.7, got $($pkg.version)" }
+
+          $app = Get-Content (Join-Path $root 'src/app.js') -Raw
+          $css = Get-Content (Join-Path $root 'src/styles.css') -Raw
+          $data = Get-Content (Join-Path $root 'src/data.js') -Raw
+          $parity = Get-Content (Join-Path $root 'src/v145r8-parity.js') -Raw
+
+          foreach ($marker in @(
+            'TAH_MAIN_HOME_R87',
+            'TAH_UNIFIED_FORMS_R85',
+            'TAH_CUSTOMER_OPTIONAL_FIELDS_R86',
+            'الشاشة الرئيسية',
+            'deviceClock',
+            'startDeviceClock',
+            'dashboard-white',
+            'home-stats'
+          )) {
+            if (!(($app + $css).Contains($marker))) { throw "Missing R8.7 UI marker: $marker" }
+          }
+
+          if ($app.Contains("['dashboard','لوحة اليوم']")) { throw 'Old sidebar Home name still present' }
+          if ($app.Contains("setPage('لوحة تشغيل اليوم'")) { throw 'Old Home page title still present' }
+          if ($app.Contains('<span class="muted">تحصيل اليوم</span>')) { throw 'Daily Collection still visible on Home' }
+
+          foreach ($marker in @('V145_R83_CORE_INTEGRITY','R83Core','customer_price_overrides','phone_registry')) {
+            if (!$parity.Contains($marker)) { throw "Inherited R8.3 core marker missing: $marker" }
+          }
+          if (!$app.Contains('TAH_CUSTOMER_OPTIONAL_FIELDS_R86')) { throw 'R8.6 optional customer fields marker missing' }
+
+          $actualData = (Get-FileHash (Join-Path $root 'src/data.js') -Algorithm SHA256).Hash.ToLowerInvariant()
+          $actualFirebase = (Get-FileHash (Join-Path $root 'src/firebase.js') -Algorithm SHA256).Hash.ToLowerInvariant()
+          $actualParity = (Get-FileHash (Join-Path $root 'src/v145r8-parity.js') -Algorithm SHA256).Hash.ToLowerInvariant()
+          $actualMain = (Get-FileHash (Join-Path $root 'electron/main.cjs') -Algorithm SHA256).Hash.ToLowerInvariant()
+          $actualPreload = (Get-FileHash (Join-Path $root 'electron/preload.cjs') -Algorithm SHA256).Hash.ToLowerInvariant()
+
+          if ($actualData -ne $env:R87_DATA_SHA256) { throw 'UI patch changed src/data.js — blocked' }
+          if ($actualFirebase -ne $env:R87_FIREBASE_SHA256) { throw 'UI patch changed src/firebase.js — blocked' }
+          if ($actualParity -ne $env:R87_PARITY_SHA256) { throw 'UI patch changed src/v145r8-parity.js — blocked' }
+          if ($actualMain -ne $env:R87_MAIN_SHA256) { throw 'UI patch changed electron/main.cjs — blocked' }
+          if ($actualPreload -ne $env:R87_PRELOAD_SHA256) { throw 'UI patch changed electron/preload.cjs — blocked' }
+
+          node --check (Join-Path $root 'src/app.js')
+          if ($LASTEXITCODE -ne 0) { throw 'app.js syntax failed' }
+          node --check (Join-Path $root 'src/data.js')
+          if ($LASTEXITCODE -ne 0) { throw 'data.js syntax failed' }
+          node --check (Join-Path $root 'src/v145r8-parity.js')
+          if ($LASTEXITCODE -ne 0) { throw 'v145r8-parity.js syntax failed' }
+          node --check (Join-Path $root 'electron/main.cjs')
+          if ($LASTEXITCODE -ne 0) { throw 'main.cjs syntax failed' }
+          node --check (Join-Path $root 'electron/preload.cjs')
+          if ($LASTEXITCODE -ne 0) { throw 'preload.cjs syntax failed' }
+
+          Write-Host 'R8.7 AUDIT PASSED — UI CHANGED, R8.6 DATA/FIREBASE/CORE/ELECTRON FILES BYTE-FOR-BYTE UNCHANGED'
+
+      - name: Package R8.7 source before dependencies
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $root = Join-Path $PWD 'build_windows/windows-system'
+          $stage = Join-Path $env:RUNNER_TEMP 'source_stage_r87'
+          if (Test-Path $stage) { Remove-Item $stage -Recurse -Force }
+          New-Item -ItemType Directory -Force -Path $stage | Out-Null
+
+          Get-ChildItem -LiteralPath $root -Force | Where-Object { @('node_modules','release','.git') -notcontains $_.Name } | ForEach-Object {
+            Copy-Item -LiteralPath $_.FullName -Destination $stage -Recurse -Force
+          }
+
+          $zip = Join-Path $PWD 'Tahalil-Alakkad-V145-R8.7-Windows-Source.zip'
+          if (Test-Path $zip) { Remove-Item $zip -Force }
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          [System.IO.Compression.ZipFile]::CreateFromDirectory($stage,$zip,[System.IO.Compression.CompressionLevel]::Optimal,$false)
+          if (!(Test-Path $zip) -or (Get-Item $zip).Length -lt 50000) { throw 'R8.7 source ZIP invalid' }
+
+          $hash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  Tahalil-Alakkad-V145-R8.7-Windows-Source.zip" | Set-Content 'Tahalil-Alakkad-V145-R8.7-Windows-Source.zip.sha256' -Encoding ascii
+          Copy-Item (Join-Path $root 'V145_R87_MAIN_UI_NOTES.txt') 'V145_R87_MAIN_UI_NOTES.txt' -Force
+
+      - name: Install dependencies
+        working-directory: build_windows/windows-system
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          npm install --no-audit --no-fund
+          if ($LASTEXITCODE -ne 0) { throw 'npm install failed' }
+
+      - name: Build Portable
+        working-directory: build_windows/windows-system
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          npm run dist:portable
+          if ($LASTEXITCODE -ne 0) { throw 'Portable build failed' }
+
+      - name: Portable startup smoke
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $release = Join-Path $PWD 'build_windows/windows-system/release'
+          $portable = Get-ChildItem $release -Filter '*Portable*.exe' -File | Sort-Object Length -Descending | Select-Object -First 1
+          if (!$portable) { throw 'Portable EXE missing for smoke test' }
+
+          $proc = Start-Process -FilePath $portable.FullName -PassThru
+          Start-Sleep -Seconds 12
+          if ($proc.HasExited) {
+            if ($proc.ExitCode -ne 0) { throw "Portable exited during smoke test with code $($proc.ExitCode)" }
+            throw 'Portable exited unexpectedly during smoke window'
+          }
+          Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
+          Write-Host 'Portable startup smoke passed'
+
+      - name: Build Setup
+        working-directory: build_windows/windows-system
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          npm run dist:setup
+          if ($LASTEXITCODE -ne 0) { throw 'Setup build failed' }
+
+      - name: Prepare R8.7 delivery files
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $release = Join-Path $PWD 'build_windows/windows-system/release'
+          $portable = Get-ChildItem $release -Filter '*Portable*.exe' -File | Sort-Object Length -Descending | Select-Object -First 1
+          $setup = Get-ChildItem $release -Filter '*Setup*.exe' -File | Sort-Object Length -Descending | Select-Object -First 1
+          if (!$portable -or !$setup) { throw 'Portable or Setup EXE missing' }
+
+          Copy-Item $portable.FullName 'Tahalil-Alakkad-V145-R8.7-Windows-Portable.exe' -Force
+          Copy-Item $setup.FullName 'Tahalil-Alakkad-V145-R8.7-Windows-Setup.exe' -Force
+          foreach ($name in @('Tahalil-Alakkad-V145-R8.7-Windows-Portable.exe','Tahalil-Alakkad-V145-R8.7-Windows-Setup.exe')) {
+            if ((Get-Item $name).Length -lt 100000) { throw "$name unexpectedly small" }
+            $hash = (Get-FileHash $name -Algorithm SHA256).Hash.ToLowerInvariant()
+            "$hash  $name" | Set-Content "$name.sha256" -Encoding ascii
+          }
+
+      - name: Upload R8.7 workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Tahalil-Alakkad-V145-R8.7-Windows-Main-UI
+          path: |
+            Tahalil-Alakkad-V145-R8.7-Windows-Portable.exe
+            Tahalil-Alakkad-V145-R8.7-Windows-Portable.exe.sha256
+            Tahalil-Alakkad-V145-R8.7-Windows-Setup.exe
+            Tahalil-Alakkad-V145-R8.7-Windows-Setup.exe.sha256
+            Tahalil-Alakkad-V145-R8.7-Windows-Source.zip
+            Tahalil-Alakkad-V145-R8.7-Windows-Source.zip.sha256
+            V145_R87_MAIN_UI_NOTES.txt
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Publish Windows V145 R8.7 release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $tag = 'v145-r8.7-windows'
+          $title = 'تحاليل العقاد Windows V145 R8.7 — Main Screen UI Polish'
+          $notes = @'
+          Windows V145 R8.7 — Main Screen UI Polish
+
+          - لوحة اليوم ولوحة تشغيل اليوم أصبحتا: الشاشة الرئيسية.
+          - الشاشة الرئيسية فقط بخلفية بيضاء مع نظام أيقونات كحلي موحد.
+          - الأيقونات الرئيسية أصبحت صغيرة ومضغوطة على قدر الاسم + الأيقونة.
+          - شكل أيقونات السايدبار والمسافات أصبح موحدًا وأهدأ.
+          - تحصيل اليوم مخفي من الشاشة الرئيسية فقط؛ بيانات وتقارير التحصيل لم تتغير.
+          - ساعة وتاريخ الجهاز يظهران أعلى البرنامج ويتحدثان كل ثانية من Windows نفسه.
+          - مبني حرفيًا فوق R8.6، والـWorkflow يمنع النشر لو data.js أو Firebase أو R8.3 Core أو Electron تغيروا حتى بايت واحد.
+          '@
+
+          $files = @(
+            'Tahalil-Alakkad-V145-R8.7-Windows-Portable.exe',
+            'Tahalil-Alakkad-V145-R8.7-Windows-Portable.exe.sha256',
+            'Tahalil-Alakkad-V145-R8.7-Windows-Setup.exe',
+            'Tahalil-Alakkad-V145-R8.7-Windows-Setup.exe.sha256',
+            'Tahalil-Alakkad-V145-R8.7-Windows-Source.zip',
+            'Tahalil-Alakkad-V145-R8.7-Windows-Source.zip.sha256',
+            'V145_R87_MAIN_UI_NOTES.txt'
+          )
+
+          gh release view $tag --repo "$env:GITHUB_REPOSITORY" *> $null
+          if ($LASTEXITCODE -eq 0) {
+            gh release edit $tag --repo "$env:GITHUB_REPOSITORY" --title $title --notes $notes
+            if ($LASTEXITCODE -ne 0) { throw 'Could not update R8.7 release metadata' }
+          } else {
+            gh release create $tag --repo "$env:GITHUB_REPOSITORY" --title $title --notes $notes
+            if ($LASTEXITCODE -ne 0) { throw 'Could not create R8.7 release' }
+          }
+
+          gh release upload $tag @files --repo "$env:GITHUB_REPOSITORY" --clobber
+          if ($LASTEXITCODE -ne 0) { throw 'Could not upload R8.7 release files' }
+
+      - name: Final status
+        shell: pwsh
+        run: |
+          Write-Host 'WINDOWS V145 R8.7 MAIN SCREEN UI POLISH — BUILT, AUDITED, CORE-PROTECTED, SMOKE-TESTED AND RELEASED'
