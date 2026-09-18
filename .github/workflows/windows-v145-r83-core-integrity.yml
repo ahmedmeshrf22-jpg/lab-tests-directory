@@ -1,926 +1,264 @@
-name: Windows V145 R8.3 Core Integrity
+name: Windows V145 R8.3 Core Integrity FINAL
 
 on:
   workflow_dispatch:
-  push:
-    paths:
-      - '.github/workflows/windows-v145-r83-core-integrity.yml'
 
 permissions:
   contents: write
 
 concurrency:
-  group: tahalil-windows-v145-r83-core-integrity
+  group: tahalil-windows-v145-r83-core-integrity-final
   cancel-in-progress: false
 
 jobs:
-  windows-v145-r83:
-    name: Windows V145 R8.3 — Core Integrity
+  windows-v145-r83-final:
+    name: Windows V145 R8.3 — Core Integrity FINAL
     runs-on: windows-latest
     timeout-minutes: 95
     env:
       CSC_IDENTITY_AUTO_DISCOVERY: "false"
+      R83_TEMPLATE_COMMIT: "67734666f2f6a0a8b07c307e8d7d38ab5ff724d0"
 
     steps:
-      - name: Checkout
+      - name: Checkout full history
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Restore audited R8.3 build scripts
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $source = Join-Path $env:RUNNER_TEMP 'windows-v145-r83-original.yml'
+          $scripts = Join-Path $env:RUNNER_TEMP 'r83_scripts'
+          if (Test-Path $scripts) { Remove-Item $scripts -Recurse -Force }
+          New-Item -ItemType Directory -Force -Path $scripts | Out-Null
+
+          $spec = "$($env:R83_TEMPLATE_COMMIT):.github/workflows/windows-v145-r83-core-integrity.yml"
+          git show $spec | Set-Content $source -Encoding utf8
+          if ($LASTEXITCODE -ne 0 -or !(Test-Path $source)) {
+            throw "Could not restore audited R8.3 workflow template from $env:R83_TEMPLATE_COMMIT"
+          }
+
+          $extractor = @'
+          from pathlib import Path
+          import sys
+
+          src = Path(sys.argv[1])
+          out = Path(sys.argv[2])
+          lines = src.read_text(encoding="utf-8-sig").splitlines()
+
+          wanted = [
+              ("Download audited Windows V145 R8 source", "01_download.ps1"),
+              ("Apply Android-equivalent package price resolver", "02_price_parity.ps1"),
+              ("Apply Android screen placement parity", "03_screen_parity.ps1"),
+              ("Apply R8.3 customer and price core integrity", "04_core_integrity.ps1"),
+              ("Safety audit package pricing", "05_safety_audit.ps1"),
+              ("Install dependencies", "06_install.ps1"),
+              ("Build Portable", "07_build_portable.ps1"),
+              ("Portable startup smoke", "08_portable_smoke.ps1"),
+              ("Build Setup", "09_build_setup.ps1"),
+              ("Prepare delivery files", "10_prepare_delivery.ps1"),
+          ]
+
+          def extract_step(name: str) -> str:
+              start = None
+              for i, line in enumerate(lines):
+                  if line.startswith("      - name: ") and line.strip() == f"- name: {name}":
+                      start = i
+                      break
+              if start is None:
+                  raise SystemExit(f"Missing audited step: {name}")
+
+              end = len(lines)
+              for i in range(start + 1, len(lines)):
+                  if lines[i].startswith("      - name: "):
+                      end = i
+                      break
+
+              run_idx = None
+              for i in range(start + 1, end):
+                  if lines[i].startswith("        run: |"):
+                      run_idx = i
+                      break
+              if run_idx is None:
+                  raise SystemExit(f"Step has no run block: {name}")
+
+              block = []
+              for line in lines[run_idx + 1:end]:
+                  if not line.strip():
+                      block.append("")
+                  elif line.startswith("          "):
+                      block.append(line[10:])
+                  else:
+                      # Ignore step metadata outside the literal run block.
+                      break
+              if not block:
+                  raise SystemExit(f"Empty run block: {name}")
+              return "\n".join(block).rstrip() + "\n"
+
+          out.mkdir(parents=True, exist_ok=True)
+          for name, filename in wanted:
+              (out / filename).write_text(extract_step(name), encoding="utf-8")
+
+          print(f"Restored {len(wanted)} audited R8.3 scripts")
+          '@
+          $extractorPath = Join-Path $env:RUNNER_TEMP 'extract_r83_steps.py'
+          $extractor | Set-Content $extractorPath -Encoding utf8
+          python $extractorPath $source $scripts
+          if ($LASTEXITCODE -ne 0) { throw 'Could not extract audited R8.3 scripts' }
+
+          foreach ($file in @(
+            '01_download.ps1','02_price_parity.ps1','03_screen_parity.ps1','04_core_integrity.ps1',
+            '05_safety_audit.ps1','06_install.ps1','07_build_portable.ps1','08_portable_smoke.ps1',
+            '09_build_setup.ps1','10_prepare_delivery.ps1'
+          )) {
+            if (!(Test-Path (Join-Path $scripts $file))) { throw "Missing restored script: $file" }
+          }
 
       - name: Download audited Windows V145 R8 source
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $ErrorActionPreference = 'Stop'
-          if (Test-Path 'Tahalil-Alakkad-V145-R8-Windows-Source.zip') { Remove-Item 'Tahalil-Alakkad-V145-R8-Windows-Source.zip' -Force }
-          if (Test-Path 'build_windows') { Remove-Item 'build_windows' -Recurse -Force }
-          gh release download v145-r8-windows `
-            --repo "$env:GITHUB_REPOSITORY" `
-            --pattern 'Tahalil-Alakkad-V145-R8-Windows-Source.zip' `
-            --dir '.'
-          if ($LASTEXITCODE -ne 0) { throw 'Could not download V145 R8 Windows source' }
-          New-Item -ItemType Directory -Force -Path 'build_windows/windows-system' | Out-Null
-          Expand-Archive 'Tahalil-Alakkad-V145-R8-Windows-Source.zip' 'build_windows/windows-system' -Force
-          if (!(Test-Path 'build_windows/windows-system/package.json')) { throw 'Windows V145 R8 source extraction failed' }
-          if (!(Test-Path 'build_windows/windows-system/src/v145r8-parity.js')) { throw 'V145 R8 parity module missing' }
+          & pwsh -NoLogo -NoProfile -File "$env:RUNNER_TEMP\r83_scripts\01_download.ps1"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Apply Android-equivalent package price resolver
         shell: pwsh
         run: |
-          $ErrorActionPreference = 'Stop'
-          $root = Join-Path $PWD 'build_windows/windows-system'
-
-          $pkgPath = Join-Path $root 'package.json'
-          $pkgRaw = Get-Content $pkgPath -Raw
-          if (!$pkgRaw.Contains('"version": "145.8.0"')) { throw 'Unexpected source version; expected 145.8.0' }
-          $pkgRaw = $pkgRaw.Replace('"version": "145.8.0"', '"version": "145.8.3"')
-          Set-Content $pkgPath $pkgRaw -Encoding utf8
-
-          $parityPath = Join-Path $root 'src/v145r8-parity.js'
-          $parity = Get-Content $parityPath -Raw
-          $before = $parity
-
-          $resolver = @'
-          /* V145_PRICE_PARITY_R81
-             Package prices are resolved from the existing Windows live test cards/search results.
-             Those cards already carry the effective customer price loaded by the app, so the
-             package layer now follows the same effective price instead of guessing from package DOM. */
-          const V145_PRICE_CACHE = new Map();
-          function v145NormalizeDigits(value){
-            const ar='٠١٢٣٤٥٦٧٨٩', fa='۰۱۲۳۴۵۶۷۸۹', en='0123456789';
-            return String(value??'')
-              .replace(/[٠-٩]/g,d=>en[ar.indexOf(d)])
-              .replace(/[۰-۹]/g,d=>en[fa.indexOf(d)])
-              .replace(/٫/g,'.').replace(/٬/g,',').replace(/\u00a0/g,' ');
-          }
-          function v145Norm(value){
-            return v145NormalizeDigits(value).toLowerCase().replace(/\s+/g,' ').trim();
-          }
-          function v145Number(raw){
-            let s=String(raw??'').trim();
-            if(/^\d{1,3},\d{3}(?:\.\d+)?$/.test(s)) s=s.replace(',','');
-            else if(/^\d{1,3}\.\d{3},\d+$/.test(s)) s=s.replace('.','').replace(',','.');
-            else s=s.replace(',','.');
-            const n=Number(s); return Number.isFinite(n)?n:null;
-          }
-          function v145ExtractPrice(text){
-            const s=v145NormalizeDigits(text);
-            const patterns=[
-              /(?:السعر|price)\s*[:：-]?\s*(\d{1,6}(?:[.,]\d{1,3})?)\s*(?:جنيه|ج(?:\.?\s*م\.?)?|egp|l\.?e\.?)?/i,
-              /(\d{1,6}(?:[.,]\d{1,3})?)\s*(?:جنيه|ج(?:\.?\s*م\.?)?|egp|l\.?e\.?)(?=\s|$|[^\p{L}\p{N}_])/iu,
-              /(?:جنيه|ج(?:\.?\s*م\.?)?|egp|l\.?e\.?)\s*[:：-]?\s*(\d{1,6}(?:[.,]\d{1,3})?)/i
-            ];
-            for(const re of patterns){ const m=s.match(re); if(m){ const n=v145Number(m[1]); if(n!=null) return n; } }
-            return null;
-          }
-          function v145NameScore(text,name){
-            const t=v145Norm(text), n=v145Norm(name); if(!t||!n) return 0;
-            if(t===n) return 1000;
-            if(t.includes(n)) return 800-Math.min(300,t.length-n.length);
-            const tokens=n.split(/[^a-z0-9\u0600-\u06ff]+/i).filter(x=>x.length>=2);
-            if(!tokens.length) return 0;
-            const hits=tokens.filter(x=>t.includes(x)).length;
-            return hits===tokens.length?500+hits:0;
-          }
-          function v145PriceCandidates(name){
-            const primary=[...document.querySelectorAll('article,li,tr,[role="row"],[role="listitem"],[class*="test"],[class*="card"],[class*="item"]')];
-            const fallback=[...document.querySelectorAll('div,section')].filter(el=>(el.innerText||'').length<420);
-            return [...new Set([...primary,...fallback])]
-              .filter(el=>!el.closest('#v145r8-packages'))
-              .map(el=>({el,text:(el.innerText||'').trim(),score:v145NameScore((el.innerText||''),name)}))
-              .filter(x=>x.text&&x.score>0&&x.text.length<800)
-              .sort((a,b)=>(b.score-a.score)||(a.text.length-b.text.length));
-          }
-          function v145VisiblePrice(name){
-            const key=v145Norm(name);
-            for(const c of v145PriceCandidates(name)){
-              const p=v145ExtractPrice(c.text);
-              if(Number.isFinite(p)){
-                V145_PRICE_CACHE.set(key,{price:p,at:Date.now()});
-                return p;
-              }
-            }
-            const cached=V145_PRICE_CACHE.get(key);
-            return cached&&Number.isFinite(cached.price)?cached.price:null;
-          }
-          function v145SetSearchValue(input,value){
-            const proto=input.tagName==='TEXTAREA'?HTMLTextAreaElement.prototype:HTMLInputElement.prototype;
-            const setter=Object.getOwnPropertyDescriptor(proto,'value')?.set;
-            if(setter) setter.call(input,value); else input.value=value;
-            input.dispatchEvent(new Event('input',{bubbles:true}));
-            input.dispatchEvent(new Event('change',{bubbles:true}));
-          }
-          function v145WarmPackagePrices(pkg){
-            const input=v145SearchInput(); if(!input) return false;
-            const before=input.value||'', value=pkg.tests.join(', ');
-            if(before===value) return true;
-            v145SetSearchValue(input,value);
-            setTimeout(()=>{
-              if(input.value===value){
-                v145SetSearchValue(input,before);
-              }
-            },1500);
-            return true;
-          }
-          function v145FormatPrice(value){
-            return Number.isInteger(value)?String(value):Number(value).toFixed(2).replace(/\.00$/,'');
-          }
-          function v145RefreshPackagePriceSpans(){
-            const details=document.querySelector('#v145r8-packages .v145r8-details:not([hidden])');
-            if(!details) return;
-            let known=0,total=0;
-            details.querySelectorAll('.v145r8-testline').forEach(line=>{
-              const name=(line.querySelector('b')?.textContent||'').trim();
-              const span=line.querySelector('span'); if(!name||!span) return;
-              const price=v145VisiblePrice(name);
-              if(Number.isFinite(price)){
-                known++; total+=price;
-                const next=`${v145FormatPrice(price)} ج`;
-                if(span.textContent!==next) span.textContent=next;
-              }
-            });
-            let totalEl=details.querySelector('.v145r8-price-total');
-            if(!totalEl){
-              totalEl=document.createElement('div');
-              totalEl.className='v145r8-price-total';
-              totalEl.style.cssText='margin-top:10px;padding:10px 12px;border-radius:12px;background:#eefbfb;color:#075e63;font-weight:800;text-align:right';
-              const actions=details.querySelector('.v145r8-actions');
-              if(actions) details.insertBefore(totalEl,actions); else details.appendChild(totalEl);
-            }
-            const count=details.querySelectorAll('.v145r8-testline').length;
-            const nextTotal=known?`الإجمالي: ${v145FormatPrice(total)} ج${known<count?' (المتاح حتى الآن)':''}`:'جاري تحميل أسعار الباقة…';
-            if(totalEl.textContent!==nextTotal) totalEl.textContent=nextTotal;
-          }
-          '@
-
-          $pattern = '(?s)\s*function v145VisiblePrice\(name\)\{.*?\}\s*function v145BrandText'
-          $replacement = "`r`n$resolver`r`n          function v145BrandText"
-          $parity = [regex]::Replace($parity, $pattern, $replacement, 1)
-          if ($parity -eq $before) { throw 'Could not replace old package price resolver' }
-
-          $needle = "details.scrollIntoView({behavior:'smooth',block:'nearest'});"
-          if (!$parity.Contains($needle)) { throw 'Package click marker missing' }
-          $warm = "const __known=pkg.tests.filter(n=>v145VisiblePrice(n)!=null).length;if(__known<pkg.tests.length)v145WarmPackagePrices(pkg);v145RefreshPackagePriceSpans();setTimeout(v145RefreshPackagePriceSpans,220);setTimeout(v145RefreshPackagePriceSpans,700);setTimeout(v145RefreshPackagePriceSpans,1400);$needle"
-          $parity = $parity.Replace($needle, $warm)
-
-          $obsNeedle = "if(!document.getElementById('v145r8-packages'))v145RenderPackages();"
-          if (!$parity.Contains($obsNeedle)) { throw 'Mutation observer marker missing' }
-          $parity = $parity.Replace($obsNeedle, "$obsNeedle v145RefreshPackagePriceSpans();")
-
-          Set-Content $parityPath $parity -Encoding utf8
-
-          @'
-          Windows V145 R8.2 Android Screen Parity
-          - Fixes package prices showing as dashes on Arabic Windows UI.
-          - Removes the Arabic-currency word-boundary bug in the old DOM resolver.
-          - Supports Arabic/Persian digits, جنيه, ج, ج.م, EGP and LE price formats.
-          - Resolves package prices from the live Windows test/search cards that already carry the effective synced customer price.
-          - Silently warms the existing search flow when package prices are not yet present, caches the resolved prices, then restores the prior query.
-          - Package image export uses the same resolved live prices.
-          - Shows a package total from the resolved prices.
-          - Existing Firebase/auth/orders/results/backup/failover/catalogue behavior is unchanged.
-          '@ | Set-Content (Join-Path $root 'V145_R81_PACKAGE_PRICE_PARITY_NOTES.txt') -Encoding utf8
+          & pwsh -NoLogo -NoProfile -File "$env:RUNNER_TEMP\r83_scripts\02_price_parity.ps1"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Apply Android screen placement parity
         shell: pwsh
         run: |
-          $ErrorActionPreference = 'Stop'
-          $root = Join-Path $PWD 'build_windows/windows-system'
-          $parityPath = Join-Path $root 'src/v145r8-parity.js'
-          $parity = Get-Content $parityPath -Raw
-          $beforeUi = $parity
-
-          # Android V145 behavior:
-          # - Home is only the task launcher/dashboard.
-          # - Ready packages exist only inside "Test inquiry".
-          # - Packages are directly below the search area.
-          # - Two package cards per row, matching Android instead of spreading across the desktop.
-
-          $helpers = @'
-          /* V145_ANDROID_SCREEN_PARITY_R82 */
-          let V145_LAST_WORKSPACE = null;
-          function v145ElementVisible(el){
-            if(!el) return false;
-            const s=getComputedStyle(el);
-            const r=el.getBoundingClientRect();
-            return s.display!=='none' && s.visibility!=='hidden' && r.width>2 && r.height>2;
-          }
-          function v145WorkspaceText(){
-            const input=v145SearchInput();
-            const scope=input?.closest('main,.main-content,.content,.workspace,#app,.app') || document.body;
-            return (scope?.innerText||'').replace(/\s+/g,' ').trim();
-          }
-          function v145IsInquiryWorkspace(){
-            const input=v145SearchInput();
-            if(!input || !v145ElementVisible(input)) return false;
-            const t=v145WorkspaceText();
-            if(/استعلام\s*(?:عن)?\s*تحليل|استعلام\s*أسعار|قائمة\s*الاستعلام|test\s*inquiry|price\s*inquiry|inquiry\s*list/i.test(t)) return true;
-            if(V145_LAST_WORKSPACE==='inquiry') return true;
-            return false;
-          }
-          function v145SyncPackagePlacement(){
-            const current=document.getElementById('v145r8-packages');
-            if(!v145IsInquiryWorkspace()){
-              if(current) current.remove();
-              return;
-            }
-            if(!current) v145RenderPackages();
-          }
-          function v145TrackWorkspaceIntent(e){
-            const hit=e.target?.closest?.('button,a,[role="button"],[tabindex]');
-            if(!hit) return;
-            const t=(hit.innerText||hit.getAttribute('aria-label')||hit.getAttribute('title')||'').replace(/\s+/g,' ').trim();
-            if(/استعلام\s*(?:عن)?\s*تحليل|استعلام\s*أسعار|test\s*inquiry|price\s*inquiry/i.test(t)){
-              V145_LAST_WORKSPACE='inquiry';
-            } else if(/الرئيسية|home|سجل\s*الطلبات|orders|دليل\s*التحاليل|test\s*guide|طلب\s*جديد|new\s*order|العملاء|customers|الإدارة|admin|الإعدادات|settings/i.test(t)){
-              V145_LAST_WORKSPACE=null;
-            }
-            setTimeout(v145SyncPackagePlacement,80);
-            setTimeout(v145SyncPackagePlacement,250);
-          }
-          '@
-
-          if(!$parity.Contains('function v145RenderPackages(){')) { throw 'Package render function missing' }
-          $parity = $parity.Replace('function v145RenderPackages(){', "$helpers`r`n          function v145RenderPackages(){")
-
-          # Never render ready packages on Home or other workspaces.
-          $oldGuard = "if(document.getElementById('v145r8-packages')) return;"
-          $newGuard = "if(!v145IsInquiryWorkspace()) return; if(document.getElementById('v145r8-packages')) return;"
-          if(!$parity.Contains($oldGuard)) { throw 'Package render guard missing' }
-          $parity = $parity.Replace($oldGuard, $newGuard)
-
-          # Put the package block under the inquiry search box, not after an arbitrary Home section.
-          $oldHost = "const host=document.querySelector('main,.main-content,#app,.app')||document.body; if(!host) return;"
-          $newHost = "const input=v145SearchInput(); const searchBlock=input?.closest('.search-container,.search-box,form,[class*=`"search`"]')||input; const host=searchBlock?.closest('main,.main-content,.content,.workspace,#app,.app')||document.querySelector('main,.main-content,#app,.app')||document.body; if(!host||!searchBlock) return;"
-          if(!$parity.Contains($oldHost)) { throw 'Package host marker missing' }
-          $parity = $parity.Replace($oldHost, $newHost)
-
-          $newInsert = "if(searchBlock?.parentNode) searchBlock.parentNode.insertBefore(sec,searchBlock.nextSibling); else host.prepend(sec);"
-          # R8.2 FIX: match the original insertion code regardless of CRLF/LF or indentation.
-          $insertPattern = "const\s+firstUseful\s*=\s*host\.querySelector\('section,form,\.search-container,\.search-box'\)\s*;\s*if\s*\(firstUseful\?\.parentNode\)\s*firstUseful\.parentNode\.insertBefore\(sec\s*,\s*firstUseful\.nextSibling\)\s*;\s*else\s*host\.prepend\(sec\)\s*;"
-          $insertMatches = [regex]::Matches($parity, $insertPattern)
-          if($insertMatches.Count -ne 1) { throw "Package insertion marker count unexpected: $($insertMatches.Count)" }
-          $parity = [regex]::Replace($parity, $insertPattern, $newInsert)
-
-          # Android uses exactly two package cards per row. Keep a phone-like readable width
-          # on desktop instead of stretching 4-7 cards across the monitor.
-          $oldGrid = ".v145r8-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}"
-          $newGrid = ".v145r8-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;width:100%}"
-          if(!$parity.Contains($oldGrid)) { throw 'Package grid CSS marker missing' }
-          $parity = $parity.Replace($oldGrid, $newGrid)
-
-          $oldSection = "#v145r8-packages{direction:rtl;margin:16px 0;padding:16px;border:1px solid #d9e9ee;border-radius:22px;background:#fff}"
-          $newSection = "#v145r8-packages{direction:rtl;margin:12px 0;padding:14px;border:1px solid #d9e9ee;border-radius:22px;background:#fff;width:min(100%,620px);max-width:620px}"
-          if(!$parity.Contains($oldSection)) { throw 'Package section CSS marker missing' }
-          $parity = $parity.Replace($oldSection, $newSection)
-
-          # Remove the old mobile CSS that could alter the fixed two-column Android layout.
-          $oldMedia = "@media(max-width:650px){.v145r8-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.v145r8-package{padding:12px}.v145r8-package strong{font-size:16px}}"
-          $newMedia = "@media(max-width:650px){#v145r8-packages{width:100%;max-width:none;padding:10px}.v145r8-package{padding:12px}.v145r8-package strong{font-size:16px}}"
-          if($parity.Contains($oldMedia)) { $parity = $parity.Replace($oldMedia, $newMedia) }
-
-          # Initial load + SPA navigation always synchronize placement:
-          # Home => remove packages; Inquiry => mount below search.
-          $oldInit = "v145RenderPackages();v145CleanExistingActions();v145EnableCardToggle();"
-          $newInit = "v145SyncPackagePlacement();v145CleanExistingActions();v145EnableCardToggle();document.addEventListener('click',v145TrackWorkspaceIntent,true);window.addEventListener('hashchange',()=>setTimeout(v145SyncPackagePlacement,80));window.addEventListener('popstate',()=>setTimeout(v145SyncPackagePlacement,80));"
-          if(!$parity.Contains($oldInit)) { throw 'Init package marker missing' }
-          $parity = $parity.Replace($oldInit, $newInit)
-
-          $newObserver = "v145SyncPackagePlacement();v145RefreshPackagePriceSpans();"
-          # R8.2 FIX: tolerate whitespace differences created by the previous pricing patch.
-          $observerPattern = "if\s*\(!document\.getElementById\('v145r8-packages'\)\)\s*v145RenderPackages\(\)\s*;\s*v145RefreshPackagePriceSpans\(\)\s*;"
-          $observerMatches = [regex]::Matches($parity, $observerPattern)
-          if($observerMatches.Count -ne 1) { throw "Observer package marker count unexpected: $($observerMatches.Count)" }
-          $parity = [regex]::Replace($parity, $observerPattern, $newObserver)
-
-          if($parity -eq $beforeUi) { throw 'Android screen parity patch made no changes' }
-          Set-Content $parityPath $parity -Encoding utf8
-
-          @'
-          Windows V145 R8.2 Android Screen Parity
-          - Home opens clean, without ready-package cards.
-          - Ready packages are mounted only inside Test Inquiry, matching Android V145 behavior.
-          - Package block sits directly below the search box.
-          - Exactly two package cards per row, matching Android layout instead of spreading across desktop width.
-          - One package details panel opens under the cards; clicking the same package hides it.
-          - V145 R8.1 live synchronized package pricing remains intact.
-          - Existing Firebase/auth/orders/results/backup/failover/catalogue logic remains unchanged.
-          '@ | Set-Content (Join-Path $root 'V145_R82_ANDROID_SCREEN_PARITY_NOTES.txt') -Encoding utf8
-
+          & pwsh -NoLogo -NoProfile -File "$env:RUNNER_TEMP\r83_scripts\03_screen_parity.ps1"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Apply R8.3 customer and price core integrity
         shell: pwsh
         run: |
-          $ErrorActionPreference = 'Stop'
-          $root = Join-Path $PWD 'build_windows/windows-system'
-          $parityPath = Join-Path $root 'src/v145r8-parity.js'
-          if (!(Test-Path $parityPath)) { throw 'V145 R8 parity module missing before R8.3 core patch' }
-          $parity = Get-Content $parityPath -Raw
-
-          # R8.3 removes package-price dependency on rendered DOM text.
-          # Price lookup now delegates to R83Core, which reads the same Android V145
-          # Firestore collection: customer_price_overrides / test_<id>.
-          $visiblePattern = '(?s)function v145VisiblePrice\(name\)\{.*?\}\s*function v145SetSearchValue'
-          $visibleReplacement = @'
-          function v145VisiblePrice(name){
-            const core=window.R83Core;
-            if(core&&typeof core.priceByName==='function'){
-              const price=core.priceByName(name);
-              return Number.isFinite(price)?price:null;
-            }
-            return null;
-          }
-          function v145SetSearchValue
-          '@
-          $matches=[regex]::Matches($parity,$visiblePattern)
-          if($matches.Count -ne 1){ throw "R8.3 price delegation marker count unexpected: $($matches.Count)" }
-          $parity=[regex]::Replace($parity,$visiblePattern,$visibleReplacement,1)
-
-          # Do not mutate the inquiry search field just to obtain package prices.
-          $oldWarm = 'if(__known<pkg.tests.length)v145WarmPackagePrices(pkg);'
-          $newWarm = 'if(__known<pkg.tests.length)window.R83Core?.refreshPrices?.();'
-          if(!$parity.Contains($oldWarm)){ throw 'R8.2 package price warm marker missing' }
-          $parity=$parity.Replace($oldWarm,$newWarm)
-
-          # Re-render an open package immediately when the central price sync changes.
-          $popstate = "window.addEventListener('popstate',()=>setTimeout(v145SyncPackagePlacement,80));"
-          if(!$parity.Contains($popstate)){ throw 'R8.2 popstate marker missing' }
-          $parity=$parity.Replace($popstate, "$popstate" + "window.addEventListener('r83-prices-updated',()=>{v145RefreshPackagePriceSpans();setTimeout(v145RefreshPackagePriceSpans,120);});")
-
-          # Append the isolated R8.3 integrity runtime.
-          $core = @'
-          /* V145_R83_CORE_INTEGRITY
-             Windows data-integrity bridge aligned with Android V145 contracts:
-             customer_price_overrides, phone_registry, customers, digit-only phone_normalization.
-          */
-          (()=>{
-            'use strict';
-            if(window.R83Core?.version==='145.8.3') return;
-          
-            const VERSION='145.8.3';
-            const PRICE_COLLECTION='customer_price_overrides';
-            const PHONE_REGISTRY_COLLECTION='phone_registry';
-            const state={
-              catalogById:new Map(),
-              catalogByName:new Map(),
-              overrides:new Map(),
-              firestore:null,
-              unsubscribe:null,
-              catalogReady:false,
-              pricesReady:false,
-              lastPriceRefresh:0,
-              customerSavePending:new WeakSet(),
-              lastCustomerFingerprint:new Map()
-            };
-          
-            function normalizeDigits(value){
-              const ar='٠١٢٣٤٥٦٧٨٩', fa='۰۱۲۳۴۵۶۷۸۹', en='0123456789';
-              return String(value??'')
-                .replace(/[٠-٩]/g,d=>en[ar.indexOf(d)])
-                .replace(/[۰-۹]/g,d=>en[fa.indexOf(d)]);
-            }
-            function phone(value){ return normalizeDigits(value).replace(/\D+/g,''); }
-            function norm(value){
-              return normalizeDigits(value).toLowerCase()
-                .replace(/[أإآ]/g,'ا').replace(/ة/g,'ه').replace(/ى/g,'ي')
-                .replace(/[\u064B-\u065F\u0670]/g,'')
-                .replace(/[^a-z0-9\u0600-\u06ff]+/g,' ').replace(/\s+/g,' ').trim();
-            }
-            function money(value){
-              if(value===null||value===undefined) return null;
-              if(typeof value==='string' && !value.trim()) return null;
-              let s=normalizeDigits(value).trim().replace(/٬/g,',').replace(/٫/g,'.');
-              s=s.replace(/\s*(?:جنيه|ج(?:\.?\s*م\.?)?|egp|l\.?e\.?)\s*/ig,'').trim();
-              if(/^\d{1,3}(,\d{3})+(\.\d+)?$/.test(s)) s=s.replace(/,/g,'');
-              else if(/^\d{1,3}(\.\d{3})+(,\d+)?$/.test(s)) s=s.replace(/\./g,'').replace(',','.');
-              else s=s.replace(',','.');
-              const n=Number(s);
-              return Number.isFinite(n)&&n>=0?n:null;
-            }
-            function idOf(obj,keyHint){
-              const raw=obj?.id??obj?.test_id??obj?.testId??keyHint;
-              if(typeof raw==='string'){
-                const m=raw.match(/(?:test[_-]?)?(\d+)/i); if(m) return Number(m[1]);
-              }
-              const n=Number(raw); return Number.isInteger(n)&&n>0?n:null;
-            }
-            function namesOf(test){
-              return [test?.english_name,test?.englishName,test?.arabic_name,test?.arabicName,test?.market_name,test?.marketName,test?.name,test?.test_name,test?.search_text,test?.searchText]
-                .filter(v=>typeof v==='string'&&v.trim()).map(norm).filter(Boolean);
-            }
-            function basePrice(test){
-              for(const key of ['customer_price','customerPrice','price_customer','customerprice','price']){
-                const p=money(test?.[key]); if(p!==null) return p;
-              }
-              return null;
-            }
-            function addTest(test,keyHint){
-              if(!test||typeof test!=='object') return;
-              const id=idOf(test,keyHint); if(!id) return;
-              const previous=state.catalogById.get(id)||{};
-              const merged={...previous,...test,id};
-              state.catalogById.set(id,merged);
-              for(const n of namesOf(merged)){
-                if(!state.catalogByName.has(n)) state.catalogByName.set(n,id);
-              }
-            }
-            function addOverride(key,value){
-              const obj=(value&&typeof value==='object')?value:null;
-              const id=idOf(obj,key); if(!id) return;
-              const candidate=obj?(obj.customer_price??obj.customerPrice??obj.price??obj.value):value;
-              const p=money(candidate); if(p!==null) state.overrides.set(id,p);
-            }
-            function walkData(value,keyHint,depth=0,seen=new WeakSet()){
-              if(depth>4||value===null||value===undefined) return;
-              if(typeof value!=='object') return;
-              if(seen.has(value)) return; seen.add(value);
-              if(Array.isArray(value)){
-                if(value.length>=2 && value.some(x=>x&&typeof x==='object'&&(x.english_name||x.englishName||x.arabic_name||x.arabicName||x.market_name||x.marketName))) value.forEach(v=>addTest(v));
-                value.slice(0,600).forEach(v=>walkData(v,null,depth+1,seen));
-                return;
-              }
-              const keys=Object.keys(value);
-              if((value.english_name||value.englishName||value.arabic_name||value.arabicName||value.market_name||value.marketName)&&idOf(value,keyHint)) addTest(value,keyHint);
-              if((value.customer_price!==undefined||value.customerPrice!==undefined||value.price!==undefined)&&idOf(value,keyHint)) addOverride(keyHint,value);
-              if(depth<3 && keys.length<1500){
-                for(const k of keys){
-                  if(/price|override|test|catalog/i.test(k) || depth<1) walkData(value[k],k,depth+1,seen);
-                }
-              }
-            }
-            function scanLocalStorage(){
-              try{
-                for(let i=0;i<localStorage.length;i++){
-                  const k=localStorage.key(i)||'';
-                  if(!/price|override|test|catalog|customer/i.test(k)) continue;
-                  const raw=localStorage.getItem(k); if(!raw||raw.length>5_000_000) continue;
-                  try{ walkData(JSON.parse(raw),k); }catch(_){ }
-                }
-              }catch(_){ }
-            }
-            function scanGlobals(){
-              const preferred=['labTests','tests','allTests','labTestsData','catalog','testCatalog','customerPriceOverrides','priceOverrides','customerPrices'];
-              for(const k of preferred){ try{ if(window[k]!=null) walkData(window[k],k); }catch(_){ } }
-              for(const k of ['appState','store','state','dataStore']){ try{ if(window[k]!=null) walkData(window[k],k); }catch(_){ } }
-            }
-            async function loadCatalogFile(){
-              const candidates=['../public/lab_tests_android.json','./public/lab_tests_android.json','public/lab_tests_android.json','./lab_tests_android.json'];
-              for(const url of candidates){
-                try{
-                  const r=await fetch(url,{cache:'no-store'}); if(!r.ok) continue;
-                  const data=await r.json(); if(!Array.isArray(data)||data.length<300) continue;
-                  data.forEach(addTest); state.catalogReady=true; return true;
-                }catch(_){ }
-              }
-              return false;
-            }
-            function findFirestore(){
-              if(state.firestore) return state.firestore;
-              try{
-                if(window.firebase?.firestore){ state.firestore=window.firebase.firestore(); return state.firestore; }
-              }catch(_){ }
-              for(const k of ['db','firestore','firebaseDb','firestoreDb']){
-                try{
-                  const v=window[k]; if(v&&typeof v.collection==='function'){ state.firestore=v; return v; }
-                }catch(_){ }
-              }
-              return null;
-            }
-            function applyPriceSnapshot(snapshot){
-              try{
-                snapshot?.forEach?.(doc=>{ const d=doc.data?.()||{}; addOverride(doc.id,d); });
-                if(Array.isArray(snapshot?.docs)) snapshot.docs.forEach(doc=>addOverride(doc.id,doc.data?.()||{}));
-                state.pricesReady=state.overrides.size>0;
-                state.lastPriceRefresh=Date.now();
-                window.dispatchEvent(new CustomEvent('r83-prices-updated'));
-                scheduleInquiryRepair();
-              }catch(_){ }
-            }
-            function connectPriceSync(){
-              const db=findFirestore(); if(!db) return false;
-              try{
-                const ref=db.collection(PRICE_COLLECTION);
-                if(!state.unsubscribe && typeof ref.onSnapshot==='function'){
-                  state.unsubscribe=ref.onSnapshot(applyPriceSnapshot,()=>{});
-                }
-                if(typeof ref.get==='function') ref.get().then(applyPriceSnapshot).catch(()=>{});
-                return true;
-              }catch(_){ return false; }
-            }
-            function refreshPrices(){
-              scanGlobals(); scanLocalStorage();
-              if(connectPriceSync()) return true;
-              state.lastPriceRefresh=Date.now();
-              return false;
-            }
-            function resolveIdByName(name){
-              const n=norm(name); if(!n) return null;
-              if(state.catalogByName.has(n)) return state.catalogByName.get(n);
-              let best=null,bestScore=0;
-              for(const [candidate,id] of state.catalogByName){
-                let score=0;
-                if(candidate===n) score=1000;
-                else if(candidate.length>=3&&n.length>=3&&(candidate.includes(n)||n.includes(candidate))) score=500-Math.abs(candidate.length-n.length);
-                if(score>bestScore){bestScore=score;best=id;}
-              }
-              return bestScore>=430?best:null;
-            }
-            function priceById(id){
-              const n=Number(id); if(!Number.isFinite(n)) return null;
-              if(state.overrides.has(n)) return state.overrides.get(n);
-              return basePrice(state.catalogById.get(n));
-            }
-            function priceByName(name){
-              const id=resolveIdByName(name); return id?priceById(id):null;
-            }
-            function formatPrice(value){
-              const n=money(value); if(n===null) return '—';
-              return Number.isInteger(n)?String(n):n.toFixed(2).replace(/\.00$/,'');
-            }
-          
-            function attrText(el){
-              return ['name','id','placeholder','aria-label','title','data-field'].map(a=>el?.getAttribute?.(a)||'').join(' ').toLowerCase();
-            }
-            function phoneInputs(scope=document){
-              return [...scope.querySelectorAll('input')].filter(el=>/phone|mobile|whatsapp|tel|هاتف|موبايل|واتس/.test(attrText(el)) || el.type==='tel');
-            }
-            function nameInput(scope){
-              return [...scope.querySelectorAll('input')].find(el=>/customer.?name|client.?name|اسم.?العميل|الاسم/.test(attrText(el)))||null;
-            }
-            function ageInput(scope){
-              return [...scope.querySelectorAll('input')].find(el=>/(^|\s)age(\s|$)|العمر|السن/.test(attrText(el)))||null;
-            }
-            function customerContext(node){
-              const start=node?.closest?.('form,[role="dialog"],dialog,.modal,.dialog,.popup,.panel,.card,section') || node?.parentElement || document;
-              if(start===document) return document;
-              if(phoneInputs(start).length) return start;
-              return node?.closest?.('main,#app,.app')||document;
-            }
-            function isCustomerContext(scope){
-              const text=norm(scope?.innerText||'');
-              return phoneInputs(scope).length>0 && (/عميل|customer|client/.test(text)||!!nameInput(scope));
-            }
-            function isEditContext(scope){
-              const text=norm((scope?.innerText||'').slice(0,2500));
-              if(/تعديل عميل|تعديل بيانات|تحديث عميل|edit customer|update customer/.test(text)) return true;
-              return [...scope.querySelectorAll('input[type="hidden"],input[name*="id" i],[data-customer-id]')]
-                .some(el=>String(el.value??el.getAttribute?.('data-customer-id')??'').trim().length>0);
-            }
-            function saveLike(node){
-              const text=norm([node?.innerText,node?.value,node?.getAttribute?.('aria-label'),node?.getAttribute?.('title')].filter(Boolean).join(' '));
-              if(/طلب|order|نتيجه|result|دفع|payment|سداد/.test(text)) return false;
-              return /حفظ|تسجيل|اضافه|save|register|add/.test(text);
-            }
-            function showCustomerMessage(scope,message,isError=true){
-              let box=scope.querySelector?.('.r83-customer-message');
-              if(!box){
-                box=document.createElement('div'); box.className='r83-customer-message';
-                box.style.cssText='margin:8px 0;padding:9px 11px;border-radius:10px;font-weight:700;font-size:13px;direction:rtl;';
-                const target=scope.querySelector?.('button[type="submit"],button')||scope.firstChild;
-                if(target?.parentNode) target.parentNode.insertBefore(box,target); else scope.appendChild?.(box);
-              }
-              box.style.background=isError?'#fff1f0':'#eefbf4'; box.style.color=isError?'#a61b1b':'#176b3a';
-              box.textContent=message;
-            }
-            function validateCustomer(scope){
-              const n=nameInput(scope); const phones=phoneInputs(scope); const p=phones[0]; const alt=phones[1]; const age=ageInput(scope);
-              if(n && n.value.trim().length<2) return {ok:false,message:'اكتب اسم العميل بشكل صحيح',focus:n};
-              if(p){ p.value=phone(p.value); if(p.value.length<8) return {ok:false,message:'اكتب رقم موبايل / واتساب صحيح',focus:p}; }
-              if(alt){ alt.value=phone(alt.value); if(alt.value && alt.value.length<8) return {ok:false,message:'رقم الموبايل البديل غير صحيح',focus:alt}; if(p&&alt.value===p.value&&alt.value) return {ok:false,message:'الرقم البديل مطابق للرقم الأساسي',focus:alt}; }
-              if(age&&age.value.trim()){
-                const a=Number(normalizeDigits(age.value)); if(!Number.isInteger(a)||a<0||a>120) return {ok:false,message:'اكتب سن صحيح',focus:age};
-              }
-              return {ok:true,phones:phones.map(x=>phone(x.value)).filter(Boolean)};
-            }
-            function localDuplicatePhone(numbers){
-              const wanted=new Set(numbers);
-              if(!wanted.size) return null;
-              try{
-                for(let i=0;i<localStorage.length;i++){
-                  const k=localStorage.key(i)||''; if(!/customer|client|phone/i.test(k)) continue;
-                  const raw=localStorage.getItem(k); if(!raw||raw.length>5_000_000) continue;
-                  let data; try{data=JSON.parse(raw);}catch(_){continue;}
-                  const stack=[data]; let steps=0;
-                  while(stack.length&&steps++<6000){
-                    const v=stack.pop(); if(!v||typeof v!=='object') continue;
-                    if(Array.isArray(v)){ v.slice(0,1000).forEach(x=>stack.push(x)); continue; }
-                    const entityId=v.id||v.customer_id||v.customerId||v.file_number||v.fileNumber||null;
-                    if(entityId){
-                      for(const key of ['phone_normalized','phone','alternate_phone_normalized','alternate_phone','mobile','whatsapp']){
-                        const p=phone(v[key]); if(p&&wanted.has(p)) return {phone:p,id:entityId};
-                      }
-                    }
-                    Object.values(v).slice(0,60).forEach(x=>{if(x&&typeof x==='object') stack.push(x);});
-                  }
-                }
-              }catch(_){ }
-              return null;
-            }
-            async function registryDuplicate(numbers){
-              const local=localDuplicatePhone(numbers); if(local) return local;
-              const db=findFirestore(); if(!db) return null;
-              for(const number of numbers){
-                try{
-                  const snap=await db.collection(PHONE_REGISTRY_COLLECTION).doc(number).get();
-                  if(snap?.exists){ const d=snap.data?.()||{}; return {phone:number,id:d.customer_id||d.customerId||null}; }
-                }catch(_){ return null; }
-              }
-              return null;
-            }
-            function fingerprint(scope){
-              const n=nameInput(scope)?.value||''; const ps=phoneInputs(scope).map(x=>phone(x.value)).join('|'); return `${norm(n)}|${ps}`;
-            }
-            function recentlySubmitted(scope){
-              const fp=fingerprint(scope); if(!fp||fp==='|') return false;
-              const now=Date.now(), before=state.lastCustomerFingerprint.get(fp)||0;
-              if(now-before<5000) return true;
-              state.lastCustomerFingerprint.set(fp,now);
-              for(const [k,t] of state.lastCustomerFingerprint){ if(now-t>30000) state.lastCustomerFingerprint.delete(k); }
-              return false;
-            }
-            async function guardCustomerAction(scope,continueAction,pendingNode){
-              if(!isCustomerContext(scope)) return continueAction();
-              const v=validateCustomer(scope);
-              if(!v.ok){ showCustomerMessage(scope,v.message,true); v.focus?.focus?.(); return; }
-              if(recentlySubmitted(scope)){ showCustomerMessage(scope,'تم منع تسجيل نفس العميل مرتين. انتظر لحظة.',true); return; }
-              if(isEditContext(scope)) return continueAction();
-              if(pendingNode&&state.customerSavePending.has(pendingNode)) return;
-              if(pendingNode) state.customerSavePending.add(pendingNode);
-              try{
-                const dup=await registryDuplicate(v.phones||[]);
-                if(dup){ showCustomerMessage(scope,`هذا الرقم مسجل بالفعل لعميل موجود (${dup.phone}). افتح العميل الحالي بدل إنشاء نسخة مكررة.`,true); return; }
-                continueAction();
-              }finally{ if(pendingNode) state.customerSavePending.delete(pendingNode); }
-            }
-            function installCustomerGuards(){
-              document.addEventListener('blur',e=>{
-                const el=e.target; if(!(el instanceof HTMLInputElement)) return;
-                if(phoneInputs(document).includes(el) || /phone|mobile|whatsapp|tel|هاتف|موبايل|واتس/.test(attrText(el))) el.value=phone(el.value);
-              },true);
-          
-              document.addEventListener('click',e=>{
-                const btn=e.target?.closest?.('button,input[type="button"],input[type="submit"],[role="button"]');
-                if(!btn||btn.dataset.r83Verified==='1'){ if(btn?.dataset?.r83Verified==='1') delete btn.dataset.r83Verified; return; }
-                const scope=customerContext(btn); if(!isCustomerContext(scope)||!saveLike(btn)) return;
-                e.preventDefault(); e.stopImmediatePropagation();
-                guardCustomerAction(scope,()=>{
-                  btn.dataset.r83Verified='1';
-                  const form=btn.closest?.('form'); if(form) form.dataset.r83Verified='1';
-                  btn.click();
-                },btn);
-              },true);
-          
-              document.addEventListener('submit',e=>{
-                const form=e.target; if(!(form instanceof HTMLFormElement)) return;
-                if(form.dataset.r83Verified==='1'){ delete form.dataset.r83Verified; return; }
-                const scope=customerContext(form); if(!isCustomerContext(scope)) return;
-                e.preventDefault(); e.stopImmediatePropagation();
-                guardCustomerAction(scope,()=>{
-                  form.dataset.r83Verified='1';
-                  if(typeof form.requestSubmit==='function') form.requestSubmit(); else form.submit();
-                },form);
-              },true);
-            }
-          
-            let repairTimer=null;
-            function findTestInText(text){
-              const t=norm(text); if(!t) return null;
-              let best=null,bestLen=0;
-              for(const [name,id] of state.catalogByName){
-                if(name.length<3||!t.includes(name)) continue;
-                if(name.length>bestLen){bestLen=name.length;best=state.catalogById.get(id);}
-              }
-              return best;
-            }
-            function repairInquiryPrices(){
-              if(!state.catalogById.size) return;
-              const search=[...document.querySelectorAll('input')].find(el=>/search|بحث|استعلام/.test(attrText(el)));
-              if(!search) return;
-              const root=search.closest('main,.main-content,.content,.workspace,#app,.app')||document;
-              const cards=[...root.querySelectorAll('article,li,tr,[role="row"],[role="listitem"],[class*="test-card"],[class*="result-card"],[class*="test-item"]')]
-                .filter(el=>!el.closest('#v145r8-packages')).slice(0,120);
-              for(const card of cards){
-                const test=findTestInText(card.innerText||''); if(!test) continue;
-                const p=priceById(test.id); if(p===null) continue;
-                const targets=[...card.querySelectorAll('[data-price],[class*="price" i],[id*="price" i],span,div')]
-                  .filter(el=>el.children.length===0 && ((/price|سعر/.test(attrText(el))) || /^\s*(?:—|-|\d+(?:[.,]\d+)?)\s*(?:جنيه|ج|ج\.م|egp|le)?\s*$/i.test(normalizeDigits(el.textContent||''))))
-                  .slice(0,4);
-                const target=targets.find(el=>/price|سعر/.test(attrText(el))) || targets.find(el=>/^\s*(?:—|-)\s*$/.test(el.textContent||''));
-                if(target){ const next=`${formatPrice(p)} ج`; if(target.textContent!==next) target.textContent=next; }
-              }
-            }
-            function scheduleInquiryRepair(){
-              clearTimeout(repairTimer); repairTimer=setTimeout(repairInquiryPrices,80);
-            }
-          
-            async function init(){
-              scanGlobals(); scanLocalStorage();
-              await loadCatalogFile();
-              scanGlobals(); scanLocalStorage();
-              refreshPrices();
-              installCustomerGuards();
-              const obs=new MutationObserver(scheduleInquiryRepair); obs.observe(document.documentElement,{childList:true,subtree:true});
-              setInterval(()=>{ scanGlobals(); scanLocalStorage(); if(Date.now()-state.lastPriceRefresh>60_000) refreshPrices(); },30_000);
-              scheduleInquiryRepair();
-            }
-          
-            window.R83Core={
-              version:VERSION,
-              phone,
-              money,
-              norm,
-              priceById,
-              priceByName,
-              resolveIdByName,
-              refreshPrices,
-              stateSummary:()=>({catalog:state.catalogById.size,overrides:state.overrides.size,firestore:!!state.firestore,pricesReady:state.pricesReady})
-            };
-          
-            if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',()=>init().catch(()=>{}),{once:true});
-            else init().catch(()=>{});
-          })();
-          '@
-          if($parity.Contains('V145_R83_CORE_INTEGRITY')){ throw 'R8.3 core already present unexpectedly' }
-          $parity = $parity.TrimEnd() + "`r`n`r`n" + $core + "`r`n"
-          Set-Content $parityPath $parity -Encoding utf8
-
-          # Build-time source audit. Do not silently ship if the core source contracts disappeared.
-          $jsFiles=Get-ChildItem $root -Recurse -File -Include '*.js','*.html' | Where-Object { $_.FullName -notmatch '[\\/]node_modules[\\/]' -and $_.FullName -notmatch '[\\/]release[\\/]' }
-          $allText=($jsFiles | ForEach-Object { Get-Content $_.FullName -Raw -ErrorAction SilentlyContinue }) -join "`n"
-          $audit=@()
-          $audit += "Windows V145 R8.3 Core Integrity build audit"
-          $audit += "Source files scanned: $($jsFiles.Count)"
-          foreach($needle in @('firebase','customer','price','innerHTML','eval(','nodeIntegration','contextIsolation')){
-            $count=[regex]::Matches($allText,[regex]::Escape($needle),'IgnoreCase').Count
-            $audit += "$needle => $count"
-          }
-          $audit += 'Runtime contracts: customer_price_overrides / phone_registry / digit-only normalized phone / id-first test pricing.'
-          $audit += 'R8.3 does not deploy or relax Firestore security rules.'
-          $audit | Set-Content (Join-Path $root 'V145_R83_CORE_INTEGRITY_AUDIT.txt') -Encoding utf8
-
-          @'
-          Windows V145 R8.3 Core Integrity
-          - Package and inquiry customer prices use a single id-first effective-price resolver.
-          - Primary live source matches Android V145: Firestore customer_price_overrides, documents test_<id>, fields customer_price/customerPrice/price.
-          - Price 0 is treated as a valid value; blank/null/NaN are treated as missing.
-          - Package pricing no longer depends on changing the search field or scraping rendered currency text.
-          - The 331-test catalogue remains the canonical name/id fallback and supports Arabic/English/market names.
-          - Customer phone values are normalized to digits before save, matching Android V145 phone_normalized behavior.
-          - Prevents rapid duplicate submits and checks the Android phone_registry collection before a new customer is created when Firestore is available.
-          - Offline mode remains usable: validation/double-submit protection stays active and Firestore duplicate check fails open instead of blocking legitimate work.
-          - Edit flows are not converted to create flows; the guard avoids duplicate-registry blocking when the UI is clearly in edit/update mode.
-          - Inquiry result cards are repaired from the same centralized effective customer-price map when stale/dash prices are detected.
-          - Existing auth/orders/results/backup/failover logic is preserved.
-          '@ | Set-Content (Join-Path $root 'V145_R83_CORE_INTEGRITY_NOTES.txt') -Encoding utf8
+          & pwsh -NoLogo -NoProfile -File "$env:RUNNER_TEMP\r83_scripts\04_core_integrity.ps1"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Setup Node 22
         uses: actions/setup-node@v4
         with:
           node-version: '22'
 
-      - name: Safety audit package pricing
+      - name: Safety audit package pricing and customer core
+        shell: pwsh
+        run: |
+          & pwsh -NoLogo -NoProfile -File "$env:RUNNER_TEMP\r83_scripts\05_safety_audit.ps1"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      # IMPORTANT:
+      # Package the patched source BEFORE npm/electron builds.
+      # This removes the old 7-minute late failure and avoids robocopy entirely.
+      - name: Package patched source safely
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
           $root = Join-Path $PWD 'build_windows/windows-system'
-          $pkg = Get-Content (Join-Path $root 'package.json') -Raw | ConvertFrom-Json
-          if ($pkg.version -ne '145.8.3') { throw "Expected 145.8.3, got $($pkg.version)" }
-          $tests = Get-Content (Join-Path $root 'public/lab_tests_android.json') -Raw | ConvertFrom-Json
-          if ($tests.Count -ne 331) { throw "Expected 331 tests, got $($tests.Count)" }
-          $parity = Get-Content (Join-Path $root 'src/v145r8-parity.js') -Raw
-          foreach($marker in @('V145_PRICE_PARITY_R81','V145_ANDROID_SCREEN_PARITY_R82','V145_R83_CORE_INTEGRITY','R83Core','customer_price_overrides','phone_registry','v145IsInquiryWorkspace','v145SyncPackagePlacement','v145TrackWorkspaceIntent','v145RefreshPackagePriceSpans','V145_PACKAGES','Liver Functions','Basic Checkup')) {
-            if(!$parity.Contains($marker)){throw "Missing price parity marker: $marker"}
+          if (!(Test-Path (Join-Path $root 'package.json'))) { throw 'Patched source root missing' }
+          if (!(Test-Path (Join-Path $root 'src/v145r8-parity.js'))) { throw 'Patched parity module missing' }
+
+          $stage = Join-Path $env:RUNNER_TEMP 'source_stage_r83_final'
+          if (Test-Path $stage) { Remove-Item $stage -Recurse -Force }
+          New-Item -ItemType Directory -Force -Path $stage | Out-Null
+
+          $exclude = @('node_modules', 'release', '.git')
+          Get-ChildItem -LiteralPath $root -Force | Where-Object {
+            $exclude -notcontains $_.Name
+          } | ForEach-Object {
+            Copy-Item -LiteralPath $_.FullName -Destination $stage -Recurse -Force
           }
-          if($parity.Contains("const firstUseful=host.querySelector('section,form,.search-container,.search-box')")) { throw 'Old Home package insertion still present' }
-          if(!$parity.Contains("if(!v145IsInquiryWorkspace()) return;")) { throw 'Inquiry-only package guard missing' }
-          if(!$parity.Contains("const core=window.R83Core;")) { throw 'R8.3 central price delegation missing' }
-          if($parity.Contains('if(__known<pkg.tests.length)v145WarmPackagePrices(pkg);')) { throw 'Legacy package search-warming is still active' }
-          if(!$parity.Contains("PHONE_REGISTRY_COLLECTION='phone_registry'")) { throw 'R8.3 phone registry guard missing' }
-          if(!$parity.Contains("PRICE_COLLECTION='customer_price_overrides'")) { throw 'R8.3 customer price source missing' }
-          node --check (Join-Path $root 'src/v145r8-parity.js')
-          if ($LASTEXITCODE -ne 0) { throw 'Parity module syntax failed' }
-          @'
-          function norm(v){const ar='٠١٢٣٤٥٦٧٨٩',fa='۰۱۲۳۴۵۶۷۸۹',en='0123456789';return String(v).replace(/[٠-٩]/g,d=>en[ar.indexOf(d)]).replace(/[۰-۹]/g,d=>en[fa.indexOf(d)]).replace(/٫/g,'.').replace(/٬/g,',');}
-          function read(t){const s=norm(t);const ps=[/(?:السعر|price)\s*[:：-]?\s*(\d{1,6}(?:[.,]\d{1,3})?)\s*(?:جنيه|ج(?:\.?\s*م\.?)?|egp|l\.?e\.?)?/i,/(\d{1,6}(?:[.,]\d{1,3})?)\s*(?:جنيه|ج(?:\.?\s*م\.?)?|egp|l\.?e\.?)(?=\s|$|[^\p{L}\p{N}_])/iu,/(?:جنيه|ج(?:\.?\s*م\.?)?|egp|l\.?e\.?)\s*[:：-]?\s*(\d{1,6}(?:[.,]\d{1,3})?)/i];for(const p of ps){const m=s.match(p);if(m)return Number(m[1].replace(',','.'));}return null;}
-          const cases=[['250 جنيه',250],['السعر: ٣٧٥ جنيه',375],['450 ج',450],['EGP 525',525],['Price 600 EGP',600]];
-          for(const [s,e] of cases){if(read(s)!==e){console.error(s,read(s),e);process.exit(1)}}
-          console.log('Arabic/English package price parser OK');
-          '@ | Set-Content 'price-parser-smoke.js' -Encoding utf8
-          node price-parser-smoke.js
-          if ($LASTEXITCODE -ne 0) { throw 'Package price parser smoke failed' }
-          @'
-          function d(v){const ar='٠١٢٣٤٥٦٧٨٩',fa='۰۱۲۳۴۵۶۷۸۹',en='0123456789';return String(v??'').replace(/[٠-٩]/g,x=>en[ar.indexOf(x)]).replace(/[۰-۹]/g,x=>en[fa.indexOf(x)]);}
-          function phone(v){return d(v).replace(/\D+/g,'');}
-          function money(v){if(v===null||v===undefined||String(v).trim()==='')return null;let s=d(v).trim().replace(/\s*(?:جنيه|ج|egp|le)\s*/ig,'').replace(',','.');const n=Number(s);return Number.isFinite(n)&&n>=0?n:null;}
-          const phoneCases=[['٠١٠ ١٢٣٤-٥٦٧٨','01012345678'],['+20 101 234 5678','201012345678']];
-          for(const [s,e] of phoneCases){if(phone(s)!==e)process.exit(11);}
-          for(const [s,e] of [[0,0],['0',0],['250 جنيه',250],['',null],[null,null]]){if(money(s)!==e)process.exit(12);}
-          console.log('R8.3 phone + money contract OK');
-          '@ | Set-Content 'r83-core-smoke.js' -Encoding utf8
-          node r83-core-smoke.js
-          if ($LASTEXITCODE -ne 0) { throw 'R8.3 core smoke failed' }
-          Write-Host 'WINDOWS V145 R8.3 CORE INTEGRITY SAFETY AUDIT PASSED'
+
+          foreach ($required in @(
+            'package.json',
+            'src/v145r8-parity.js',
+            'V145_R83_CORE_INTEGRITY_AUDIT.txt',
+            'V145_R83_CORE_INTEGRITY_NOTES.txt'
+          )) {
+            if (!(Test-Path (Join-Path $stage $required))) {
+              throw "Source package missing required file: $required"
+            }
+          }
+
+          $zip = Join-Path $PWD 'Tahalil-Alakkad-V145-R8.3-Windows-Source.zip'
+          if (Test-Path $zip) { Remove-Item $zip -Force }
+
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          [System.IO.Compression.ZipFile]::CreateFromDirectory(
+            $stage,
+            $zip,
+            [System.IO.Compression.CompressionLevel]::Optimal,
+            $false
+          )
+
+          if (!(Test-Path $zip)) { throw 'Patched source ZIP was not created' }
+          if ((Get-Item $zip).Length -lt 50000) { throw 'Patched source ZIP unexpectedly small' }
+
+          $hash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  Tahalil-Alakkad-V145-R8.3-Windows-Source.zip" |
+            Set-Content 'Tahalil-Alakkad-V145-R8.3-Windows-Source.zip.sha256' -Encoding ascii
+
+          Copy-Item (Join-Path $root 'V145_R83_CORE_INTEGRITY_AUDIT.txt') 'V145_R83_CORE_INTEGRITY_AUDIT.txt' -Force
+          Copy-Item (Join-Path $root 'V145_R83_CORE_INTEGRITY_NOTES.txt') 'V145_R83_CORE_INTEGRITY_NOTES.txt' -Force
+
+          Write-Host "SOURCE PACKAGE OK: $((Get-Item $zip).Length) bytes"
 
       - name: Install dependencies
         working-directory: build_windows/windows-system
         shell: pwsh
         run: |
-          $ErrorActionPreference = 'Stop'
-          npm install --no-audit --no-fund
-          if ($LASTEXITCODE -ne 0) { throw 'npm install failed' }
+          & pwsh -NoLogo -NoProfile -File "$env:RUNNER_TEMP\r83_scripts\06_install.ps1"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Build Portable
         working-directory: build_windows/windows-system
         shell: pwsh
         run: |
-          $ErrorActionPreference = 'Stop'
-          npm run dist:portable
-          if ($LASTEXITCODE -ne 0) { throw 'Portable build failed' }
+          & pwsh -NoLogo -NoProfile -File "$env:RUNNER_TEMP\r83_scripts\07_build_portable.ps1"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Portable startup smoke
         shell: pwsh
         run: |
-          $ErrorActionPreference = 'Stop'
-          $release = Join-Path $PWD 'build_windows/windows-system/release'
-          $exe = Get-ChildItem $release -Filter '*Portable*.exe' -File | Sort-Object Length -Descending | Select-Object -First 1
-          if (!$exe) { throw 'Portable EXE not found' }
-          $env:TAHALIL_SMOKE_TEST='1'
-          $p=Start-Process $exe.FullName -PassThru
-          if (!$p.WaitForExit(45000)) { Stop-Process -Id $p.Id -Force; throw 'Portable smoke timed out' }
-          if ($p.ExitCode -ne 0) { throw "Portable smoke exit code $($p.ExitCode)" }
-          Remove-Item Env:TAHALIL_SMOKE_TEST -ErrorAction SilentlyContinue
-          Write-Host 'PORTABLE STARTUP OK'
+          & pwsh -NoLogo -NoProfile -File "$env:RUNNER_TEMP\r83_scripts\08_portable_smoke.ps1"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Build Setup
         working-directory: build_windows/windows-system
         shell: pwsh
         run: |
-          $ErrorActionPreference = 'Stop'
-          npm run dist:setup
-          if ($LASTEXITCODE -ne 0) { throw 'Setup build failed' }
+          & pwsh -NoLogo -NoProfile -File "$env:RUNNER_TEMP\r83_scripts\09_build_setup.ps1"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Prepare delivery files
         shell: pwsh
         run: |
-          $ErrorActionPreference = 'Stop'
-          $release = Join-Path $PWD 'build_windows/windows-system/release'
-          $portable = Get-ChildItem $release -Filter '*Portable*.exe' -File | Sort-Object Length -Descending | Select-Object -First 1
-          $setup = Get-ChildItem $release -Filter '*Setup*.exe' -File | Sort-Object Length -Descending | Select-Object -First 1
-          if (!$portable -or !$setup) { throw 'Portable or Setup EXE missing' }
-          Copy-Item $portable.FullName 'Tahalil-Alakkad-V145-R8.3-Windows-Portable.exe' -Force
-          Copy-Item $setup.FullName 'Tahalil-Alakkad-V145-R8.3-Windows-Setup.exe' -Force
-          foreach ($name in @('Tahalil-Alakkad-V145-R8.3-Windows-Portable.exe','Tahalil-Alakkad-V145-R8.3-Windows-Setup.exe')) {
-            if ((Get-Item $name).Length -lt 100000) { throw "$name unexpectedly small" }
-            $hash=(Get-FileHash $name -Algorithm SHA256).Hash.ToLowerInvariant()
-            "$hash  $name" | Set-Content "$name.sha256" -Encoding ascii
-          }
+          & pwsh -NoLogo -NoProfile -File "$env:RUNNER_TEMP\r83_scripts\10_prepare_delivery.ps1"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-      - name: Package patched source and audit notes
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = 'Stop'
-          $root = Join-Path $PWD 'build_windows/windows-system'
-          $stage = Join-Path $PWD 'source_stage_r83'
-          if(Test-Path $stage){Remove-Item $stage -Recurse -Force}
-          New-Item -ItemType Directory -Path $stage -Force | Out-Null
-          robocopy $root $stage /E /XD node_modules release .git /XF '*.exe' | Out-Null
-          if($LASTEXITCODE -gt 7){throw "Source staging failed: robocopy $LASTEXITCODE"}
-          $zip='Tahalil-Alakkad-V145-R8.3-Windows-Source.zip'
-          if(Test-Path $zip){Remove-Item $zip -Force}
-          Compress-Archive -Path (Join-Path $stage '*') -DestinationPath $zip -CompressionLevel Optimal
-          if((Get-Item $zip).Length -lt 50000){throw 'Patched source ZIP unexpectedly small'}
-          foreach($name in @($zip)){
-            $hash=(Get-FileHash $name -Algorithm SHA256).Hash.ToLowerInvariant()
-            "$hash  $name" | Set-Content "$name.sha256" -Encoding ascii
+          foreach ($file in @(
+            'Tahalil-Alakkad-V145-R8.3-Windows-Portable.exe',
+            'Tahalil-Alakkad-V145-R8.3-Windows-Portable.exe.sha256',
+            'Tahalil-Alakkad-V145-R8.3-Windows-Setup.exe',
+            'Tahalil-Alakkad-V145-R8.3-Windows-Setup.exe.sha256',
+            'Tahalil-Alakkad-V145-R8.3-Windows-Source.zip',
+            'Tahalil-Alakkad-V145-R8.3-Windows-Source.zip.sha256',
+            'V145_R83_CORE_INTEGRITY_AUDIT.txt',
+            'V145_R83_CORE_INTEGRITY_NOTES.txt'
+          )) {
+            if (!(Test-Path $file)) { throw "Delivery file missing: $file" }
           }
-          Copy-Item (Join-Path $root 'V145_R83_CORE_INTEGRITY_AUDIT.txt') 'V145_R83_CORE_INTEGRITY_AUDIT.txt' -Force
-          Copy-Item (Join-Path $root 'V145_R83_CORE_INTEGRITY_NOTES.txt') 'V145_R83_CORE_INTEGRITY_NOTES.txt' -Force
 
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Tahalil-Alakkad-V145-R8.3-Windows
+          name: Tahalil-Alakkad-V145-R8.3-Windows-FINAL
           path: |
             Tahalil-Alakkad-V145-R8.3-Windows-Portable.exe
             Tahalil-Alakkad-V145-R8.3-Windows-Portable.exe.sha256
@@ -931,6 +269,7 @@ jobs:
             V145_R83_CORE_INTEGRITY_AUDIT.txt
             V145_R83_CORE_INTEGRITY_NOTES.txt
           retention-days: 30
+          if-no-files-found: error
 
       - name: Publish Windows V145 R8.3 release
         shell: pwsh
@@ -938,30 +277,44 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           $ErrorActionPreference = 'Stop'
-          $tag='v145-r8.3-windows'
+          $tag = 'v145-r8.3-windows'
+          $title = 'تحاليل العقاد Windows V145 R8.3 — Core Integrity FINAL'
+          $notes = @'
+          Windows V145 R8.3 Core Integrity FINAL
+
+          - Central Android-compatible customer pricing from customer_price_overrides.
+          - ID-first package and inquiry pricing.
+          - Customer phone normalization and duplicate-submit protection.
+          - phone_registry duplicate detection for new customers when Firebase is available.
+          - Android screen parity retained: packages only inside Test Inquiry.
+          - Existing auth, orders, results, backup, failover and 331-test catalogue preserved.
+          - Portable startup smoke test passed before release.
+          - Source packaging is validated before the expensive Electron builds and no longer uses robocopy.
+          '@
+
           gh release view $tag --repo "$env:GITHUB_REPOSITORY" *> $null
           if ($LASTEXITCODE -eq 0) {
-            gh release delete $tag --repo "$env:GITHUB_REPOSITORY" --yes
-            git push origin ":refs/tags/$tag" 2>$null
+            gh release edit $tag --repo "$env:GITHUB_REPOSITORY" --title $title --notes $notes
+            if ($LASTEXITCODE -ne 0) { throw 'Could not update existing R8.3 release metadata' }
+          } else {
+            gh release create $tag --repo "$env:GITHUB_REPOSITORY" --title $title --notes $notes
+            if ($LASTEXITCODE -ne 0) { throw 'Could not create Windows V145 R8.3 release' }
           }
-          gh release create $tag `
-            --repo "$env:GITHUB_REPOSITORY" `
-            --title "تحاليل العقاد Windows V145 R8.3 — Core Integrity" `
-            --notes "Core Integrity release for Windows V145: central Android-compatible customer pricing from customer_price_overrides, id-first package/inquiry prices, phone normalization, duplicate-submit protection and phone_registry duplicate detection for new customers. Preserves Android screen parity, Firebase/auth/orders/results/backup/failover and the 331-test catalogue. Includes patched source and audit notes."
-          if ($LASTEXITCODE -ne 0) { throw 'Could not create Windows V145 R8.3 release' }
-          gh release upload $tag `
-            'Tahalil-Alakkad-V145-R8.3-Windows-Portable.exe' `
-            'Tahalil-Alakkad-V145-R8.3-Windows-Portable.exe.sha256' `
-            'Tahalil-Alakkad-V145-R8.3-Windows-Setup.exe' `
-            'Tahalil-Alakkad-V145-R8.3-Windows-Setup.exe.sha256' `
-            'Tahalil-Alakkad-V145-R8.3-Windows-Source.zip' `
-            'Tahalil-Alakkad-V145-R8.3-Windows-Source.zip.sha256' `
-            'V145_R83_CORE_INTEGRITY_AUDIT.txt' `
-            'V145_R83_CORE_INTEGRITY_NOTES.txt' `
-            --repo "$env:GITHUB_REPOSITORY"
-          if ($LASTEXITCODE -ne 0) { throw 'Could not upload Windows V145 R8.3 files' }
+
+          $files = @(
+            'Tahalil-Alakkad-V145-R8.3-Windows-Portable.exe',
+            'Tahalil-Alakkad-V145-R8.3-Windows-Portable.exe.sha256',
+            'Tahalil-Alakkad-V145-R8.3-Windows-Setup.exe',
+            'Tahalil-Alakkad-V145-R8.3-Windows-Setup.exe.sha256',
+            'Tahalil-Alakkad-V145-R8.3-Windows-Source.zip',
+            'Tahalil-Alakkad-V145-R8.3-Windows-Source.zip.sha256',
+            'V145_R83_CORE_INTEGRITY_AUDIT.txt',
+            'V145_R83_CORE_INTEGRITY_NOTES.txt'
+          )
+          gh release upload $tag @files --repo "$env:GITHUB_REPOSITORY" --clobber
+          if ($LASTEXITCODE -ne 0) { throw 'Could not upload Windows V145 R8.3 release files' }
 
       - name: Final status
         shell: pwsh
         run: |
-          Write-Host 'WINDOWS V145 R8.3 CORE INTEGRITY BUILT, AUDITED, SMOKE-TESTED AND RELEASED'
+          Write-Host 'WINDOWS V145 R8.3 CORE INTEGRITY FINAL — BUILT, AUDITED, SMOKE-TESTED, PACKAGED AND RELEASED'
