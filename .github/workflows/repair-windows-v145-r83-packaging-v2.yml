@@ -1,0 +1,124 @@
+name: Repair Windows V145 R8.3 Packaging V2
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: repair-windows-v145-r83-packaging-v2
+  cancel-in-progress: true
+
+jobs:
+  repair-and-run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Patch robocopy exit code safely
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          $path = '.github/workflows/windows-v145-r83-core-integrity.yml'
+          if (!(Test-Path $path)) {
+            throw "Target workflow not found: $path"
+          }
+
+          $lines = [System.Collections.Generic.List[string]]::new()
+          Get-Content $path | ForEach-Object { [void]$lines.Add($_) }
+
+          # If the real fix is already present, do not patch twice.
+          $joined = $lines -join "`n"
+          if ($joined.Contains('$robocopyCode = $LASTEXITCODE') -and
+              $joined.Contains('$global:LASTEXITCODE = 0')) {
+            Write-Host 'R8.3 robocopy fix is already present.'
+          }
+          else {
+            $robocopyIndex = -1
+            for ($i = 0; $i -lt $lines.Count; $i++) {
+              if ($lines[$i] -match '^\s*robocopy\s+\$root\s+\$stage\s+/E\s+/XD\s+node_modules\s+release\s+\.git\s+/XF\s+''\*\.exe''\s*\|\s*Out-Null\s*$') {
+                $robocopyIndex = $i
+                break
+              }
+            }
+
+            if ($robocopyIndex -lt 0) {
+              throw 'R8.3 robocopy command was not found.'
+            }
+
+            $guardIndex = -1
+            $lastCandidate = [Math]::Min($lines.Count - 1, $robocopyIndex + 6)
+            for ($i = $robocopyIndex + 1; $i -le $lastCandidate; $i++) {
+              if ($lines[$i] -match '\$LASTEXITCODE\s*-gt\s*7') {
+                $guardIndex = $i
+                break
+              }
+            }
+
+            if ($guardIndex -lt 0) {
+              throw 'R8.3 robocopy exit-code guard was not found near the robocopy command.'
+            }
+
+            $indent = ([regex]::Match($lines[$guardIndex], '^\s*')).Value
+
+            # Replace the old guard with a safe 3-line block.
+            $lines[$guardIndex] = $indent + '$robocopyCode = $LASTEXITCODE'
+            $lines.Insert(
+              $guardIndex + 1,
+              $indent + 'if($robocopyCode -gt 7){throw "Source staging failed: robocopy $robocopyCode"}'
+            )
+            $lines.Insert(
+              $guardIndex + 2,
+              $indent + '$global:LASTEXITCODE = 0'
+            )
+
+            Set-Content -Path $path -Value $lines -Encoding utf8
+            Write-Host 'Patched R8.3 robocopy exit handling.'
+          }
+
+          $check = Get-Content $path -Raw
+          if (!$check.Contains('$robocopyCode = $LASTEXITCODE')) {
+            throw 'Repair verification failed: robocopyCode capture missing.'
+          }
+          if (!$check.Contains('$global:LASTEXITCODE = 0')) {
+            throw 'Repair verification failed: LASTEXITCODE reset missing.'
+          }
+
+          Write-Host 'R8.3 packaging repair verification passed.'
+
+      - name: Commit repair
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if git diff --quiet -- .github/workflows/windows-v145-r83-core-integrity.yml; then
+            echo "No workflow change needed."
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add .github/workflows/windows-v145-r83-core-integrity.yml
+            git commit -m "Fix R8.3 robocopy packaging exit handling"
+            git push origin HEAD:main
+          fi
+
+      - name: Start corrected R8.3 build
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh workflow run windows-v145-r83-core-integrity.yml --ref main
+          echo "Corrected Windows V145 R8.3 build dispatched."
+
+      - name: Final status
+        shell: bash
+        run: |
+          echo "R8.3 packaging repair committed and corrected build started."
