@@ -1,0 +1,387 @@
+name: Windows V145 R8.6 Optional Customer Fields Fix
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: tahalil-windows-v145-r86-optional-customer-fields
+  cancel-in-progress: false
+
+jobs:
+  windows-v145-r86:
+    name: Windows V145 R8.6 — Optional Customer Fields
+    runs-on: windows-latest
+    timeout-minutes: 110
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: "false"
+      R85_TAG: "v145-r8.5-windows"
+      R85_SOURCE: "Tahalil-Alakkad-V145-R8.5-Windows-Source.zip"
+      R85_SOURCE_SHA256: "6b06d90c33ef782c8f7f631106f7d23c7b448d1b9c9d2dd5ddeb66064fc3937d"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Download exact R8.5 source
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $zip = Join-Path $PWD $env:R85_SOURCE
+          if (Test-Path $zip) { Remove-Item $zip -Force }
+          gh release download $env:R85_TAG --repo "$env:GITHUB_REPOSITORY" --pattern $env:R85_SOURCE --dir $PWD
+          if ($LASTEXITCODE -ne 0 -or !(Test-Path $zip)) { throw 'Could not download exact R8.5 source release' }
+
+          $hash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($hash -ne $env:R85_SOURCE_SHA256) { throw "R8.5 source hash mismatch: $hash" }
+
+          $root = Join-Path $PWD 'build_windows/windows-system'
+          if (Test-Path (Join-Path $PWD 'build_windows')) { Remove-Item (Join-Path $PWD 'build_windows') -Recurse -Force }
+          New-Item -ItemType Directory -Force -Path $root | Out-Null
+          Expand-Archive -Path $zip -DestinationPath $root -Force
+
+          foreach ($required in @('package.json','src/app.js','src/data.js','src/styles.css','src/v145r8-parity.js','electron/main.cjs','electron/preload.cjs')) {
+            if (!(Test-Path (Join-Path $root $required))) { throw "R8.5 source missing: $required" }
+          }
+          Write-Host "Exact R8.5 source restored: $hash"
+
+      - name: Apply fully optional customer fields fix
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $root = Join-Path $PWD 'build_windows/windows-system'
+          $patcher = @'
+          from pathlib import Path
+          import json
+          import re
+          import sys
+
+          root = Path(sys.argv[1])
+          app_path = root / 'src' / 'app.js'
+          data_path = root / 'src' / 'data.js'
+          parity_path = root / 'src' / 'v145r8-parity.js'
+          pkg_path = root / 'package.json'
+
+          app = app_path.read_text(encoding='utf-8-sig')
+          data = data_path.read_text(encoding='utf-8-sig')
+          parity = parity_path.read_text(encoding='utf-8-sig')
+
+          if 'TAH_UNIFIED_FORMS_R85' not in app:
+              raise SystemExit('R8.5 unified forms marker missing')
+          if 'V145_R83_CORE_INTEGRITY' not in parity:
+              raise SystemExit('R8.3 core integrity marker missing')
+          if 'TAH_CUSTOMER_OPTIONAL_FIELDS_R86' in app or 'TAH_CUSTOMER_OPTIONAL_FIELDS_R86' in parity:
+              raise SystemExit('R8.6 optional fields fix already installed')
+
+          app_replacements = [
+              ("{name:'name',label:'اسم العميل',required:true}", "{name:'name',label:'اسم العميل'}"),
+              ("{name:'name',label:'اسم العميل',value:o.customer_name||'',required:true}", "{name:'name',label:'اسم العميل',value:o.customer_name||''}"),
+              ("{name:'name',label:'الاسم',value:x.name||'',required:true}", "{name:'name',label:'الاسم',value:x.name||''}"),
+              ("{name:'age',label:'العمر',type:'number',min:0,max:120}", "{name:'age',label:'العمر'}"),
+              ("{name:'age',label:'العمر',type:'number',min:0,max:120,value:o.customer_age||''}", "{name:'age',label:'العمر',value:o.customer_age||''}"),
+              ("{name:'age',label:'العمر',type:'number',min:0,max:120,value:x.age||''}", "{name:'age',label:'العمر',value:x.age||''}")
+          ]
+
+          changed = 0
+          for old, new in app_replacements:
+              count = app.count(old)
+              if count:
+                  app = app.replace(old, new)
+                  changed += count
+
+          if changed < 6:
+              raise SystemExit(f'Customer UI patch changed too few targets: {changed}')
+
+          app = "/* TAH_CUSTOMER_OPTIONAL_FIELDS_R86 — all customer registration fields are optional. */\n" + app
+
+          old_validation = (
+              "const now=Date.now(),uid=auth.currentUser.uid,email=auth.currentUser.email||'',"
+              "name=String(data.name||'').trim(),phone=String(data.phone||'').trim(),"
+              "alt=String(data.alternate_phone||'').trim(),pn=phoneNorm(phone),an=phoneNorm(alt);"
+              "if(name.length<2)throw new Error('اكتب اسم العميل');"
+              "if(pn.length<8)throw new Error('اكتب رقم واتساب صحيح');"
+              "if(an&&an.length<8)throw new Error('رقم الموبايل البديل غير صحيح');"
+              "if(an&&an===pn)throw new Error('رقم الموبايل البديل مطابق للرقم الأساسي');"
+          )
+          new_validation = (
+              "const now=Date.now(),uid=auth.currentUser.uid,email=auth.currentUser.email||'',"
+              "name=String(data.name??'').trim(),phone=String(data.phone??'').trim(),"
+              "alt=String(data.alternate_phone??'').trim(),pn=phoneNorm(phone),an=phoneNorm(alt);"
+          )
+          if old_validation not in data:
+              raise SystemExit('saveCustomer validation block not found')
+          data = data.replace(old_validation, new_validation, 1)
+
+          old_sets = (
+              "oldNums=[phoneNorm(oldData?.phone),phoneNorm(oldData?.alternate_phone)].filter(Boolean),"
+              "newNums=[pn,an].filter(Boolean);"
+          )
+          new_sets = (
+              "oldNums=[...new Set([phoneNorm(oldData?.phone),phoneNorm(oldData?.alternate_phone)].filter(Boolean))],"
+              "newNums=[...new Set([pn,an].filter(Boolean))];"
+          )
+          if old_sets not in data:
+              raise SystemExit('saveCustomer phone set block not found')
+          data = data.replace(old_sets, new_sets, 1)
+
+          validate_pattern = re.compile(
+              r"function validateCustomer\(scope\)\{.*?\}\s*function localDuplicatePhone",
+              re.S
+          )
+          validate_replacement = r'''function validateCustomer(scope){
+              /* TAH_CUSTOMER_OPTIONAL_FIELDS_R86 */
+              const phones=phoneInputs(scope);
+              for(const el of phones){
+                el.value=phone(el.value);
+              }
+              return {
+                ok:true,
+                phones:[...new Set(phones.map(x=>phone(x.value)).filter(Boolean))]
+              };
+            }
+            function localDuplicatePhone'''
+
+          parity, n = validate_pattern.subn(validate_replacement, parity, count=1)
+          if n != 1:
+              raise SystemExit(f'Could not replace R8.3 customer validator: {n}')
+
+          pkg = json.loads(pkg_path.read_text(encoding='utf-8-sig'))
+          if str(pkg.get('version')) != '145.8.5':
+              raise SystemExit(f"Expected R8.5 package version, got {pkg.get('version')}")
+          pkg['version'] = '145.8.6'
+          pkg['description'] = 'Tahalil Alakkad Windows V145 R8.6 — all customer fields optional and blank customer records save correctly'
+
+          app_path.write_text(app, encoding='utf-8')
+          data_path.write_text(data, encoding='utf-8')
+          parity_path.write_text(parity, encoding='utf-8')
+          pkg_path.write_text(json.dumps(pkg, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+
+          notes = root / 'V145_R86_OPTIONAL_CUSTOMER_FIELDS_NOTES.txt'
+          notes.write_text(
+              '- All customer registration fields are optional.\n'
+              '- Blank name, phone, age, gender and address are accepted.\n'
+              '- An entirely blank customer can be saved and receives an automatic file number.\n'
+              '- Removed hidden R8.3 customer validation that blocked Save.\n'
+              '- Removed saveCustomer name/phone length requirements in the data layer.\n'
+              '- Duplicate-phone protection runs only when a nonblank normalized phone exists.\n'
+              '- R8.5 unified forms and atomic Cancel/X/Escape behavior are preserved.\n',
+              encoding='utf-8'
+          )
+
+          print('R86_OPTIONAL_CUSTOMER_FIELDS_APPLIED')
+          print('UI_TARGETS_CHANGED=' + str(changed))
+          '@
+
+          $patcherPath = Join-Path $env:RUNNER_TEMP 'patch_r86.py'
+          $patcher | Set-Content $patcherPath -Encoding utf8
+          python $patcherPath $root
+          if ($LASTEXITCODE -ne 0) { throw 'R8.6 optional customer fields patch failed' }
+
+      - name: Audit blank customer save contract
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $root = Join-Path $PWD 'build_windows/windows-system'
+          $pkg = Get-Content (Join-Path $root 'package.json') -Raw | ConvertFrom-Json
+          if ($pkg.version -ne '145.8.6') { throw "Expected version 145.8.6, got $($pkg.version)" }
+
+          $app = Get-Content (Join-Path $root 'src/app.js') -Raw
+          $data = Get-Content (Join-Path $root 'src/data.js') -Raw
+          $parity = Get-Content (Join-Path $root 'src/v145r8-parity.js') -Raw
+
+          foreach ($marker in @('TAH_UNIFIED_FORMS_R85','TAH_CUSTOMER_OPTIONAL_FIELDS_R86','V145_R83_CORE_INTEGRITY','phone_registry')) {
+            if (!(($app + $data + $parity).Contains($marker))) { throw "Missing required marker: $marker" }
+          }
+
+          foreach ($forbidden in @(
+            "if(name.length<2)throw new Error('اكتب اسم العميل')",
+            "if(pn.length<8)throw new Error('اكتب رقم واتساب صحيح')",
+            "if(an&&an.length<8)throw new Error('رقم الموبايل البديل غير صحيح')"
+          )) {
+            if ($data.Contains($forbidden)) { throw "Old customer save restriction remains: $forbidden" }
+          }
+
+          foreach ($forbidden in @(
+            "label:'اسم العميل',required:true",
+            "label:'الاسم',value:x.name||'',required:true",
+            "label:'اسم العميل',value:o.customer_name||'',required:true",
+            "label:'العمر',type:'number',min:0,max:120"
+          )) {
+            if ($app.Contains($forbidden)) { throw "Old customer UI restriction remains: $forbidden" }
+          }
+
+          if (!$parity.Contains('phones:[...new Set(phones.map(x=>phone(x.value)).filter(Boolean))]')) {
+            throw 'R8.6 optional customer guard contract missing'
+          }
+
+          if (!$data.Contains("newNums=[...new Set([pn,an].filter(Boolean))]")) {
+            throw 'Blank-safe phone registry contract missing'
+          }
+
+          node --check (Join-Path $root 'src/app.js')
+          if ($LASTEXITCODE -ne 0) { throw 'app.js syntax failed' }
+          node --check (Join-Path $root 'src/data.js')
+          if ($LASTEXITCODE -ne 0) { throw 'data.js syntax failed' }
+          node --check (Join-Path $root 'src/v145r8-parity.js')
+          if ($LASTEXITCODE -ne 0) { throw 'v145r8-parity.js syntax failed' }
+          node --check (Join-Path $root 'electron/main.cjs')
+          if ($LASTEXITCODE -ne 0) { throw 'main.cjs syntax failed' }
+          node --check (Join-Path $root 'electron/preload.cjs')
+          if ($LASTEXITCODE -ne 0) { throw 'preload.cjs syntax failed' }
+
+          Write-Host 'R8.6 AUDIT PASSED — CUSTOMER FIELDS OPTIONAL AND BLANK SAVE CONTRACT ACTIVE'
+
+      - name: Package R8.6 source before dependencies
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $root = Join-Path $PWD 'build_windows/windows-system'
+          $stage = Join-Path $env:RUNNER_TEMP 'source_stage_r86'
+          if (Test-Path $stage) { Remove-Item $stage -Recurse -Force }
+          New-Item -ItemType Directory -Force -Path $stage | Out-Null
+
+          Get-ChildItem -LiteralPath $root -Force | Where-Object { @('node_modules','release','.git') -notcontains $_.Name } | ForEach-Object {
+            Copy-Item -LiteralPath $_.FullName -Destination $stage -Recurse -Force
+          }
+
+          $zip = Join-Path $PWD 'Tahalil-Alakkad-V145-R8.6-Windows-Source.zip'
+          if (Test-Path $zip) { Remove-Item $zip -Force }
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          [System.IO.Compression.ZipFile]::CreateFromDirectory($stage,$zip,[System.IO.Compression.CompressionLevel]::Optimal,$false)
+
+          if (!(Test-Path $zip) -or (Get-Item $zip).Length -lt 50000) { throw 'R8.6 source ZIP invalid' }
+          $hash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  Tahalil-Alakkad-V145-R8.6-Windows-Source.zip" | Set-Content 'Tahalil-Alakkad-V145-R8.6-Windows-Source.zip.sha256' -Encoding ascii
+          Copy-Item (Join-Path $root 'V145_R86_OPTIONAL_CUSTOMER_FIELDS_NOTES.txt') 'V145_R86_OPTIONAL_CUSTOMER_FIELDS_NOTES.txt' -Force
+
+      - name: Install dependencies
+        working-directory: build_windows/windows-system
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          npm install --no-audit --no-fund
+          if ($LASTEXITCODE -ne 0) { throw 'npm install failed' }
+
+      - name: Build Portable
+        working-directory: build_windows/windows-system
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          npm run dist:portable
+          if ($LASTEXITCODE -ne 0) { throw 'Portable build failed' }
+
+      - name: Portable startup smoke
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $release = Join-Path $PWD 'build_windows/windows-system/release'
+          $portable = Get-ChildItem $release -Filter '*Portable*.exe' -File | Sort-Object Length -Descending | Select-Object -First 1
+          if (!$portable) { throw 'Portable EXE missing for smoke test' }
+
+          $proc = Start-Process -FilePath $portable.FullName -PassThru
+          Start-Sleep -Seconds 12
+          if ($proc.HasExited) {
+            if ($proc.ExitCode -ne 0) { throw "Portable exited during smoke test with code $($proc.ExitCode)" }
+            throw 'Portable exited unexpectedly during smoke window'
+          }
+
+          Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
+          Write-Host 'Portable startup smoke passed'
+
+      - name: Build Setup
+        working-directory: build_windows/windows-system
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          npm run dist:setup
+          if ($LASTEXITCODE -ne 0) { throw 'Setup build failed' }
+
+      - name: Prepare R8.6 delivery files
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $release = Join-Path $PWD 'build_windows/windows-system/release'
+          $portable = Get-ChildItem $release -Filter '*Portable*.exe' -File | Sort-Object Length -Descending | Select-Object -First 1
+          $setup = Get-ChildItem $release -Filter '*Setup*.exe' -File | Sort-Object Length -Descending | Select-Object -First 1
+          if (!$portable -or !$setup) { throw 'Portable or Setup EXE missing' }
+
+          Copy-Item $portable.FullName 'Tahalil-Alakkad-V145-R8.6-Windows-Portable.exe' -Force
+          Copy-Item $setup.FullName 'Tahalil-Alakkad-V145-R8.6-Windows-Setup.exe' -Force
+
+          foreach ($name in @('Tahalil-Alakkad-V145-R8.6-Windows-Portable.exe','Tahalil-Alakkad-V145-R8.6-Windows-Setup.exe')) {
+            if ((Get-Item $name).Length -lt 100000) { throw "$name unexpectedly small" }
+            $hash = (Get-FileHash $name -Algorithm SHA256).Hash.ToLowerInvariant()
+            "$hash  $name" | Set-Content "$name.sha256" -Encoding ascii
+          }
+
+      - name: Upload R8.6 workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Tahalil-Alakkad-V145-R8.6-Windows-Optional-Customer-Fields
+          path: |
+            Tahalil-Alakkad-V145-R8.6-Windows-Portable.exe
+            Tahalil-Alakkad-V145-R8.6-Windows-Portable.exe.sha256
+            Tahalil-Alakkad-V145-R8.6-Windows-Setup.exe
+            Tahalil-Alakkad-V145-R8.6-Windows-Setup.exe.sha256
+            Tahalil-Alakkad-V145-R8.6-Windows-Source.zip
+            Tahalil-Alakkad-V145-R8.6-Windows-Source.zip.sha256
+            V145_R86_OPTIONAL_CUSTOMER_FIELDS_NOTES.txt
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Publish Windows V145 R8.6 release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $tag = 'v145-r8.6-windows'
+          $title = 'تحاليل العقاد Windows V145 R8.6 — Optional Customer Fields'
+
+          $notes = @'
+          Windows V145 R8.6 — Optional Customer Fields Fix
+
+          - Every customer registration field is optional.
+          - Blank name, phone, age, gender and address are accepted.
+          - An entirely blank customer can be saved and receives an automatic file number.
+          - Removes the hidden R8.3 customer validation gate that blocked Save.
+          - Removes saveCustomer name/phone length requirements in the data layer.
+          - Duplicate-phone protection runs only when a nonblank phone exists.
+          - R8.5 unified forms and atomic Cancel/X/Escape behavior are preserved.
+          '@
+
+          $files = @(
+            'Tahalil-Alakkad-V145-R8.6-Windows-Portable.exe',
+            'Tahalil-Alakkad-V145-R8.6-Windows-Portable.exe.sha256',
+            'Tahalil-Alakkad-V145-R8.6-Windows-Setup.exe',
+            'Tahalil-Alakkad-V145-R8.6-Windows-Setup.exe.sha256',
+            'Tahalil-Alakkad-V145-R8.6-Windows-Source.zip',
+            'Tahalil-Alakkad-V145-R8.6-Windows-Source.zip.sha256',
+            'V145_R86_OPTIONAL_CUSTOMER_FIELDS_NOTES.txt'
+          )
+
+          gh release view $tag --repo "$env:GITHUB_REPOSITORY" *> $null
+          if ($LASTEXITCODE -eq 0) {
+            gh release edit $tag --repo "$env:GITHUB_REPOSITORY" --title $title --notes $notes
+            if ($LASTEXITCODE -ne 0) { throw 'Could not update R8.6 release metadata' }
+          } else {
+            gh release create $tag --repo "$env:GITHUB_REPOSITORY" --title $title --notes $notes
+            if ($LASTEXITCODE -ne 0) { throw 'Could not create R8.6 release' }
+          }
+
+          gh release upload $tag @files --repo "$env:GITHUB_REPOSITORY" --clobber
+          if ($LASTEXITCODE -ne 0) { throw 'Could not upload R8.6 release files' }
+
+      - name: Final status
+        shell: pwsh
+        run: |
+          Write-Host 'WINDOWS V145 R8.6 OPTIONAL CUSTOMER FIELDS — BUILT, AUDITED, SMOKE-TESTED AND RELEASED'
