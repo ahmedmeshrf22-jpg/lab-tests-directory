@@ -1,0 +1,742 @@
+name: Windows V145 R8.8 Main UI Redesign
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: tahalil-windows-v145-r88-main-ui-redesign
+  cancel-in-progress: false
+
+jobs:
+  windows-v145-r88:
+    name: Windows V145 R8.8 — Main UI Redesign
+    runs-on: windows-latest
+    timeout-minutes: 110
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: "false"
+      R87_TAG: "v145-r8.7-windows"
+      R87_SOURCE: "Tahalil-Alakkad-V145-R8.7-Windows-Source.zip"
+      R87_SOURCE_SHA256: "830b7121e0377324a3814c374c3bf139fc738eb1058b1c16ab95ee5b162e90cd"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Restore exact R8.7 source and lock all logic
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          $zip = Join-Path $PWD $env:R87_SOURCE
+          if (Test-Path $zip) { Remove-Item $zip -Force }
+
+          gh release download $env:R87_TAG `
+            --repo "$env:GITHUB_REPOSITORY" `
+            --pattern $env:R87_SOURCE `
+            --dir $PWD
+
+          if ($LASTEXITCODE -ne 0 -or !(Test-Path $zip)) {
+            throw 'Could not download exact R8.7 source release'
+          }
+
+          $hash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($hash -ne $env:R87_SOURCE_SHA256) {
+            throw "R8.7 source hash mismatch: $hash"
+          }
+
+          $root = Join-Path $PWD 'build_windows/windows-system'
+          if (Test-Path (Join-Path $PWD 'build_windows')) {
+            Remove-Item (Join-Path $PWD 'build_windows') -Recurse -Force
+          }
+          New-Item -ItemType Directory -Force -Path $root | Out-Null
+          Expand-Archive -Path $zip -DestinationPath $root -Force
+
+          foreach ($required in @(
+            'package.json',
+            'src/app.js',
+            'src/styles.css',
+            'src/data.js',
+            'src/firebase.js',
+            'src/v145r8-parity.js',
+            'electron/main.cjs',
+            'electron/preload.cjs'
+          )) {
+            if (!(Test-Path (Join-Path $root $required))) {
+              throw "R8.7 source missing: $required"
+            }
+          }
+
+          $locked = @{
+            R88_APP_SHA256      = (Get-FileHash (Join-Path $root 'src/app.js') -Algorithm SHA256).Hash.ToLowerInvariant()
+            R88_DATA_SHA256     = (Get-FileHash (Join-Path $root 'src/data.js') -Algorithm SHA256).Hash.ToLowerInvariant()
+            R88_FIREBASE_SHA256 = (Get-FileHash (Join-Path $root 'src/firebase.js') -Algorithm SHA256).Hash.ToLowerInvariant()
+            R88_PARITY_SHA256   = (Get-FileHash (Join-Path $root 'src/v145r8-parity.js') -Algorithm SHA256).Hash.ToLowerInvariant()
+            R88_MAIN_SHA256     = (Get-FileHash (Join-Path $root 'electron/main.cjs') -Algorithm SHA256).Hash.ToLowerInvariant()
+            R88_PRELOAD_SHA256  = (Get-FileHash (Join-Path $root 'electron/preload.cjs') -Algorithm SHA256).Hash.ToLowerInvariant()
+          }
+
+          foreach ($pair in $locked.GetEnumerator()) {
+            "$($pair.Key)=$($pair.Value)" | Add-Content $env:GITHUB_ENV
+          }
+
+          Write-Host "Exact R8.7 source restored: $hash"
+          Write-Host 'All application/data/Firebase/core/Electron logic locked. R8.8 may change CSS + package metadata only.'
+
+      - name: Apply R8.8 visual redesign CSS only
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $root = Join-Path $PWD 'build_windows/windows-system'
+
+          $patcher = @'
+          from pathlib import Path
+          import json
+          import sys
+
+          root = Path(sys.argv[1])
+          css_path = root / 'src' / 'styles.css'
+          pkg_path = root / 'package.json'
+          app_path = root / 'src' / 'app.js'
+
+          css = css_path.read_text(encoding='utf-8-sig')
+          app = app_path.read_text(encoding='utf-8-sig')
+
+          for marker in ('TAH_MAIN_HOME_R87', 'TAH_UNIFIED_FORMS_R85', 'TAH_CUSTOMER_OPTIONAL_FIELDS_R86'):
+              if marker not in app and marker not in css:
+                  raise SystemExit(f'Missing inherited marker: {marker}')
+
+          if 'TAH_MAIN_REDESIGN_R88' in css:
+              raise SystemExit('R8.8 redesign already installed')
+
+          css_add = r'''
+          /* TAH_MAIN_REDESIGN_R88
+             Visual-only redesign. No app/data/Firebase/business logic changes.
+             Compact professional desktop layout for the Main Screen.
+          */
+
+          body.dashboard-white{
+            background:#f4f7fb !important;
+            color:#15344f !important;
+          }
+
+          body.dashboard-white .app{
+            grid-template-columns:190px minmax(0,1fr) !important;
+            background:#f4f7fb !important;
+          }
+
+          /* ---------- Sidebar ---------- */
+          body.dashboard-white .side{
+            width:190px !important;
+            padding:10px 8px !important;
+            background:#ffffff !important;
+            border-left:1px solid #e1e8ef !important;
+            box-shadow:-2px 0 12px rgba(21,52,79,.035) !important;
+          }
+
+          body.dashboard-white .brand{
+            min-height:52px !important;
+            padding:4px 5px 9px !important;
+            margin-bottom:7px !important;
+            gap:8px !important;
+            border-bottom:1px solid #edf1f5 !important;
+          }
+
+          body.dashboard-white .brand img{
+            width:35px !important;
+            height:35px !important;
+            border-radius:9px !important;
+            box-shadow:none !important;
+          }
+
+          body.dashboard-white .brand b{
+            font-size:14px !important;
+            line-height:1.2 !important;
+          }
+
+          body.dashboard-white .brand small{
+            font-size:9.5px !important;
+            margin-top:2px !important;
+          }
+
+          body.dashboard-white .nav{
+            gap:1px !important;
+          }
+
+          body.dashboard-white .nav button{
+            min-height:36px !important;
+            padding:5px 7px !important;
+            margin:1px 0 !important;
+            border-radius:9px !important;
+            gap:7px !important;
+            font-size:12px !important;
+            font-weight:650 !important;
+            box-shadow:none !important;
+          }
+
+          body.dashboard-white .navglyph{
+            width:25px !important;
+            height:25px !important;
+            flex:0 0 25px !important;
+            padding:4px !important;
+            border-radius:7px !important;
+          }
+
+          body.dashboard-white .sidebottom{
+            gap:2px !important;
+            padding-top:6px !important;
+            margin-top:5px !important;
+          }
+
+          body.dashboard-white .sideaction{
+            min-height:34px !important;
+            padding:4px 7px !important;
+            gap:7px !important;
+            border-radius:9px !important;
+            font-size:12px !important;
+          }
+
+          body.dashboard-white .sideicon{
+            width:25px !important;
+            height:25px !important;
+            flex:0 0 25px !important;
+            padding:4px !important;
+            border-radius:7px !important;
+          }
+
+          /* ---------- Main canvas ---------- */
+          body.dashboard-white .main{
+            padding:12px 15px 18px !important;
+            background:#f4f7fb !important;
+            min-width:0 !important;
+          }
+
+          /* ---------- Header ---------- */
+          body.dashboard-white .top{
+            min-height:67px !important;
+            padding:9px 12px !important;
+            margin-bottom:10px !important;
+            border:1px solid #e0e7ee !important;
+            border-radius:13px !important;
+            background:#ffffff !important;
+            box-shadow:0 2px 8px rgba(20,55,82,.035) !important;
+          }
+
+          body.dashboard-white .top h1{
+            font-size:19px !important;
+            line-height:1.15 !important;
+            margin:0 0 3px !important;
+            color:#113f68 !important;
+          }
+
+          body.dashboard-white .top .muted{
+            font-size:11px !important;
+            color:#75899a !important;
+          }
+
+          body.dashboard-white .top-status{
+            gap:5px !important;
+            flex-wrap:nowrap !important;
+          }
+
+          body.dashboard-white .badge{
+            min-height:30px !important;
+            padding:5px 9px !important;
+            font-size:11px !important;
+            border-radius:9px !important;
+            white-space:nowrap !important;
+          }
+
+          body.dashboard-white .top-status .btn,
+          body.dashboard-white .top-status button{
+            min-height:32px !important;
+            padding:5px 10px !important;
+            border-radius:9px !important;
+            font-size:11.5px !important;
+          }
+
+          body.dashboard-white .device-clock{
+            min-width:172px !important;
+            width:172px !important;
+            min-height:43px !important;
+            padding:5px 8px !important;
+            border-radius:10px !important;
+            background:#f7fafc !important;
+            border:1px solid #dce6ee !important;
+            box-shadow:none !important;
+          }
+
+          body.dashboard-white .device-clock b{
+            font-size:14px !important;
+            line-height:1 !important;
+          }
+
+          body.dashboard-white .device-clock span{
+            font-size:9.5px !important;
+            margin-top:4px !important;
+            white-space:nowrap !important;
+          }
+
+          /* ---------- Action launcher ---------- */
+          body.dashboard-white .homeactions{
+            display:grid !important;
+            grid-template-columns:repeat(6,minmax(0,1fr)) !important;
+            gap:7px !important;
+            margin:0 0 7px !important;
+            align-items:stretch !important;
+          }
+
+          body.dashboard-white .homeaction{
+            width:100% !important;
+            min-width:0 !important;
+            max-width:none !important;
+            height:50px !important;
+            min-height:50px !important;
+            padding:6px 8px !important;
+            border-radius:11px !important;
+            border:1px solid #dde7ef !important;
+            background:#ffffff !important;
+            color:#133f65 !important;
+            box-shadow:0 1px 5px rgba(17,58,91,.03) !important;
+            gap:7px !important;
+            font-size:11.5px !important;
+            font-weight:700 !important;
+            transition:.14s ease !important;
+          }
+
+          body.dashboard-white .homeaction:hover{
+            background:#f8fbfd !important;
+            border-color:#b9cfdf !important;
+            transform:translateY(-1px) !important;
+            box-shadow:0 4px 10px rgba(17,58,91,.055) !important;
+          }
+
+          body.dashboard-white .homeiconbox{
+            width:29px !important;
+            height:29px !important;
+            flex:0 0 29px !important;
+            padding:5px !important;
+            border-radius:8px !important;
+            background:#0d416c !important;
+            color:#ffffff !important;
+          }
+
+          body.dashboard-white .homeaction>span:last-child{
+            text-align:right !important;
+            line-height:1.18 !important;
+            overflow:hidden !important;
+            text-overflow:ellipsis !important;
+          }
+
+          body.dashboard-white .home-reorder-hint{
+            margin:0 0 9px !important;
+            font-size:9px !important;
+            opacity:.58 !important;
+          }
+
+          /* ---------- KPI cards ---------- */
+          body.dashboard-white .home-stats{
+            display:grid !important;
+            grid-template-columns:repeat(3,minmax(0,1fr)) !important;
+            gap:8px !important;
+            margin-top:0 !important;
+            margin-bottom:8px !important;
+          }
+
+          body.dashboard-white .home-stats .stat{
+            min-height:66px !important;
+            height:66px !important;
+            padding:9px 12px !important;
+            border-radius:11px !important;
+            border:1px solid #e0e8ef !important;
+            box-shadow:none !important;
+            display:flex !important;
+            flex-direction:column !important;
+            justify-content:center !important;
+          }
+
+          body.dashboard-white .home-stats .stat .muted{
+            font-size:11px !important;
+            color:#6f8394 !important;
+          }
+
+          body.dashboard-white .home-stats .stat b{
+            margin-top:2px !important;
+            font-size:21px !important;
+            line-height:1 !important;
+            color:#0c416d !important;
+          }
+
+          /* The "open remaining total" card directly following KPI cards:
+             turn it into a slim finance strip, not a huge empty rectangle. */
+          body.dashboard-white .home-stats + .card{
+            min-height:62px !important;
+            height:auto !important;
+            padding:10px 15px !important;
+            margin-top:0 !important;
+            border-radius:11px !important;
+            border:1px solid #e0e8ef !important;
+            box-shadow:none !important;
+            display:flex !important;
+            align-items:center !important;
+            justify-content:space-between !important;
+            gap:18px !important;
+          }
+
+          body.dashboard-white .home-stats + .card .muted{
+            font-size:11.5px !important;
+          }
+
+          body.dashboard-white .home-stats + .card b{
+            margin:0 !important;
+            font-size:21px !important;
+            color:#0c416d !important;
+          }
+
+          /* Remove visual bulk from generic Home cards only. */
+          body.dashboard-white #content{
+            max-width:none !important;
+            min-width:0 !important;
+          }
+
+          body.dashboard-white #content .card{
+            border-color:#e0e8ef !important;
+          }
+
+          /* ---------- Responsive ---------- */
+          @media(max-width:1250px){
+            body.dashboard-white .homeactions{
+              grid-template-columns:repeat(5,minmax(0,1fr)) !important;
+            }
+          }
+
+          @media(max-width:1050px){
+            body.dashboard-white .app{
+              grid-template-columns:178px minmax(0,1fr) !important;
+            }
+            body.dashboard-white .side{
+              width:178px !important;
+            }
+            body.dashboard-white .homeactions{
+              grid-template-columns:repeat(4,minmax(0,1fr)) !important;
+            }
+            body.dashboard-white .device-clock{
+              min-width:154px !important;
+              width:154px !important;
+            }
+          }
+
+          @media(max-width:800px){
+            body.dashboard-white .homeactions{
+              grid-template-columns:repeat(3,minmax(0,1fr)) !important;
+            }
+            body.dashboard-white .home-stats{
+              grid-template-columns:repeat(3,minmax(0,1fr)) !important;
+            }
+          }
+          '''
+
+          css = css.rstrip() + '\n\n' + css_add.strip() + '\n'
+
+          pkg = json.loads(pkg_path.read_text(encoding='utf-8-sig'))
+          if str(pkg.get('version')) != '145.8.7':
+              raise SystemExit(f"Expected exact R8.7 package version, got {pkg.get('version')}")
+
+          pkg['version'] = '145.8.8'
+          pkg['description'] = 'Tahalil Alakkad Windows V145 R8.8 — compact professional Main Screen redesign; CSS only over R8.7'
+
+          css_path.write_text(css, encoding='utf-8')
+          pkg_path.write_text(json.dumps(pkg, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+
+          (root / 'V145_R88_MAIN_UI_REDESIGN_NOTES.txt').write_text(
+              'Windows V145 R8.8 — Main UI Redesign\\n\\n'
+              '- CSS-only redesign over the exact R8.7 release source.\\n'
+              '- Sidebar reduced to ~190px and made denser.\\n'
+              '- Header reduced in height and visual weight.\\n'
+              '- Main shortcuts use compact navy icon tiles in a balanced grid.\\n'
+              '- KPI cards reduced to compact 66px cards.\\n'
+              '- Open remaining total becomes a slim strip instead of a large empty panel.\\n'
+              '- Device clock remains synchronized with Windows.\\n'
+              '- Daily Collection stays hidden from Home.\\n'
+              '- app.js, data.js, Firebase, R8.3 core, Electron main/preload are byte-for-byte unchanged.\\n',
+              encoding='utf-8'
+          )
+
+          print('R88_CSS_ONLY_REDESIGN_APPLIED')
+          '@
+
+          $patcherPath = Join-Path $env:RUNNER_TEMP 'patch_r88.py'
+          $patcher | Set-Content $patcherPath -Encoding utf8
+
+          python $patcherPath $root
+          if ($LASTEXITCODE -ne 0) {
+            throw 'R8.8 CSS-only redesign patch failed'
+          }
+
+      - name: Audit R8.8 and prove all logic unchanged
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $root = Join-Path $PWD 'build_windows/windows-system'
+
+          $pkg = Get-Content (Join-Path $root 'package.json') -Raw | ConvertFrom-Json
+          if ($pkg.version -ne '145.8.8') {
+            throw "Expected 145.8.8, got $($pkg.version)"
+          }
+
+          $css = Get-Content (Join-Path $root 'src/styles.css') -Raw
+          if (!$css.Contains('TAH_MAIN_REDESIGN_R88')) {
+            throw 'R8.8 CSS marker missing'
+          }
+
+          foreach ($requiredCss in @(
+            'grid-template-columns:190px',
+            'grid-template-columns:repeat(6',
+            'height:50px',
+            'height:66px',
+            '.home-stats + .card'
+          )) {
+            if (!$css.Contains($requiredCss)) {
+              throw "Missing R8.8 layout contract: $requiredCss"
+            }
+          }
+
+          $actualApp = (Get-FileHash (Join-Path $root 'src/app.js') -Algorithm SHA256).Hash.ToLowerInvariant()
+          $actualData = (Get-FileHash (Join-Path $root 'src/data.js') -Algorithm SHA256).Hash.ToLowerInvariant()
+          $actualFirebase = (Get-FileHash (Join-Path $root 'src/firebase.js') -Algorithm SHA256).Hash.ToLowerInvariant()
+          $actualParity = (Get-FileHash (Join-Path $root 'src/v145r8-parity.js') -Algorithm SHA256).Hash.ToLowerInvariant()
+          $actualMain = (Get-FileHash (Join-Path $root 'electron/main.cjs') -Algorithm SHA256).Hash.ToLowerInvariant()
+          $actualPreload = (Get-FileHash (Join-Path $root 'electron/preload.cjs') -Algorithm SHA256).Hash.ToLowerInvariant()
+
+          if ($actualApp -ne $env:R88_APP_SHA256) { throw 'R8.8 changed src/app.js — blocked' }
+          if ($actualData -ne $env:R88_DATA_SHA256) { throw 'R8.8 changed src/data.js — blocked' }
+          if ($actualFirebase -ne $env:R88_FIREBASE_SHA256) { throw 'R8.8 changed src/firebase.js — blocked' }
+          if ($actualParity -ne $env:R88_PARITY_SHA256) { throw 'R8.8 changed src/v145r8-parity.js — blocked' }
+          if ($actualMain -ne $env:R88_MAIN_SHA256) { throw 'R8.8 changed electron/main.cjs — blocked' }
+          if ($actualPreload -ne $env:R88_PRELOAD_SHA256) { throw 'R8.8 changed electron/preload.cjs — blocked' }
+
+          node --check (Join-Path $root 'src/app.js')
+          if ($LASTEXITCODE -ne 0) { throw 'app.js syntax failed' }
+          node --check (Join-Path $root 'src/data.js')
+          if ($LASTEXITCODE -ne 0) { throw 'data.js syntax failed' }
+          node --check (Join-Path $root 'src/v145r8-parity.js')
+          if ($LASTEXITCODE -ne 0) { throw 'v145r8-parity.js syntax failed' }
+          node --check (Join-Path $root 'electron/main.cjs')
+          if ($LASTEXITCODE -ne 0) { throw 'main.cjs syntax failed' }
+          node --check (Join-Path $root 'electron/preload.cjs')
+          if ($LASTEXITCODE -ne 0) { throw 'preload.cjs syntax failed' }
+
+          Write-Host 'R8.8 AUDIT PASSED — CSS-ONLY REDESIGN, ALL LOGIC BYTE-FOR-BYTE UNCHANGED'
+
+      - name: Package R8.8 source before dependencies
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $root = Join-Path $PWD 'build_windows/windows-system'
+          $stage = Join-Path $env:RUNNER_TEMP 'source_stage_r88'
+
+          if (Test-Path $stage) { Remove-Item $stage -Recurse -Force }
+          New-Item -ItemType Directory -Force -Path $stage | Out-Null
+
+          Get-ChildItem -LiteralPath $root -Force |
+            Where-Object { @('node_modules','release','.git') -notcontains $_.Name } |
+            ForEach-Object {
+              Copy-Item -LiteralPath $_.FullName -Destination $stage -Recurse -Force
+            }
+
+          $zip = Join-Path $PWD 'Tahalil-Alakkad-V145-R8.8-Windows-Source.zip'
+          if (Test-Path $zip) { Remove-Item $zip -Force }
+
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          [System.IO.Compression.ZipFile]::CreateFromDirectory(
+            $stage,
+            $zip,
+            [System.IO.Compression.CompressionLevel]::Optimal,
+            $false
+          )
+
+          if (!(Test-Path $zip) -or (Get-Item $zip).Length -lt 50000) {
+            throw 'R8.8 source ZIP invalid'
+          }
+
+          $hash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  Tahalil-Alakkad-V145-R8.8-Windows-Source.zip" |
+            Set-Content 'Tahalil-Alakkad-V145-R8.8-Windows-Source.zip.sha256' -Encoding ascii
+
+          Copy-Item `
+            (Join-Path $root 'V145_R88_MAIN_UI_REDESIGN_NOTES.txt') `
+            'V145_R88_MAIN_UI_REDESIGN_NOTES.txt' `
+            -Force
+
+      - name: Install dependencies
+        working-directory: build_windows/windows-system
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          npm install --no-audit --no-fund
+          if ($LASTEXITCODE -ne 0) { throw 'npm install failed' }
+
+      - name: Build Portable
+        working-directory: build_windows/windows-system
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          npm run dist:portable
+          if ($LASTEXITCODE -ne 0) { throw 'Portable build failed' }
+
+      - name: Portable startup smoke
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          $release = Join-Path $PWD 'build_windows/windows-system/release'
+          $portable = Get-ChildItem $release -Filter '*Portable*.exe' -File |
+            Sort-Object Length -Descending |
+            Select-Object -First 1
+
+          if (!$portable) {
+            throw 'Portable EXE missing for smoke test'
+          }
+
+          $proc = Start-Process -FilePath $portable.FullName -PassThru
+          Start-Sleep -Seconds 12
+
+          if ($proc.HasExited) {
+            if ($proc.ExitCode -ne 0) {
+              throw "Portable exited during smoke test with code $($proc.ExitCode)"
+            }
+            throw 'Portable exited unexpectedly during smoke window'
+          }
+
+          Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
+          Write-Host 'Portable startup smoke passed'
+
+      - name: Build Setup
+        working-directory: build_windows/windows-system
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          npm run dist:setup
+          if ($LASTEXITCODE -ne 0) { throw 'Setup build failed' }
+
+      - name: Prepare R8.8 delivery files
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          $release = Join-Path $PWD 'build_windows/windows-system/release'
+          $portable = Get-ChildItem $release -Filter '*Portable*.exe' -File |
+            Sort-Object Length -Descending |
+            Select-Object -First 1
+          $setup = Get-ChildItem $release -Filter '*Setup*.exe' -File |
+            Sort-Object Length -Descending |
+            Select-Object -First 1
+
+          if (!$portable -or !$setup) {
+            throw 'Portable or Setup EXE missing'
+          }
+
+          Copy-Item $portable.FullName 'Tahalil-Alakkad-V145-R8.8-Windows-Portable.exe' -Force
+          Copy-Item $setup.FullName 'Tahalil-Alakkad-V145-R8.8-Windows-Setup.exe' -Force
+
+          foreach ($name in @(
+            'Tahalil-Alakkad-V145-R8.8-Windows-Portable.exe',
+            'Tahalil-Alakkad-V145-R8.8-Windows-Setup.exe'
+          )) {
+            if ((Get-Item $name).Length -lt 100000) {
+              throw "$name unexpectedly small"
+            }
+            $hash = (Get-FileHash $name -Algorithm SHA256).Hash.ToLowerInvariant()
+            "$hash  $name" | Set-Content "$name.sha256" -Encoding ascii
+          }
+
+      - name: Upload R8.8 workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Tahalil-Alakkad-V145-R8.8-Windows-Main-UI-Redesign
+          path: |
+            Tahalil-Alakkad-V145-R8.8-Windows-Portable.exe
+            Tahalil-Alakkad-V145-R8.8-Windows-Portable.exe.sha256
+            Tahalil-Alakkad-V145-R8.8-Windows-Setup.exe
+            Tahalil-Alakkad-V145-R8.8-Windows-Setup.exe.sha256
+            Tahalil-Alakkad-V145-R8.8-Windows-Source.zip
+            Tahalil-Alakkad-V145-R8.8-Windows-Source.zip.sha256
+            V145_R88_MAIN_UI_REDESIGN_NOTES.txt
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Publish Windows V145 R8.8 release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          $tag = 'v145-r8.8-windows'
+          $title = 'تحاليل العقاد Windows V145 R8.8 — Main UI Redesign'
+
+          $notes = @'
+          Windows V145 R8.8 — Main UI Redesign
+
+          - Complete visual rework of the Main Screen using CSS only.
+          - Sidebar reduced to a compact professional width.
+          - Header made lighter and shorter.
+          - Main shortcuts redesigned into compact navy icon tiles.
+          - KPI cards are shorter and cleaner.
+          - Open remaining total is now a slim strip instead of a huge empty block.
+          - R8.7 device clock, white Home, hidden Daily Collection and navy icon system are preserved.
+          - app.js, data.js, Firebase, R8.3 core and Electron files are byte-for-byte unchanged.
+          '@
+
+          $files = @(
+            'Tahalil-Alakkad-V145-R8.8-Windows-Portable.exe',
+            'Tahalil-Alakkad-V145-R8.8-Windows-Portable.exe.sha256',
+            'Tahalil-Alakkad-V145-R8.8-Windows-Setup.exe',
+            'Tahalil-Alakkad-V145-R8.8-Windows-Setup.exe.sha256',
+            'Tahalil-Alakkad-V145-R8.8-Windows-Source.zip',
+            'Tahalil-Alakkad-V145-R8.8-Windows-Source.zip.sha256',
+            'V145_R88_MAIN_UI_REDESIGN_NOTES.txt'
+          )
+
+          gh release view $tag --repo "$env:GITHUB_REPOSITORY" *> $null
+          if ($LASTEXITCODE -eq 0) {
+            gh release edit $tag `
+              --repo "$env:GITHUB_REPOSITORY" `
+              --title $title `
+              --notes $notes
+
+            if ($LASTEXITCODE -ne 0) {
+              throw 'Could not update R8.8 release metadata'
+            }
+          } else {
+            gh release create $tag `
+              --repo "$env:GITHUB_REPOSITORY" `
+              --title $title `
+              --notes $notes
+
+            if ($LASTEXITCODE -ne 0) {
+              throw 'Could not create R8.8 release'
+            }
+          }
+
+          gh release upload $tag @files `
+            --repo "$env:GITHUB_REPOSITORY" `
+            --clobber
+
+          if ($LASTEXITCODE -ne 0) {
+            throw 'Could not upload R8.8 release files'
+          }
+
+      - name: Final status
+        shell: pwsh
+        run: |
+          Write-Host 'WINDOWS V145 R8.8 MAIN UI REDESIGN — CSS ONLY, LOGIC LOCKED, BUILT AND RELEASED'
