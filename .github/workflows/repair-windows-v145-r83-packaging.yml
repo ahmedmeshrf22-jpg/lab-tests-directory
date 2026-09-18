@@ -1,0 +1,87 @@
+name: Repair Windows V145 R8.3 Packaging
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/repair-windows-v145-r83-packaging.yml'
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: repair-windows-v145-r83-packaging
+  cancel-in-progress: true
+
+jobs:
+  repair-and-run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Patch false robocopy failure
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $path = '.github/workflows/windows-v145-r83-core-integrity.yml'
+          if (!(Test-Path $path)) { throw "Target workflow not found: $path" }
+
+          $raw = Get-Content $path -Raw
+
+          $old = @'
+          robocopy $root $stage /E /XD node_modules release .git /XF '*.exe' | Out-Null
+          if($LASTEXITCODE -gt 7){throw "Source staging failed: robocopy $LASTEXITCODE"}
+          $zip='Tahalil-Alakkad-V145-R8.3-Windows-Source.zip'
+          '@
+
+          $new = @'
+          robocopy $root $stage /E /XD node_modules release .git /XF '*.exe' | Out-Null
+          $robocopyCode = $LASTEXITCODE
+          if($robocopyCode -gt 7){throw "Source staging failed: robocopy $robocopyCode"}
+          # Robocopy exit codes 1-7 mean success-with-copy-state, not workflow failure.
+          $global:LASTEXITCODE = 0
+          $zip='Tahalil-Alakkad-V145-R8.3-Windows-Source.zip'
+          '@
+
+          if ($raw.Contains('$robocopyCode = $LASTEXITCODE')) {
+            Write-Host 'R8.3 packaging fix is already present.'
+          } elseif ($raw.Contains($old)) {
+            $raw = $raw.Replace($old, $new)
+            Set-Content $path $raw -Encoding utf8
+            Write-Host 'Patched R8.3 packaging step.'
+          } else {
+            throw 'Expected robocopy packaging block was not found.'
+          }
+
+          $check = Get-Content $path -Raw
+          if (!$check.Contains('$global:LASTEXITCODE = 0')) {
+            throw 'Packaging repair verification failed.'
+          }
+
+      - name: Commit repair
+        shell: bash
+        run: |
+          set -e
+          if git diff --quiet -- .github/workflows/windows-v145-r83-core-integrity.yml; then
+            echo "No workflow change needed."
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add .github/workflows/windows-v145-r83-core-integrity.yml
+            git commit -m "Fix R8.3 robocopy packaging exit code"
+            git push origin HEAD:main
+          fi
+
+      - name: Start corrected R8.3 build
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          gh workflow run windows-v145-r83-core-integrity.yml --ref main
+          echo "Corrected Windows V145 R8.3 build dispatched."
