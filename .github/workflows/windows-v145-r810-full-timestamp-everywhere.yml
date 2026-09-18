@@ -1,0 +1,534 @@
+name: Windows V145 R8.10 Full Timestamp Everywhere
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: tahalil-windows-v145-r810-full-timestamp
+  cancel-in-progress: false
+
+jobs:
+  windows-v145-r810:
+    name: Windows V145 R8.10 — Full Timestamp Everywhere
+    runs-on: windows-latest
+    timeout-minutes: 110
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: "false"
+      R89_TAG: "v145-r8.9-windows"
+      R89_SOURCE: "Tahalil-Alakkad-V145-R8.9-Windows-Source.zip"
+      R89_SOURCE_SHA256: "7e35f2951afe75af1b28ac3d9245d64d3bf5136492f926bbb44c9e7ea8c0a00d"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Restore exact R8.9 source and lock protected files
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          $zip = Join-Path $PWD $env:R89_SOURCE
+          if (Test-Path $zip) { Remove-Item $zip -Force }
+
+          gh release download $env:R89_TAG --repo "$env:GITHUB_REPOSITORY" --pattern $env:R89_SOURCE --dir $PWD
+          if ($LASTEXITCODE -ne 0 -or !(Test-Path $zip)) {
+            throw 'Could not download exact R8.9 source release'
+          }
+
+          $hash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($hash -ne $env:R89_SOURCE_SHA256) {
+            throw "R8.9 source hash mismatch: $hash"
+          }
+
+          $root = Join-Path $PWD 'build_windows/windows-system'
+          if (Test-Path (Join-Path $PWD 'build_windows')) {
+            Remove-Item (Join-Path $PWD 'build_windows') -Recurse -Force
+          }
+          New-Item -ItemType Directory -Force -Path $root | Out-Null
+          Expand-Archive -Path $zip -DestinationPath $root -Force
+
+          foreach ($required in @(
+            'package.json',
+            'src/app.js',
+            'src/styles.css',
+            'src/data.js',
+            'src/firebase.js',
+            'src/v145r8-parity.js',
+            'electron/main.cjs',
+            'electron/preload.cjs'
+          )) {
+            if (!(Test-Path (Join-Path $root $required))) {
+              throw "R8.9 source missing: $required"
+            }
+          }
+
+          $locked = @{
+            R810_CSS_SHA256      = (Get-FileHash (Join-Path $root 'src/styles.css') -Algorithm SHA256).Hash.ToLowerInvariant()
+            R810_DATA_SHA256     = (Get-FileHash (Join-Path $root 'src/data.js') -Algorithm SHA256).Hash.ToLowerInvariant()
+            R810_FIREBASE_SHA256 = (Get-FileHash (Join-Path $root 'src/firebase.js') -Algorithm SHA256).Hash.ToLowerInvariant()
+            R810_PARITY_SHA256   = (Get-FileHash (Join-Path $root 'src/v145r8-parity.js') -Algorithm SHA256).Hash.ToLowerInvariant()
+            R810_MAIN_SHA256     = (Get-FileHash (Join-Path $root 'electron/main.cjs') -Algorithm SHA256).Hash.ToLowerInvariant()
+            R810_PRELOAD_SHA256  = (Get-FileHash (Join-Path $root 'electron/preload.cjs') -Algorithm SHA256).Hash.ToLowerInvariant()
+          }
+
+          foreach ($pair in $locked.GetEnumerator()) {
+            "$($pair.Key)=$($pair.Value)" | Add-Content $env:GITHUB_ENV
+          }
+
+          Write-Host "Exact R8.9 source restored: $hash"
+          Write-Host 'R8.10 may change app.js + package metadata only. 3D UI, data, Firebase, core and Electron are locked.'
+
+      - name: Apply full timestamp everywhere
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $root = Join-Path $PWD 'build_windows/windows-system'
+
+          $patcher = @'
+          from pathlib import Path
+          import json
+          import re
+          import sys
+
+          root = Path(sys.argv[1])
+          app_path = root / 'src' / 'app.js'
+          pkg_path = root / 'package.json'
+          css_path = root / 'src' / 'styles.css'
+
+          app = app_path.read_text(encoding='utf-8-sig')
+          css = css_path.read_text(encoding='utf-8-sig')
+
+          for marker in ('TAH_3D_SQUARE_HOME_ICONS_R89', 'TAH_MAIN_HOME_R87', 'TAH_UNIFIED_FORMS_R85'):
+              if marker not in app and marker not in css:
+                  raise SystemExit(f'Missing inherited marker: {marker}')
+
+          if 'TAH_FULL_TIMESTAMP_R810' in app:
+              raise SystemExit('R8.10 timestamp patch already installed')
+
+          old_fmt = "function fmtDate(ms){return ms?new Date(ms).toLocaleString('ar-EG'):''}"
+          new_fmt = r"""/* TAH_FULL_TIMESTAMP_R810 - exact local device date/time down to seconds. */
+          function fullTimestamp(ms=Date.now()){
+            const n=Number(ms),d=new Date(Number.isFinite(n)&&n>0?n:Date.now());
+            return new Intl.DateTimeFormat('ar-EG',{
+              day:'2-digit',month:'2-digit',year:'numeric',
+              hour:'2-digit',minute:'2-digit',second:'2-digit',
+              hour12:true
+            }).format(d);
+          }
+          function fileTimestamp(ms=Date.now()){
+            const n=Number(ms),d=new Date(Number.isFinite(n)&&n>0?n:Date.now()),p=v=>String(v).padStart(2,'0');
+            return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}_${p(d.getHours())}-${p(d.getMinutes())}-${p(d.getSeconds())}`;
+          }
+          function stampedFileName(name='file'){
+            const raw=String(name||'file').trim()||'file',i=raw.lastIndexOf('.');
+            return i>0?`${raw.slice(0,i)}_${fileTimestamp()}${raw.slice(i)}`:`${raw}_${fileTimestamp()}`;
+          }
+          function fmtDate(ms){return ms?fullTimestamp(ms):''}"""
+          if old_fmt not in app:
+              raise SystemExit('fmtDate anchor missing')
+          app = app.replace(old_fmt, new_fmt, 1)
+
+          old = "path=await window.tahalilNative.saveResultBytes({defaultName:label||r.name,bytes:Array.from(r.bytes)})"
+          new = "path=await window.tahalilNative.saveResultBytes({defaultName:stampedFileName(label||r.name),bytes:Array.from(r.bytes)})"
+          if old not in app:
+              raise SystemExit('result download naming anchor missing')
+          app = app.replace(old, new, 1)
+
+          old = "path=await window.tahalilNative.shareResultBytes({defaultName:label||r.name,bytes:Array.from(r.bytes)})"
+          new = "path=await window.tahalilNative.shareResultBytes({defaultName:stampedFileName(label||r.name),bytes:Array.from(r.bytes)})"
+          if old not in app:
+              raise SystemExit('result share naming anchor missing')
+          app = app.replace(old, new, 1)
+
+          old = "async function buildOrderCanvas(o,mode='customer'){"
+          new = "async function buildOrderCanvas(o,mode='customer'){const documentGeneratedAt=Date.now();"
+          if old not in app:
+              raise SystemExit('buildOrderCanvas anchor missing')
+          app = app.replace(old, new, 1)
+
+          old = "x.fillText(`التاريخ: ${fmtDate(o.created_at_ms)}`,1140,y);y+=45;"
+          new = (
+              "x.fillText(`تاريخ ووقت إنشاء/إرسال الطلب: ${fmtDate(o.created_at_ms||documentGeneratedAt)}`,1140,y);y+=38;"
+              "x.fillText(`آخر تحديث: ${fmtDate(o.updated_at_ms||o.created_at_ms||documentGeneratedAt)}`,1140,y);y+=38;"
+              "x.fillText(`تاريخ ووقت إصدار المستند: ${fmtDate(documentGeneratedAt)}`,1140,y);y+=45;"
+          )
+          if old not in app:
+              raise SystemExit('order canvas date line anchor missing')
+          app = app.replace(old, new, 1)
+
+          old = "x.fillText(isLab?'لا يحتوي طلب المعمل على أسعار.':'شكراً لاختياركم عيادات العقاد التخصصية',w/2,fy+75);return canvas;"
+          new = (
+              "x.fillText(isLab?'لا يحتوي طلب المعمل على أسعار.':'شكراً لاختياركم عيادات العقاد التخصصية',w/2,fy+75);"
+              "x.font='15px Segoe UI';x.fillStyle='#71869a';"
+              "x.fillText(`Timestamp: ${fullTimestamp(documentGeneratedAt)}`,w/2,fy+105);return canvas;"
+          )
+          if old not in app:
+              raise SystemExit('order canvas footer anchor missing')
+          app = app.replace(old, new, 1)
+
+          pdf_pattern = re.compile(
+              r"async function saveOrderPdf\(o,mode='customer'\)\{try\{const canvas=await buildOrderCanvas\(o,mode\),url=canvas\.toDataURL\('image/png'\);"
+              r"\$\('#printarea'\)\.innerHTML=`<img src=\"\$\{url\}\" style=\"display:block;width:100%;height:auto\">`;"
+              r"await new Promise\(r=>requestAnimationFrame\(\(\)=>requestAnimationFrame\(r\)\)\);"
+              r"const suffix=mode==='lab'\?'LAB_REQUEST':'CUSTOMER_RECEIPT',path=await window\.tahalilNative\.savePdf\(\{defaultName:`\$\{o\.order_number\}_\$\{suffix\}\.pdf`\}\);"
+              r"if\(path\)\{toast\('تم حفظ PDF'\);window\.tahalilNative\.showItem\(path\)\}\}catch\(e\)\{toast\(e\.message\|\|e,true\)\}\}"
+          )
+          pdf_repl = (
+              "async function saveOrderPdf(o,mode='customer'){try{const generatedAt=Date.now(),canvas=await buildOrderCanvas(o,mode),url=canvas.toDataURL('image/png');"
+              "$('#printarea').innerHTML=`<img src=\"${url}\" style=\"display:block;width:100%;height:auto\">`;"
+              "await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));"
+              "const suffix=mode==='lab'?'LAB_REQUEST':'CUSTOMER_RECEIPT',path=await window.tahalilNative.savePdf({defaultName:`${o.order_number}_${suffix}_${fileTimestamp(generatedAt)}.pdf`});"
+              "if(path){D.audit('document_export','order',o.id||'',mode==='lab'?'حفظ PDF طلب معمل':'حفظ PDF عميل',`${o.order_number||''} • ${fullTimestamp(generatedAt)}`,o.customerId||o.customer_id||'',o.id||'').catch(()=>{});toast(`تم حفظ PDF • ${fullTimestamp(generatedAt)}`);window.tahalilNative.showItem(path)}}catch(e){toast(e.message||e,true)}}"
+          )
+          app, n = pdf_pattern.subn(pdf_repl, app, count=1)
+          if n != 1:
+              raise SystemExit(f'saveOrderPdf patch count unexpected: {n}')
+
+          print_pattern = re.compile(
+              r"async function printOrder\(o,mode='customer'\)\{try\{const canvas=await buildOrderCanvas\(o,mode\),url=canvas\.toDataURL\('image/png'\);"
+              r"\$\('#printarea'\)\.innerHTML=`<img src=\"\$\{url\}\" style=\"display:block;width:100%;height:auto\">`;"
+              r"await new Promise\(r=>requestAnimationFrame\(\(\)=>requestAnimationFrame\(r\)\)\);"
+              r"await window\.tahalilNative\.print\(\);toast\('تم إرسال الطلب للطباعة'\)\}catch\(e\)\{toast\(e\.message\|\|e,true\)\}\}"
+          )
+          print_repl = (
+              "async function printOrder(o,mode='customer'){try{const printedAt=Date.now(),canvas=await buildOrderCanvas(o,mode),url=canvas.toDataURL('image/png');"
+              "$('#printarea').innerHTML=`<img src=\"${url}\" style=\"display:block;width:100%;height:auto\">`;"
+              "await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));"
+              "await window.tahalilNative.print();D.audit('document_print','order',o.id||'','طباعة طلب',`${o.order_number||''} • ${fullTimestamp(printedAt)}`,o.customerId||o.customer_id||'',o.id||'').catch(()=>{});toast(`تم إرسال الطلب للطباعة • ${fullTimestamp(printedAt)}`)}catch(e){toast(e.message||e,true)}}"
+          )
+          app, n = print_pattern.subn(print_repl, app, count=1)
+          if n != 1:
+              raise SystemExit(f'printOrder patch count unexpected: {n}')
+
+          image_pattern = re.compile(
+              r"async function saveOrderImage\(o,mode='customer'\)\{try\{const canvas=await buildOrderCanvas\(o,mode\),suffix=mode==='lab'\?'LAB_REQUEST':'CUSTOMER_RECEIPT',"
+              r"path=await window\.tahalilNative\.saveDataUrl\(\{defaultName:`\$\{o\.order_number\}_\$\{suffix\}\.png`,dataUrl:canvas\.toDataURL\('image/png'\)\}\);"
+              r"if\(path\)\{toast\('تم حفظ صورة الطلب'\);window\.tahalilNative\.showItem\(path\)\}\}catch\(e\)\{toast\(e\.message\|\|e,true\)\}\}"
+          )
+          image_repl = (
+              "async function saveOrderImage(o,mode='customer'){try{const generatedAt=Date.now(),canvas=await buildOrderCanvas(o,mode),suffix=mode==='lab'?'LAB_REQUEST':'CUSTOMER_RECEIPT',"
+              "path=await window.tahalilNative.saveDataUrl({defaultName:`${o.order_number}_${suffix}_${fileTimestamp(generatedAt)}.png`,dataUrl:canvas.toDataURL('image/png')});"
+              "if(path){D.audit('document_export','order',o.id||'',mode==='lab'?'حفظ صورة طلب معمل':'حفظ صورة عميل',`${o.order_number||''} • ${fullTimestamp(generatedAt)}`,o.customerId||o.customer_id||'',o.id||'').catch(()=>{});toast(`تم حفظ صورة الطلب • ${fullTimestamp(generatedAt)}`);window.tahalilNative.showItem(path)}}catch(e){toast(e.message||e,true)}}"
+          )
+          app, n = image_pattern.subn(image_repl, app, count=1)
+          if n != 1:
+              raise SystemExit(f'saveOrderImage patch count unexpected: {n}')
+
+          old = "x.fillText('صورة سريعة للتحاليل',1100,135);let y=210;"
+          new = (
+              "x.fillText('صورة سريعة للتحاليل',1100,135);"
+              "x.font='20px Segoe UI';x.fillStyle='#60788e';"
+              "x.fillText(`تاريخ ووقت الإنشاء: ${fullTimestamp()}`,1100,175);"
+              "let y=230;"
+          )
+          if old not in app:
+              raise SystemExit('quick image header anchor missing')
+          app = app.replace(old, new, 1)
+
+          old = "defaultName:`Tahalil_Quick_Image_${Date.now()}.png`"
+          new = "defaultName:`Tahalil_Quick_Image_${fileTimestamp()}.png`"
+          if old not in app:
+              raise SystemExit('quick image filename anchor missing')
+          app = app.replace(old, new, 1)
+
+          old = "defaultName:`Customer_QR_${x.file_number||x.id}.png`"
+          new = "defaultName:`Customer_QR_${x.file_number||x.id}_${fileTimestamp()}.png`"
+          if old not in app:
+              raise SystemExit('customer QR filename anchor missing')
+          app = app.replace(old, new, 1)
+
+          old = "<p>${esc($('#rf').value)} — ${esc($('#rt').value)}</p></div>"
+          new = "<p>${esc($('#rf').value)} — ${esc($('#rt').value)}</p><p><b>تاريخ ووقت إنشاء التقرير:</b> ${fullTimestamp()}</p></div>"
+          if old not in app:
+              raise SystemExit('report timestamp display anchor missing')
+          app = app.replace(old, new, 1)
+
+          old = "defaultName:`Tahalil_Report_${$('#rf').value}_${$('#rt').value}.pdf`"
+          new = "defaultName:`Tahalil_Report_${$('#rf').value}_${$('#rt').value}_${fileTimestamp()}.pdf`"
+          if old not in app:
+              raise SystemExit('report filename anchor missing')
+          app = app.replace(old, new, 1)
+
+          old = "if(path){toast('تم حفظ التقرير PDF');window.tahalilNative.showItem(path)}};await render();"
+          new = (
+              "if(path){const exportedAt=Date.now();"
+              "D.audit('report_export','report','windows','حفظ تقرير PDF',`${$('#rf').value} → ${$('#rt').value} • ${fullTimestamp(exportedAt)}`).catch(()=>{});"
+              "toast(`تم حفظ التقرير PDF • ${fullTimestamp(exportedAt)}`);window.tahalilNative.showItem(path)}};await render();"
+          )
+          if old not in app:
+              raise SystemExit('report save completion anchor missing')
+          app = app.replace(old, new, 1)
+
+          old = "defaultName:`Tahalil_Backup_${new Date().toISOString().slice(0,10)}.tahbak`"
+          new = "defaultName:`Tahalil_Backup_${fileTimestamp()}.tahbak`"
+          if old in app:
+              app = app.replace(old, new, 1)
+
+          pkg = json.loads(pkg_path.read_text(encoding='utf-8-sig'))
+          if str(pkg.get('version')) != '145.8.9':
+              raise SystemExit(f"Expected exact R8.9 package version, got {pkg.get('version')}")
+
+          pkg['version'] = '145.8.10'
+          pkg['description'] = 'Tahalil Alakkad Windows V145 R8.10 - full device-local timestamp with seconds on generated/printed/sent documents'
+
+          app_path.write_text(app, encoding='utf-8')
+          pkg_path.write_text(json.dumps(pkg, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+
+          (root / 'V145_R810_FULL_TIMESTAMP_NOTES.txt').write_text(
+              'Windows V145 R8.10 - Full Timestamp Everywhere\n\n'
+              '- All visible historical timestamps include day/month/year + hour/minute/second.\n'
+              '- Order PDF/image/print shows order creation/send time, last update time, and document generation time.\n'
+              '- Report PDF shows exact generation timestamp and timestamped filename.\n'
+              '- Quick images show exact generation timestamp.\n'
+              '- Result download/share filenames are timestamped.\n'
+              '- Customer QR export filenames and backups are timestamped.\n'
+              '- Export/print/report actions are added to Audit Log with execution timestamp.\n'
+              '- Uses Windows/device local timezone.\n'
+              '- data.js, Firebase, core, Electron and R8.9 3D UI CSS are unchanged.\n',
+              encoding='utf-8'
+          )
+
+          print('R810_FULL_TIMESTAMP_APPLIED')
+          '@
+
+          $patcherPath = Join-Path $env:RUNNER_TEMP 'patch_r810.py'
+          $patcher | Set-Content $patcherPath -Encoding utf8
+
+          python $patcherPath $root
+          if ($LASTEXITCODE -ne 0) {
+            throw 'R8.10 timestamp patch failed'
+          }
+
+      - name: Audit R8.10 timestamp contracts and protected files
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $root = Join-Path $PWD 'build_windows/windows-system'
+
+          $pkg = Get-Content (Join-Path $root 'package.json') -Raw | ConvertFrom-Json
+          if ($pkg.version -ne '145.8.10') {
+            throw "Expected version 145.8.10, got $($pkg.version)"
+          }
+
+          $app = Get-Content (Join-Path $root 'src/app.js') -Raw
+
+          foreach ($marker in @(
+            'TAH_FULL_TIMESTAMP_R810',
+            "second:'2-digit'",
+            'function fullTimestamp',
+            'function fileTimestamp',
+            'function stampedFileName',
+            'تاريخ ووقت إنشاء/إرسال الطلب',
+            'تاريخ ووقت إصدار المستند',
+            'تاريخ ووقت إنشاء التقرير',
+            'document_export',
+            'document_print',
+            'report_export'
+          )) {
+            if (!$app.Contains($marker)) {
+              throw "Missing R8.10 timestamp contract: $marker"
+            }
+          }
+
+          foreach ($forbidden in @(
+            "function fmtDate(ms){return ms?new Date(ms).toLocaleString('ar-EG'):''}",
+            'Tahalil_Quick_Image_${Date.now()}.png'
+          )) {
+            if ($app.Contains($forbidden)) {
+              throw "Old non-timestamped output remains: $forbidden"
+            }
+          }
+
+          $actualCss = (Get-FileHash (Join-Path $root 'src/styles.css') -Algorithm SHA256).Hash.ToLowerInvariant()
+          $actualData = (Get-FileHash (Join-Path $root 'src/data.js') -Algorithm SHA256).Hash.ToLowerInvariant()
+          $actualFirebase = (Get-FileHash (Join-Path $root 'src/firebase.js') -Algorithm SHA256).Hash.ToLowerInvariant()
+          $actualParity = (Get-FileHash (Join-Path $root 'src/v145r8-parity.js') -Algorithm SHA256).Hash.ToLowerInvariant()
+          $actualMain = (Get-FileHash (Join-Path $root 'electron/main.cjs') -Algorithm SHA256).Hash.ToLowerInvariant()
+          $actualPreload = (Get-FileHash (Join-Path $root 'electron/preload.cjs') -Algorithm SHA256).Hash.ToLowerInvariant()
+
+          if ($actualCss -ne $env:R810_CSS_SHA256) { throw 'R8.10 changed R8.9 3D UI CSS - blocked' }
+          if ($actualData -ne $env:R810_DATA_SHA256) { throw 'R8.10 changed data.js - blocked' }
+          if ($actualFirebase -ne $env:R810_FIREBASE_SHA256) { throw 'R8.10 changed firebase.js - blocked' }
+          if ($actualParity -ne $env:R810_PARITY_SHA256) { throw 'R8.10 changed v145r8-parity.js - blocked' }
+          if ($actualMain -ne $env:R810_MAIN_SHA256) { throw 'R8.10 changed electron/main.cjs - blocked' }
+          if ($actualPreload -ne $env:R810_PRELOAD_SHA256) { throw 'R8.10 changed electron/preload.cjs - blocked' }
+
+          node --check (Join-Path $root 'src/app.js')
+          if ($LASTEXITCODE -ne 0) { throw 'app.js syntax failed' }
+
+          Write-Host 'R8.10 AUDIT PASSED - FULL SECOND-PRECISION TIMESTAMPS, R8.9 UI/CORE PROTECTED'
+
+      - name: Package R8.10 source before dependencies
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $root = Join-Path $PWD 'build_windows/windows-system'
+          $stage = Join-Path $env:RUNNER_TEMP 'source_stage_r810'
+
+          if (Test-Path $stage) { Remove-Item $stage -Recurse -Force }
+          New-Item -ItemType Directory -Force -Path $stage | Out-Null
+
+          Get-ChildItem -LiteralPath $root -Force |
+            Where-Object { @('node_modules','release','.git') -notcontains $_.Name } |
+            ForEach-Object {
+              Copy-Item -LiteralPath $_.FullName -Destination $stage -Recurse -Force
+            }
+
+          $zip = Join-Path $PWD 'Tahalil-Alakkad-V145-R8.10-Windows-Source.zip'
+          if (Test-Path $zip) { Remove-Item $zip -Force }
+
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          [System.IO.Compression.ZipFile]::CreateFromDirectory($stage,$zip,[System.IO.Compression.CompressionLevel]::Optimal,$false)
+
+          if (!(Test-Path $zip) -or (Get-Item $zip).Length -lt 50000) {
+            throw 'R8.10 source ZIP invalid'
+          }
+
+          $hash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  Tahalil-Alakkad-V145-R8.10-Windows-Source.zip" |
+            Set-Content 'Tahalil-Alakkad-V145-R8.10-Windows-Source.zip.sha256' -Encoding ascii
+
+          Copy-Item (Join-Path $root 'V145_R810_FULL_TIMESTAMP_NOTES.txt') 'V145_R810_FULL_TIMESTAMP_NOTES.txt' -Force
+
+      - name: Install dependencies
+        working-directory: build_windows/windows-system
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          npm install --no-audit --no-fund
+          if ($LASTEXITCODE -ne 0) { throw 'npm install failed' }
+
+      - name: Build Portable
+        working-directory: build_windows/windows-system
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          npm run dist:portable
+          if ($LASTEXITCODE -ne 0) { throw 'Portable build failed' }
+
+      - name: Portable startup smoke
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $release = Join-Path $PWD 'build_windows/windows-system/release'
+          $portable = Get-ChildItem $release -Filter '*Portable*.exe' -File | Sort-Object Length -Descending | Select-Object -First 1
+          if (!$portable) { throw 'Portable EXE missing for smoke test' }
+
+          $proc = Start-Process -FilePath $portable.FullName -PassThru
+          Start-Sleep -Seconds 12
+          if ($proc.HasExited) {
+            if ($proc.ExitCode -ne 0) { throw "Portable exited during smoke test with code $($proc.ExitCode)" }
+            throw 'Portable exited unexpectedly during smoke window'
+          }
+          Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
+          Write-Host 'Portable startup smoke passed'
+
+      - name: Build Setup
+        working-directory: build_windows/windows-system
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          npm run dist:setup
+          if ($LASTEXITCODE -ne 0) { throw 'Setup build failed' }
+
+      - name: Prepare R8.10 delivery files
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $release = Join-Path $PWD 'build_windows/windows-system/release'
+
+          $portable = Get-ChildItem $release -Filter '*Portable*.exe' -File | Sort-Object Length -Descending | Select-Object -First 1
+          $setup = Get-ChildItem $release -Filter '*Setup*.exe' -File | Sort-Object Length -Descending | Select-Object -First 1
+
+          if (!$portable -or !$setup) {
+            throw 'Portable or Setup EXE missing'
+          }
+
+          Copy-Item $portable.FullName 'Tahalil-Alakkad-V145-R8.10-Windows-Portable.exe' -Force
+          Copy-Item $setup.FullName 'Tahalil-Alakkad-V145-R8.10-Windows-Setup.exe' -Force
+
+          foreach ($name in @(
+            'Tahalil-Alakkad-V145-R8.10-Windows-Portable.exe',
+            'Tahalil-Alakkad-V145-R8.10-Windows-Setup.exe'
+          )) {
+            if ((Get-Item $name).Length -lt 100000) {
+              throw "$name unexpectedly small"
+            }
+            $hash = (Get-FileHash $name -Algorithm SHA256).Hash.ToLowerInvariant()
+            "$hash  $name" | Set-Content "$name.sha256" -Encoding ascii
+          }
+
+      - name: Upload R8.10 workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Tahalil-Alakkad-V145-R8.10-Windows-Full-Timestamp
+          path: |
+            Tahalil-Alakkad-V145-R8.10-Windows-Portable.exe
+            Tahalil-Alakkad-V145-R8.10-Windows-Portable.exe.sha256
+            Tahalil-Alakkad-V145-R8.10-Windows-Setup.exe
+            Tahalil-Alakkad-V145-R8.10-Windows-Setup.exe.sha256
+            Tahalil-Alakkad-V145-R8.10-Windows-Source.zip
+            Tahalil-Alakkad-V145-R8.10-Windows-Source.zip.sha256
+            V145_R810_FULL_TIMESTAMP_NOTES.txt
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Publish Windows V145 R8.10 release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          $tag = 'v145-r8.10-windows'
+          $title = 'تحاليل العقاد Windows V145 R8.10 — Full Timestamp Everywhere'
+
+          $notes = @'
+          Windows V145 R8.10 — Full Timestamp Everywhere
+
+          - Every visible historical time includes date + hour + minute + second.
+          - Every order PDF/image/print contains original order/send time, latest update time and document generation time.
+          - Reports contain exact generation timestamp.
+          - Exported filenames contain local device timestamp down to seconds.
+          - Quick images, result download/share files, QR exports and backups receive timestamped filenames.
+          - Print/export/report actions are recorded in Audit Log.
+          - Uses Windows/device local time.
+          - R8.9 3D UI, data.js, Firebase, core and Electron files remain unchanged.
+          '@
+
+          $files = @(
+            'Tahalil-Alakkad-V145-R8.10-Windows-Portable.exe',
+            'Tahalil-Alakkad-V145-R8.10-Windows-Portable.exe.sha256',
+            'Tahalil-Alakkad-V145-R8.10-Windows-Setup.exe',
+            'Tahalil-Alakkad-V145-R8.10-Windows-Setup.exe.sha256',
+            'Tahalil-Alakkad-V145-R8.10-Windows-Source.zip',
+            'Tahalil-Alakkad-V145-R8.10-Windows-Source.zip.sha256',
+            'V145_R810_FULL_TIMESTAMP_NOTES.txt'
+          )
+
+          gh release view $tag --repo "$env:GITHUB_REPOSITORY" *> $null
+          if ($LASTEXITCODE -eq 0) {
+            gh release edit $tag --repo "$env:GITHUB_REPOSITORY" --title $title --notes $notes
+            if ($LASTEXITCODE -ne 0) { throw 'Could not update R8.10 release metadata' }
+          } else {
+            gh release create $tag --repo "$env:GITHUB_REPOSITORY" --title $title --notes $notes
+            if ($LASTEXITCODE -ne 0) { throw 'Could not create R8.10 release' }
+          }
+
+          gh release upload $tag @files --repo "$env:GITHUB_REPOSITORY" --clobber
+          if ($LASTEXITCODE -ne 0) { throw 'Could not upload R8.10 release files' }
+
+      - name: Final status
+        shell: pwsh
+        run: |
+          Write-Host 'WINDOWS V145 R8.10 FULL TIMESTAMP EVERYWHERE - BUILT, AUDITED, R8.9 UI/CORE PROTECTED'
