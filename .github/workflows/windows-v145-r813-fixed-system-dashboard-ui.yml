@@ -1,0 +1,866 @@
+name: Windows V145 R8.13 FIXED System Dashboard UI
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: tahalil-windows-v145-r813-fixed-system-dashboard
+  cancel-in-progress: false
+
+jobs:
+  windows-v145-r813-fixed:
+    name: Windows V145 R8.13 FIXED — System Dashboard UI
+    runs-on: windows-latest
+    timeout-minutes: 110
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: "false"
+      BASE_TAG: "v145-r8.11-windows"
+      BASE_SOURCE: "Tahalil-Alakkad-V145-R8.11-Windows-Source.zip"
+      BASE_SHA256: "f576a28129da3f87a013d13fe4eb1336beef328e835f2f64b9dde2d9fff7cdf7"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Restore exact existing R8.11 source
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          $zip = Join-Path $PWD $env:BASE_SOURCE
+          if (Test-Path $zip) { Remove-Item $zip -Force }
+
+          gh release download $env:BASE_TAG `
+            --repo "$env:GITHUB_REPOSITORY" `
+            --pattern $env:BASE_SOURCE `
+            --dir $PWD
+
+          if ($LASTEXITCODE -ne 0 -or !(Test-Path $zip)) {
+            throw 'Could not download exact R8.11 source release'
+          }
+
+          $hash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($hash -ne $env:BASE_SHA256) {
+            throw "R8.11 source hash mismatch: $hash"
+          }
+
+          $root = Join-Path $PWD 'build_windows/windows-system'
+          if (Test-Path (Join-Path $PWD 'build_windows')) {
+            Remove-Item (Join-Path $PWD 'build_windows') -Recurse -Force
+          }
+
+          New-Item -ItemType Directory -Force -Path $root | Out-Null
+          Expand-Archive -Path $zip -DestinationPath $root -Force
+
+          foreach ($required in @(
+            'package.json',
+            'src/app.js',
+            'src/styles.css',
+            'src/data.js',
+            'src/firebase.js',
+            'src/v145r8-parity.js',
+            'electron/main.cjs',
+            'electron/preload.cjs'
+          )) {
+            if (!(Test-Path (Join-Path $root $required))) {
+              throw "R8.11 source missing: $required"
+            }
+          }
+
+          $locked = @{
+            R813_DATA_SHA256     = (Get-FileHash (Join-Path $root 'src/data.js') -Algorithm SHA256).Hash.ToLowerInvariant()
+            R813_FIREBASE_SHA256 = (Get-FileHash (Join-Path $root 'src/firebase.js') -Algorithm SHA256).Hash.ToLowerInvariant()
+            R813_PARITY_SHA256   = (Get-FileHash (Join-Path $root 'src/v145r8-parity.js') -Algorithm SHA256).Hash.ToLowerInvariant()
+            R813_MAIN_SHA256     = (Get-FileHash (Join-Path $root 'electron/main.cjs') -Algorithm SHA256).Hash.ToLowerInvariant()
+            R813_PRELOAD_SHA256  = (Get-FileHash (Join-Path $root 'electron/preload.cjs') -Algorithm SHA256).Hash.ToLowerInvariant()
+          }
+
+          foreach ($pair in $locked.GetEnumerator()) {
+            "$($pair.Key)=$($pair.Value)" | Add-Content $env:GITHUB_ENV
+          }
+
+          Write-Host "Exact R8.11 source restored: $hash"
+          Write-Host 'No dependency on R8.12.'
+
+      - name: Apply real System Dashboard UI directly over R8.11
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $root = Join-Path $PWD 'build_windows/windows-system'
+
+          $patcher = @'
+          from pathlib import Path
+          import json
+          import re
+          import sys
+
+          root = Path(sys.argv[1])
+          app_path = root / 'src' / 'app.js'
+          css_path = root / 'src' / 'styles.css'
+          pkg_path = root / 'package.json'
+
+          app = app_path.read_text(encoding='utf-8-sig')
+          css = css_path.read_text(encoding='utf-8-sig')
+
+          for marker in ('TAH_HOME_LAYOUT_R811','TAH_3D_SQUARE_HOME_ICONS_R89','TAH_FULL_TIMESTAMP_R810'):
+              if marker not in app and marker not in css:
+                  raise SystemExit(f'Missing inherited marker: {marker}')
+
+          if 'TAH_SYSTEM_DASHBOARD_R813_FIXED' in app or 'TAH_SYSTEM_DASHBOARD_R813_FIXED' in css:
+              raise SystemExit('R8.13 FIXED already installed')
+
+          new_dashboard = """/* TAH_SYSTEM_DASHBOARD_R813_FIXED */
+          async function dashboard(c){
+            setPage('الشاشة الرئيسية',offlineGraceAccess?'وضع الطوارئ الآمن — بيانات مخزنة محليًا حتى عودة الاتصال':'واجهة تشغيل النظام');
+            worklist=await D.listWorklist(300);
+
+            const today=new Date();today.setHours(0,0,0,0);
+            const tt=worklist.filter(o=>o.created_at_ms>=today.getTime()&&!o.is_voided);
+            const processing=tt.filter(x=>x.workflow_status==='processing');
+            const ready=tt.filter(x=>x.workflow_status==='ready');
+            const pending=tt.filter(x=>!['processing','ready'].includes(x.workflow_status));
+            const recent=[...tt].sort((a,b)=>Number(b.created_at_ms||0)-Number(a.created_at_ms||0)).slice(0,7);
+
+            const statusLabel=s=>({
+              processing:'جاري التنفيذ',
+              ready:'جاهز',
+              received:'تم الاستلام',
+              delivered:'تم التسليم',
+              sent_to_lab:'تم الإرسال للمعمل',
+              draft:'قيد التسجيل'
+            }[s]||'قيد التسجيل');
+
+            const statusClass=s=>({
+              processing:'processing',
+              ready:'ready',
+              delivered:'ready',
+              received:'received',
+              sent_to_lab:'received'
+            }[s]||'pending');
+
+            let actions=[
+              ['quickimage','staff_search_3d.png','استعلام تحاليل'],
+              ['new','staff_new_order_3d.png','طلب جديد'],
+              ['customers','staff_customers_3d.png','العملاء'],
+              ['guide','staff_tests_3d.png','دليل التحاليل'],
+              ['worklist','mgr_reports_3d.png','الطلبات'],
+              ['vision','staff_qr_3d.png','قراءة روشتة / طلب عيادة']
+            ];
+
+            if(!actingProfile&&D.isAdmin(profile)){
+              actions.push(['adminops','mgr_health_3d.png','الإدارة']);
+              actions.push(['prices','mgr_reports_3d.png','الأسعار Lab 2 Lab']);
+              if(isActualManager())actions.push(['switchuser','mgr_switch_3d.png','تبديل المستخدم']);
+            }
+
+            actions=orderHomeActions(actions);
+
+            c.innerHTML=`${offlineGraceAccess?'<div class="notice" style="margin-bottom:10px">وضع الطوارئ الآمن: العمل مستمر بالبيانات المحلية حتى عودة الاتصال.</div>':''}
+              <div class="system-dashboard-r813">
+                <div class="sys-dashboard-header">
+                  <div>
+                    <h2>تشغيل اليوم</h2>
+                    <span>متابعة الطلبات والخدمات من مكان واحد</span>
+                  </div>
+                  <div class="sys-live">
+                    <i></i>
+                    <span>النظام متصل</span>
+                  </div>
+                </div>
+
+                <div class="sys-kpi-row">
+                  <div class="sys-kpi-box">
+                    <span>طلبات اليوم</span>
+                    <b>${tt.length}</b>
+                    <small>إجمالي الطلبات المسجلة اليوم</small>
+                  </div>
+                  <div class="sys-kpi-box">
+                    <span>جاري التنفيذ</span>
+                    <b>${processing.length}</b>
+                    <small>طلبات تحت الإجراء</small>
+                  </div>
+                  <div class="sys-kpi-box">
+                    <span>جاهز</span>
+                    <b>${ready.length}</b>
+                    <small>نتائج جاهزة للتسليم</small>
+                  </div>
+                  <div class="sys-kpi-box">
+                    <span>قيد التسجيل</span>
+                    <b>${pending.length}</b>
+                    <small>طلبات لم تبدأ المعالجة</small>
+                  </div>
+                </div>
+
+                <section class="sys-quick-section">
+                  <div class="sys-section-title">
+                    <h3>اختصارات النظام</h3>
+                    <small>اسحب الأيقونات لتغيير ترتيبها</small>
+                  </div>
+                  <div class="homeactions homeactions-main sys-action-grid">
+                    ${actions.map(([tab,icon,label])=>`<button class="homeaction" data-home-tab="${tab}" title="اسحب لتغيير الترتيب"><span class="homeiconbox">${navGlyph(tab)}</span><span>${label}</span></button>`).join('')}
+                  </div>
+                </section>
+
+                <div class="sys-workspace-grid">
+                  <section class="sys-panel sys-orders-panel">
+                    <div class="sys-section-title">
+                      <h3>آخر الطلبات اليوم</h3>
+                      <button class="sys-text-button" id="openAllOrders">عرض كل الطلبات</button>
+                    </div>
+                    <div class="sys-orders-table-wrap">
+                      <table class="sys-orders-table">
+                        <thead>
+                          <tr>
+                            <th>رقم الطلب</th>
+                            <th>العميل</th>
+                            <th>الوقت</th>
+                            <th>الحالة</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          ${recent.length?recent.map(o=>`
+                            <tr>
+                              <td><b>${esc(o.order_number||'—')}</b></td>
+                              <td>${esc(o.customer_name||o.customerName||'—')}</td>
+                              <td>${esc(fmtDate(o.created_at_ms||Date.now()))}</td>
+                              <td><span class="sys-state ${statusClass(o.workflow_status)}">${statusLabel(o.workflow_status)}</span></td>
+                            </tr>
+                          `).join(''):`
+                            <tr><td colspan="4" class="sys-empty-state">لا توجد طلبات مسجلة اليوم حتى الآن</td></tr>
+                          `}
+                        </tbody>
+                      </table>
+                    </div>
+                  </section>
+
+                  <aside class="sys-right-column">
+                    <section class="sys-panel">
+                      <div class="sys-section-title"><h3>حالة التشغيل</h3><small>Live</small></div>
+                      <div class="sys-operation-list">
+                        <div><span>الاتصال</span><b class="oktxt">متصل</b></div>
+                        <div><span>مزامنة البيانات</span><b>نشطة</b></div>
+                        <div><span>وقت الجهاز</span><b>${typeof fullTimestamp==='function'?fullTimestamp():fmtDate(Date.now())}</b></div>
+                      </div>
+                    </section>
+
+                    <section class="sys-panel">
+                      <div class="sys-section-title"><h3>توزيع الطلبات</h3><small>اليوم</small></div>
+                      <div class="sys-bars">
+                        <div><span>جاري التنفيذ</span><em><i style="width:${tt.length?Math.max(6,Math.round(processing.length/tt.length*100)):6}%"></i></em><b>${processing.length}</b></div>
+                        <div><span>جاهز</span><em><i style="width:${tt.length?Math.max(6,Math.round(ready.length/tt.length*100)):6}%"></i></em><b>${ready.length}</b></div>
+                        <div><span>قيد التسجيل</span><em><i style="width:${tt.length?Math.max(6,Math.round(pending.length/tt.length*100)):6}%"></i></em><b>${pending.length}</b></div>
+                      </div>
+                    </section>
+                  </aside>
+                </div>
+              </div>`;
+
+            enableHomeReorder();
+
+            $$('.homeactions-main [data-home-tab]').forEach(b=>b.onclick=async()=>{
+              const tab=b.dataset.homeTab;
+              if(tab==='switchuser')return showUserSwitcher();
+              return renderTab(tab);
+            });
+
+            const allOrders=$('#openAllOrders');
+            if(allOrders)allOrders.onclick=()=>renderTab('worklist');
+          }"""
+
+          app, n = re.subn(
+              r"async function dashboard\(c\)\{.*?\}\nasync function newOrder",
+              new_dashboard + "\nasync function newOrder",
+              app,
+              count=1,
+              flags=re.S
+          )
+          if n != 1:
+              raise SystemExit(f'dashboard replacement failed: {n}')
+
+          css_add = """
+          /* TAH_SYSTEM_DASHBOARD_R813_FIXED */
+
+          body.dashboard-white .system-dashboard-r813{
+            display:grid;
+            gap:14px;
+            align-content:start;
+            min-height:calc(100vh - 132px);
+          }
+
+          body.dashboard-white .sys-dashboard-header{
+            display:flex;
+            align-items:flex-end;
+            justify-content:space-between;
+            gap:14px;
+            padding:0 2px;
+          }
+
+          body.dashboard-white .sys-dashboard-header h2{
+            margin:0 0 3px;
+            color:#113e66;
+            font-size:22px;
+          }
+
+          body.dashboard-white .sys-dashboard-header>div>span{
+            color:#72899a;
+            font-size:12px;
+          }
+
+          body.dashboard-white .sys-live{
+            display:flex;
+            align-items:center;
+            gap:7px;
+            padding:7px 10px;
+            border:1px solid #d7e8df;
+            background:#f2fbf6;
+            border-radius:999px;
+          }
+
+          body.dashboard-white .sys-live i{
+            width:8px;
+            height:8px;
+            border-radius:999px;
+            background:#2c9b61;
+            box-shadow:0 0 0 4px rgba(44,155,97,.10);
+          }
+
+          body.dashboard-white .sys-live span{
+            color:#28714e !important;
+            font-size:11px !important;
+            font-weight:800;
+          }
+
+          body.dashboard-white .sys-kpi-row{
+            display:grid;
+            grid-template-columns:repeat(4,minmax(0,1fr));
+            gap:10px;
+          }
+
+          body.dashboard-white .sys-kpi-box,
+          body.dashboard-white .sys-quick-section,
+          body.dashboard-white .sys-panel{
+            background:#fff;
+            border:1px solid #d9e5ee;
+            border-radius:16px;
+            box-shadow:0 5px 16px rgba(25,66,98,.045);
+          }
+
+          body.dashboard-white .sys-kpi-box{
+            min-height:82px;
+            padding:12px 14px;
+            display:grid;
+            grid-template-columns:1fr auto;
+            grid-template-rows:auto auto;
+            column-gap:12px;
+            align-items:center;
+          }
+
+          body.dashboard-white .sys-kpi-box span{
+            color:#667f92;
+            font-size:12px;
+            font-weight:800;
+          }
+
+          body.dashboard-white .sys-kpi-box b{
+            grid-row:1 / 3;
+            grid-column:2;
+            color:#0d416d;
+            font-size:29px;
+            line-height:1;
+          }
+
+          body.dashboard-white .sys-kpi-box small{
+            color:#93a5b2;
+            font-size:10px;
+          }
+
+          body.dashboard-white .sys-quick-section,
+          body.dashboard-white .sys-panel{
+            padding:13px;
+          }
+
+          body.dashboard-white .sys-section-title{
+            display:flex;
+            align-items:center;
+            justify-content:space-between;
+            gap:12px;
+            margin-bottom:11px;
+          }
+
+          body.dashboard-white .sys-section-title h3{
+            margin:0;
+            color:#123f68;
+            font-size:16px;
+          }
+
+          body.dashboard-white .sys-section-title small{
+            color:#8297a7;
+            font-size:11px;
+          }
+
+          body.dashboard-white .sys-action-grid{
+            display:grid !important;
+            grid-template-columns:repeat(auto-fit,minmax(108px,108px)) !important;
+            gap:12px !important;
+            justify-content:flex-start !important;
+            margin:0 !important;
+          }
+
+          body.dashboard-white .sys-action-grid .homeaction{
+            width:108px !important;
+            min-width:108px !important;
+            max-width:108px !important;
+            height:108px !important;
+            min-height:108px !important;
+            border-radius:21px !important;
+            padding:9px 7px !important;
+            gap:7px !important;
+          }
+
+          body.dashboard-white .sys-action-grid .homeiconbox{
+            width:51px !important;
+            height:51px !important;
+            flex:0 0 51px !important;
+            border-radius:16px !important;
+            padding:9px !important;
+          }
+
+          body.dashboard-white .sys-action-grid .homeaction>span:last-child{
+            font-size:11px !important;
+            line-height:1.2 !important;
+          }
+
+          body.dashboard-white .sys-workspace-grid{
+            display:grid;
+            grid-template-columns:minmax(0,1.65fr) minmax(300px,.75fr);
+            gap:12px;
+            min-height:280px;
+          }
+
+          body.dashboard-white .sys-orders-table-wrap{
+            overflow:auto;
+          }
+
+          body.dashboard-white .sys-orders-table{
+            width:100%;
+            border-collapse:collapse;
+          }
+
+          body.dashboard-white .sys-orders-table th,
+          body.dashboard-white .sys-orders-table td{
+            padding:10px 9px;
+            border-bottom:1px solid #e7eef3;
+            text-align:right;
+            white-space:nowrap;
+          }
+
+          body.dashboard-white .sys-orders-table th{
+            background:#f7fafc;
+            color:#72899a;
+            font-size:11px;
+            font-weight:800;
+          }
+
+          body.dashboard-white .sys-orders-table td{
+            color:#244963;
+            font-size:12px;
+          }
+
+          body.dashboard-white .sys-empty-state{
+            padding:24px !important;
+            text-align:center !important;
+            color:#8599a8 !important;
+          }
+
+          body.dashboard-white .sys-state{
+            display:inline-flex;
+            padding:5px 9px;
+            border-radius:999px;
+            min-width:80px;
+            justify-content:center;
+            font-size:10.5px;
+            font-weight:800;
+          }
+
+          body.dashboard-white .sys-state.processing{
+            background:#eaf4ff;
+            color:#236aa2;
+          }
+
+          body.dashboard-white .sys-state.ready{
+            background:#edf9f1;
+            color:#28724c;
+          }
+
+          body.dashboard-white .sys-state.received{
+            background:#fff7e8;
+            color:#95651d;
+          }
+
+          body.dashboard-white .sys-state.pending{
+            background:#f1f4f6;
+            color:#657c8c;
+          }
+
+          body.dashboard-white .sys-right-column{
+            display:grid;
+            gap:12px;
+            align-content:start;
+          }
+
+          body.dashboard-white .sys-operation-list{
+            display:grid;
+            gap:7px;
+          }
+
+          body.dashboard-white .sys-operation-list>div{
+            display:flex;
+            justify-content:space-between;
+            gap:12px;
+            padding:9px 10px;
+            background:#f8fbfd;
+            border:1px solid #e6edf2;
+            border-radius:11px;
+          }
+
+          body.dashboard-white .sys-operation-list span{
+            color:#72889a;
+            font-size:11px;
+          }
+
+          body.dashboard-white .sys-operation-list b{
+            color:#234c6a;
+            font-size:11px;
+            text-align:left;
+          }
+
+          body.dashboard-white .sys-operation-list .oktxt{
+            color:#2d7c54;
+          }
+
+          body.dashboard-white .sys-bars{
+            display:grid;
+            gap:10px;
+          }
+
+          body.dashboard-white .sys-bars>div{
+            display:grid;
+            grid-template-columns:84px 1fr 24px;
+            align-items:center;
+            gap:8px;
+          }
+
+          body.dashboard-white .sys-bars span,
+          body.dashboard-white .sys-bars b{
+            font-size:10.5px;
+            color:#647d90;
+          }
+
+          body.dashboard-white .sys-bars em{
+            display:block;
+            height:8px;
+            background:#edf3f7;
+            border-radius:999px;
+            overflow:hidden;
+          }
+
+          body.dashboard-white .sys-bars i{
+            display:block;
+            height:100%;
+            border-radius:999px;
+            background:linear-gradient(90deg,#2d7fc1,#124a77);
+          }
+
+          body.dashboard-white .sys-text-button{
+            border:0;
+            background:transparent;
+            color:#17669f;
+            padding:3px 5px;
+            font-size:11px;
+            font-weight:800;
+          }
+
+          body.dashboard-white .sidebottom{
+            margin-top:auto !important;
+          }
+
+          @media(max-width:1200px){
+            body.dashboard-white .sys-workspace-grid{
+              grid-template-columns:1fr;
+            }
+          }
+
+          @media(max-width:900px){
+            body.dashboard-white .sys-kpi-row{
+              grid-template-columns:repeat(2,minmax(0,1fr));
+            }
+          }
+          """
+
+          css = css.rstrip() + "\n\n" + css_add.strip() + "\n"
+
+          pkg = json.loads(pkg_path.read_text(encoding='utf-8-sig'))
+          if str(pkg.get('version')) != '145.8.11':
+              raise SystemExit(f"Expected exact R8.11 package version, got {pkg.get('version')}")
+
+          pkg['version'] = '145.8.13'
+          pkg['description'] = 'Tahalil Alakkad Windows V145 R8.13 - real system dashboard UI built directly from existing R8.11'
+
+          app_path.write_text(app, encoding='utf-8')
+          css_path.write_text(css, encoding='utf-8')
+          pkg_path.write_text(json.dumps(pkg, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+
+          (root / 'V145_R813_FIXED_NOTES.txt').write_text(
+              'Windows V145 R8.13 FIXED\n\n'
+              '- Built directly from existing R8.11; no dependency on missing R8.12.\n'
+              '- Real system dashboard layout.\n'
+              '- No financial data shown on the Home screen.\n'
+              '- Compact 3D square shortcuts.\n'
+              '- Recent orders table and operational status widgets.\n'
+              '- Settings and Logout remain separately at sidebar bottom.\n'
+              '- Customer save, Firebase, timestamping, login, core and Electron behavior preserved.\n',
+              encoding='utf-8'
+          )
+
+          print('R813_FIXED_SYSTEM_DASHBOARD_APPLIED')
+          '@
+
+          $patcherPath = Join-Path $env:RUNNER_TEMP 'patch_r813_fixed.py'
+          $patcher | Set-Content $patcherPath -Encoding utf8
+
+          python $patcherPath $root
+          if ($LASTEXITCODE -ne 0) {
+            throw 'R8.13 FIXED patch failed'
+          }
+
+      - name: Audit R8.13 FIXED and protected files
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $root = Join-Path $PWD 'build_windows/windows-system'
+
+          $pkg = Get-Content (Join-Path $root 'package.json') -Raw | ConvertFrom-Json
+          if ($pkg.version -ne '145.8.13') {
+            throw "Expected 145.8.13, got $($pkg.version)"
+          }
+
+          $app = Get-Content (Join-Path $root 'src/app.js') -Raw
+          $css = Get-Content (Join-Path $root 'src/styles.css') -Raw
+
+          foreach ($marker in @(
+            'TAH_SYSTEM_DASHBOARD_R813_FIXED',
+            'تشغيل اليوم',
+            'sys-kpi-row',
+            'sys-action-grid',
+            'sys-orders-table'
+          )) {
+            if (!($app.Contains($marker) -or $css.Contains($marker))) {
+              throw "Missing R8.13 FIXED contract: $marker"
+            }
+          }
+
+          if ($app.Contains('إجمالي المتبقي المفتوح')) {
+            throw 'Financial balance still visible on Home screen'
+          }
+
+          $actualData = (Get-FileHash (Join-Path $root 'src/data.js') -Algorithm SHA256).Hash.ToLowerInvariant()
+          $actualFirebase = (Get-FileHash (Join-Path $root 'src/firebase.js') -Algorithm SHA256).Hash.ToLowerInvariant()
+          $actualParity = (Get-FileHash (Join-Path $root 'src/v145r8-parity.js') -Algorithm SHA256).Hash.ToLowerInvariant()
+          $actualMain = (Get-FileHash (Join-Path $root 'electron/main.cjs') -Algorithm SHA256).Hash.ToLowerInvariant()
+          $actualPreload = (Get-FileHash (Join-Path $root 'electron/preload.cjs') -Algorithm SHA256).Hash.ToLowerInvariant()
+
+          if ($actualData -ne $env:R813_DATA_SHA256) { throw 'data.js changed - blocked' }
+          if ($actualFirebase -ne $env:R813_FIREBASE_SHA256) { throw 'firebase.js changed - blocked' }
+          if ($actualParity -ne $env:R813_PARITY_SHA256) { throw 'core parity changed - blocked' }
+          if ($actualMain -ne $env:R813_MAIN_SHA256) { throw 'electron/main.cjs changed - blocked' }
+          if ($actualPreload -ne $env:R813_PRELOAD_SHA256) { throw 'electron/preload.cjs changed - blocked' }
+
+          node --check (Join-Path $root 'src/app.js')
+          if ($LASTEXITCODE -ne 0) { throw 'app.js syntax failed' }
+
+          Write-Host 'R8.13 FIXED AUDIT PASSED'
+
+      - name: Package R8.13 source before dependencies
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $root = Join-Path $PWD 'build_windows/windows-system'
+          $stage = Join-Path $env:RUNNER_TEMP 'source_stage_r813_fixed'
+
+          if (Test-Path $stage) { Remove-Item $stage -Recurse -Force }
+          New-Item -ItemType Directory -Force -Path $stage | Out-Null
+
+          Get-ChildItem -LiteralPath $root -Force |
+            Where-Object { @('node_modules','release','.git') -notcontains $_.Name } |
+            ForEach-Object {
+              Copy-Item -LiteralPath $_.FullName -Destination $stage -Recurse -Force
+            }
+
+          $zip = Join-Path $PWD 'Tahalil-Alakkad-V145-R8.13-Windows-Source.zip'
+          if (Test-Path $zip) { Remove-Item $zip -Force }
+
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          [System.IO.Compression.ZipFile]::CreateFromDirectory($stage,$zip,[System.IO.Compression.CompressionLevel]::Optimal,$false)
+
+          if (!(Test-Path $zip) -or (Get-Item $zip).Length -lt 50000) {
+            throw 'R8.13 source ZIP invalid'
+          }
+
+          $hash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  Tahalil-Alakkad-V145-R8.13-Windows-Source.zip" |
+            Set-Content 'Tahalil-Alakkad-V145-R8.13-Windows-Source.zip.sha256' -Encoding ascii
+
+          Copy-Item (Join-Path $root 'V145_R813_FIXED_NOTES.txt') 'V145_R813_FIXED_NOTES.txt' -Force
+
+      - name: Install dependencies
+        working-directory: build_windows/windows-system
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          npm install --no-audit --no-fund
+          if ($LASTEXITCODE -ne 0) { throw 'npm install failed' }
+
+      - name: Build Portable
+        working-directory: build_windows/windows-system
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          npm run dist:portable
+          if ($LASTEXITCODE -ne 0) { throw 'Portable build failed' }
+
+      - name: Portable startup smoke
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          $release = Join-Path $PWD 'build_windows/windows-system/release'
+          $portable = Get-ChildItem $release -Filter '*Portable*.exe' -File |
+            Sort-Object Length -Descending |
+            Select-Object -First 1
+
+          if (!$portable) { throw 'Portable EXE missing' }
+
+          $proc = Start-Process -FilePath $portable.FullName -PassThru
+          Start-Sleep -Seconds 12
+
+          if ($proc.HasExited) {
+            if ($proc.ExitCode -ne 0) {
+              throw "Portable exited with code $($proc.ExitCode)"
+            }
+            throw 'Portable exited unexpectedly during smoke test'
+          }
+
+          Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
+
+      - name: Build Setup
+        working-directory: build_windows/windows-system
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          npm run dist:setup
+          if ($LASTEXITCODE -ne 0) { throw 'Setup build failed' }
+
+      - name: Prepare R8.13 delivery files
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          $release = Join-Path $PWD 'build_windows/windows-system/release'
+
+          $portable = Get-ChildItem $release -Filter '*Portable*.exe' -File |
+            Sort-Object Length -Descending |
+            Select-Object -First 1
+
+          $setup = Get-ChildItem $release -Filter '*Setup*.exe' -File |
+            Sort-Object Length -Descending |
+            Select-Object -First 1
+
+          if (!$portable -or !$setup) {
+            throw 'Portable or Setup EXE missing'
+          }
+
+          Copy-Item $portable.FullName 'Tahalil-Alakkad-V145-R8.13-Windows-Portable.exe' -Force
+          Copy-Item $setup.FullName 'Tahalil-Alakkad-V145-R8.13-Windows-Setup.exe' -Force
+
+          foreach ($name in @(
+            'Tahalil-Alakkad-V145-R8.13-Windows-Portable.exe',
+            'Tahalil-Alakkad-V145-R8.13-Windows-Setup.exe'
+          )) {
+            $hash = (Get-FileHash $name -Algorithm SHA256).Hash.ToLowerInvariant()
+            "$hash  $name" | Set-Content "$name.sha256" -Encoding ascii
+          }
+
+      - name: Upload R8.13 workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Tahalil-Alakkad-V145-R8.13-Windows-System-Dashboard-FIXED
+          path: |
+            Tahalil-Alakkad-V145-R8.13-Windows-Portable.exe
+            Tahalil-Alakkad-V145-R8.13-Windows-Portable.exe.sha256
+            Tahalil-Alakkad-V145-R8.13-Windows-Setup.exe
+            Tahalil-Alakkad-V145-R8.13-Windows-Setup.exe.sha256
+            Tahalil-Alakkad-V145-R8.13-Windows-Source.zip
+            Tahalil-Alakkad-V145-R8.13-Windows-Source.zip.sha256
+            V145_R813_FIXED_NOTES.txt
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Publish Windows V145 R8.13 release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          $tag = 'v145-r8.13-windows'
+          $title = 'تحاليل العقاد Windows V145 R8.13 — System Dashboard UI'
+
+          $notes = @'
+          Windows V145 R8.13 FIXED
+
+          - Built directly from the existing R8.11 release.
+          - No dependency on missing R8.12.
+          - Real system dashboard UI.
+          - Compact 3D square quick actions.
+          - Recent orders table and operational status widgets.
+          - No financial data displayed on the Home screen.
+          - Settings and Logout remain separate at sidebar bottom.
+          - Previous save/Firebase/timestamp/login/core fixes preserved.
+          '@
+
+          $files = @(
+            'Tahalil-Alakkad-V145-R8.13-Windows-Portable.exe',
+            'Tahalil-Alakkad-V145-R8.13-Windows-Portable.exe.sha256',
+            'Tahalil-Alakkad-V145-R8.13-Windows-Setup.exe',
+            'Tahalil-Alakkad-V145-R8.13-Windows-Setup.exe.sha256',
+            'Tahalil-Alakkad-V145-R8.13-Windows-Source.zip',
+            'Tahalil-Alakkad-V145-R8.13-Windows-Source.zip.sha256',
+            'V145_R813_FIXED_NOTES.txt'
+          )
+
+          gh release view $tag --repo "$env:GITHUB_REPOSITORY" *> $null
+          if ($LASTEXITCODE -eq 0) {
+            gh release edit $tag --repo "$env:GITHUB_REPOSITORY" --title $title --notes $notes
+            if ($LASTEXITCODE -ne 0) { throw 'Could not update R8.13 release' }
+          } else {
+            gh release create $tag --repo "$env:GITHUB_REPOSITORY" --title $title --notes $notes
+            if ($LASTEXITCODE -ne 0) { throw 'Could not create R8.13 release' }
+          }
+
+          gh release upload $tag @files --repo "$env:GITHUB_REPOSITORY" --clobber
+          if ($LASTEXITCODE -ne 0) { throw 'Could not upload R8.13 files' }
+
+      - name: Final status
+        shell: pwsh
+        run: |
+          Write-Host 'WINDOWS V145 R8.13 FIXED - BUILT DIRECTLY FROM R8.11'
