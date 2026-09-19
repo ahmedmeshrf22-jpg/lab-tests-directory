@@ -1,0 +1,766 @@
+name: Windows V145 R8.11 Home Layout + Viral Login
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: tahalil-windows-v145-r811-home-layout-viral-login
+  cancel-in-progress: false
+
+jobs:
+  windows-v145-r811:
+    name: Windows V145 R8.11 — Home Layout + Viral Login
+    runs-on: windows-latest
+    timeout-minutes: 110
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: "false"
+      R810_TAG: "v145-r8.10-windows"
+      R810_SOURCE: "Tahalil-Alakkad-V145-R8.10-Windows-Source.zip"
+      R810_SOURCE_SHA256: "a39fac67f543c74f23e09fa6230beb74baae599624d92c3e2127dbe4f7ef5b77"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Restore exact R8.10 source and lock protected files
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          $zip = Join-Path $PWD $env:R810_SOURCE
+          if (Test-Path $zip) { Remove-Item $zip -Force }
+
+          gh release download $env:R810_TAG --repo "$env:GITHUB_REPOSITORY" --pattern $env:R810_SOURCE --dir $PWD
+          if ($LASTEXITCODE -ne 0 -or !(Test-Path $zip)) {
+            throw 'Could not download exact R8.10 source release'
+          }
+
+          $hash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($hash -ne $env:R810_SOURCE_SHA256) {
+            throw "R8.10 source hash mismatch: $hash"
+          }
+
+          $root = Join-Path $PWD 'build_windows/windows-system'
+          if (Test-Path (Join-Path $PWD 'build_windows')) {
+            Remove-Item (Join-Path $PWD 'build_windows') -Recurse -Force
+          }
+          New-Item -ItemType Directory -Force -Path $root | Out-Null
+          Expand-Archive -Path $zip -DestinationPath $root -Force
+
+          foreach ($required in @(
+            'package.json',
+            'src/app.js',
+            'src/styles.css',
+            'src/data.js',
+            'src/firebase.js',
+            'src/v145r8-parity.js',
+            'electron/main.cjs',
+            'electron/preload.cjs'
+          )) {
+            if (!(Test-Path (Join-Path $root $required))) {
+              throw "R8.10 source missing: $required"
+            }
+          }
+
+          $locked = @{
+            R811_DATA_SHA256     = (Get-FileHash (Join-Path $root 'src/data.js') -Algorithm SHA256).Hash.ToLowerInvariant()
+            R811_FIREBASE_SHA256 = (Get-FileHash (Join-Path $root 'src/firebase.js') -Algorithm SHA256).Hash.ToLowerInvariant()
+            R811_PARITY_SHA256   = (Get-FileHash (Join-Path $root 'src/v145r8-parity.js') -Algorithm SHA256).Hash.ToLowerInvariant()
+            R811_MAIN_SHA256     = (Get-FileHash (Join-Path $root 'electron/main.cjs') -Algorithm SHA256).Hash.ToLowerInvariant()
+            R811_PRELOAD_SHA256  = (Get-FileHash (Join-Path $root 'electron/preload.cjs') -Algorithm SHA256).Hash.ToLowerInvariant()
+          }
+
+          foreach ($pair in $locked.GetEnumerator()) {
+            "$($pair.Key)=$($pair.Value)" | Add-Content $env:GITHUB_ENV
+          }
+
+          Write-Host "Exact R8.10 source restored: $hash"
+          Write-Host 'R8.11 may change app.js + styles.css + package metadata only. data.js, Firebase, core and Electron are locked.'
+
+      - name: Apply R8.11 home layout and viral login patch
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $root = Join-Path $PWD 'build_windows/windows-system'
+
+          $patcher = @'
+          from pathlib import Path
+          import json
+          import re
+          import sys
+
+          root = Path(sys.argv[1])
+          app_path = root / 'src' / 'app.js'
+          css_path = root / 'src' / 'styles.css'
+          pkg_path = root / 'package.json'
+
+          app = app_path.read_text(encoding='utf-8-sig')
+          css = css_path.read_text(encoding='utf-8-sig')
+
+          for marker in ('TAH_3D_SQUARE_HOME_ICONS_R89', 'TAH_FULL_TIMESTAMP_R810', 'TAH_MAIN_HOME_R87'):
+              if marker not in app and marker not in css:
+                  raise SystemExit(f'Missing inherited marker: {marker}')
+
+          if 'TAH_HOME_LAYOUT_R811' in app or 'TAH_HOME_LAYOUT_R811' in css:
+              raise SystemExit('R8.11 patch already installed')
+
+          new_reorder = """/* TAH_HOME_LAYOUT_R811 - reorder only main actions, not utility actions. */
+          function enableHomeReorder(){let dragged=null;$$('.homeactions-main .homeaction[data-home-tab]').forEach(el=>{el.draggable=true;el.addEventListener('dragstart',e=>{dragged=el;el.classList.add('dragging');try{e.dataTransfer.effectAllowed='move'}catch{}});el.addEventListener('dragend',()=>{el.classList.remove('dragging');dragged=null;saveHomeOrder($$('.homeactions-main .homeaction[data-home-tab]').map(x=>x.dataset.homeTab))});el.addEventListener('dragover',e=>{e.preventDefault();if(!dragged||dragged===el)return;const box=el.getBoundingClientRect(),after=e.clientY>box.top+box.height/2||e.clientX>box.left+box.width/2;el.parentNode.insertBefore(dragged,after?el.nextSibling:el)});});}"""
+
+          app, n = re.subn(
+              r"function enableHomeReorder\(\)\{.*?\}\nasync function dashboard",
+              new_reorder + "\nasync function dashboard",
+              app,
+              count=1,
+              flags=re.S
+          )
+          if n != 1:
+              raise SystemExit('enableHomeReorder replacement failed')
+
+          new_dashboard = """async function dashboard(c){
+            setPage('الشاشة الرئيسية',offlineGraceAccess?'وضع الطوارئ الآمن — بيانات مخزنة محليًا حتى عودة الاتصال':'وصول سريع ومنظم لكل وظائف اليوم');
+            worklist=await D.listWorklist(300);
+            const today=new Date();today.setHours(0,0,0,0);
+            const tt=worklist.filter(o=>o.created_at_ms>=today.getTime()&&!o.is_voided);
+            const processingCount=tt.filter(x=>x.workflow_status==='processing').length;
+            const readyCount=tt.filter(x=>x.workflow_status==='ready').length;
+            const pendingCount=Math.max(tt.length-processingCount-readyCount,0);
+            const rem=worklist.filter(o=>!o.is_voided).reduce((a,o)=>a+Number(o.remaining_amount||0),0);
+
+            let actions=[
+              ['quickimage','staff_search_3d.png','استعلام تحاليل'],
+              ['new','staff_new_order_3d.png','طلب جديد'],
+              ['customers','staff_customers_3d.png','العملاء'],
+              ['guide','staff_tests_3d.png','دليل التحاليل'],
+              ['worklist','mgr_reports_3d.png','الطلبات'],
+              ['vision','staff_qr_3d.png','قراءة روشتة / طلب عيادة']
+            ];
+            if(!actingProfile&&D.isAdmin(profile)){
+              actions.push(['adminops','mgr_health_3d.png','الإدارة'],['prices','mgr_reports_3d.png','الأسعار Lab 2 Lab']);
+              if(isActualManager())actions.push(['switchuser','mgr_switch_3d.png','تبديل المستخدم']);
+            }
+            actions=orderHomeActions(actions);
+
+            c.innerHTML=`${offlineGraceAccess?'<div class="notice" style="margin-bottom:12px">وضع الطوارئ الآمن V141: الجهاز والحساب تم التحقق منهما سابقًا، ويستمر العمل المؤقت حتى 72 ساعة. Firebase يظل المرجع الأساسي.</div>':''}
+            <div class="home-shell">
+              <div class="home-hero-grid">
+                <div class="card home-hero-card">
+                  <div class="home-hero-copy">
+                    <span class="home-kicker">SMART HOME</span>
+                    <h3>الشاشة الرئيسية</h3>
+                    <p>واجهة أوضح بتوزيع متوازن. الخدمات الأساسية في المنتصف، بينما <b>الإعدادات</b> و<b>تسجيل الخروج</b> يظلان منفصلين بأسفل الشريط الجانبي.</p>
+                  </div>
+                  <div class="home-hero-pills">
+                    <div class="home-hero-pill"><small>طلبات اليوم</small><b>${tt.length}</b></div>
+                    <div class="home-hero-pill"><small>جاري التنفيذ</small><b>${processingCount}</b></div>
+                    <div class="home-hero-pill"><small>جاهز</small><b>${readyCount}</b></div>
+                    <div class="home-hero-pill"><small>قيد التسجيل</small><b>${pendingCount}</b></div>
+                  </div>
+                </div>
+                <div class="card home-money-card">
+                  <span class="muted">إجمالي المتبقي المفتوح</span>
+                  <div class="home-money-value">${D.money(rem)} <small>EGP</small></div>
+                  <div class="home-money-note">تحديث مباشر حسب الطلبات الموجودة على النظام.</div>
+                </div>
+              </div>
+
+              <div class="home-section-head">
+                <h3>الخدمات الرئيسية</h3>
+                <span class="muted">اسحب الأيقونات لإعادة الترتيب — يتم الحفظ تلقائيًا</span>
+              </div>
+
+              <div class="homeactions homeactions-main">
+                ${actions.map(([tab,icon,label])=>`<button class="homeaction" data-home-tab="${tab}" title="اسحب لتغيير الترتيب"><span class="homeiconbox">${navGlyph(tab)}</span><span>${label}</span></button>`).join('')}
+              </div>
+
+              <div class="home-panels">
+                <div class="card home-panel">
+                  <h3 class="section-title">ملخص التشغيل</h3>
+                  <div class="home-summary-list">
+                    <div><span>طلبات اليوم</span><b>${tt.length}</b></div>
+                    <div><span>جاري التنفيذ</span><b>${processingCount}</b></div>
+                    <div><span>جاهز</span><b>${readyCount}</b></div>
+                    <div><span>إجمالي المتبقي</span><b>${D.money(rem)} EGP</b></div>
+                  </div>
+                </div>
+
+                <div class="card home-panel">
+                  <h3 class="section-title">ملاحظات سريعة</h3>
+                  <ul class="home-note-list">
+                    <li>الإعدادات وتسجيل الخروج موجودان بشكل منفصل أسفل الشريط الجانبي.</li>
+                    <li>جميع البيانات هنا متزامنة مع التطبيق والموبايل.</li>
+                    <li>يمكنك تغيير ترتيب الأيقونات الرئيسية بالسحب فقط.</li>
+                  </ul>
+                </div>
+              </div>
+            </div>`;
+
+            enableHomeReorder();
+            $$('.homeactions-main [data-home-tab]').forEach(b=>b.onclick=async()=>{
+              const tab=b.dataset.homeTab;
+              if(tab==='switchuser')return showUserSwitcher();
+              return renderTab(tab);
+            });
+          }"""
+
+          app, n = re.subn(
+              r"async function dashboard\(c\)\{.*?\}\nasync function newOrder",
+              new_dashboard + "\nasync function newOrder",
+              app,
+              count=1,
+              flags=re.S
+          )
+          if n != 1:
+              raise SystemExit('dashboard replacement failed')
+
+          css_add = """
+          /* TAH_HOME_LAYOUT_R811
+             Balanced home layout + settings/logout removed from top shortcut area.
+             Also upgrades login screen visually without touching auth logic.
+          */
+
+          body.dashboard-white .home-shell{
+            display:grid;
+            gap:16px;
+          }
+
+          body.dashboard-white .home-hero-grid{
+            display:grid;
+            grid-template-columns:1.2fr .8fr;
+            gap:14px;
+            align-items:stretch;
+          }
+
+          body.dashboard-white .home-hero-card,
+          body.dashboard-white .home-money-card,
+          body.dashboard-white .home-panel{
+            background:#ffffff;
+            border:1px solid #d7e5ef;
+            border-radius:22px;
+            box-shadow:0 10px 26px rgba(24,70,104,.06);
+          }
+
+          body.dashboard-white .home-hero-card{
+            position:relative;
+            overflow:hidden;
+            display:grid;
+            grid-template-columns:1fr auto;
+            gap:16px;
+            align-items:center;
+            padding:18px;
+          }
+
+          body.dashboard-white .home-hero-card::before{
+            content:"";
+            position:absolute;
+            inset:0 auto 0 0;
+            width:5px;
+            background:linear-gradient(180deg,#2a79bc,#0f4774);
+            opacity:.9;
+          }
+
+          body.dashboard-white .home-kicker{
+            display:inline-flex;
+            align-items:center;
+            gap:6px;
+            padding:6px 10px;
+            border-radius:999px;
+            background:#eaf4fb;
+            color:#16639c;
+            font-size:11px;
+            font-weight:800;
+            letter-spacing:.8px;
+            margin-bottom:10px;
+          }
+
+          body.dashboard-white .home-hero-card h3{
+            margin:0 0 8px;
+            color:#103f68;
+            font-size:26px;
+          }
+
+          body.dashboard-white .home-hero-card p{
+            margin:0;
+            color:#5e7688;
+            line-height:1.8;
+            font-size:14px;
+          }
+
+          body.dashboard-white .home-hero-pills{
+            display:grid;
+            grid-template-columns:repeat(2,minmax(118px,1fr));
+            gap:10px;
+            min-width:270px;
+          }
+
+          body.dashboard-white .home-hero-pill{
+            border:1px solid #d8e7f1;
+            border-radius:18px;
+            background:linear-gradient(180deg,#fbfdff,#f1f7fb);
+            padding:12px 14px;
+            display:grid;
+            gap:6px;
+          }
+
+          body.dashboard-white .home-hero-pill small{
+            color:#6f8798;
+            font-size:12px;
+            font-weight:700;
+          }
+
+          body.dashboard-white .home-hero-pill b{
+            color:#0e416c;
+            font-size:25px;
+            line-height:1;
+          }
+
+          body.dashboard-white .home-money-card{
+            display:grid;
+            align-content:center;
+            justify-items:start;
+            padding:18px;
+            text-align:right;
+          }
+
+          body.dashboard-white .home-money-value{
+            color:#0d416d;
+            font-size:38px;
+            font-weight:900;
+            margin:10px 0 6px;
+            line-height:1.1;
+          }
+
+          body.dashboard-white .home-money-value small{
+            font-size:16px;
+            font-weight:800;
+            color:#47759a;
+          }
+
+          body.dashboard-white .home-money-note{
+            color:#6f8798;
+            line-height:1.7;
+            font-size:13px;
+          }
+
+          body.dashboard-white .home-section-head{
+            display:flex;
+            align-items:center;
+            justify-content:space-between;
+            gap:14px;
+            margin-top:2px;
+          }
+
+          body.dashboard-white .home-section-head h3{
+            margin:0;
+            color:#103f68;
+            font-size:19px;
+          }
+
+          body.dashboard-white .homeactions-main{
+            display:grid !important;
+            grid-template-columns:repeat(auto-fit,minmax(118px,118px)) !important;
+            justify-content:flex-start !important;
+            align-items:start !important;
+            gap:14px !important;
+            margin:0 !important;
+          }
+
+          body.dashboard-white .home-panels{
+            display:grid;
+            grid-template-columns:1.05fr .95fr;
+            gap:14px;
+          }
+
+          body.dashboard-white .home-summary-list{
+            display:grid;
+            grid-template-columns:repeat(2,minmax(0,1fr));
+            gap:10px;
+          }
+
+          body.dashboard-white .home-summary-list > div{
+            border:1px solid #d8e7f1;
+            background:#f8fbfe;
+            border-radius:16px;
+            padding:14px;
+            display:grid;
+            gap:6px;
+          }
+
+          body.dashboard-white .home-summary-list span{
+            color:#698092;
+            font-size:12px;
+            font-weight:700;
+          }
+
+          body.dashboard-white .home-summary-list b{
+            color:#0e416c;
+            font-size:22px;
+            line-height:1.25;
+          }
+
+          body.dashboard-white .home-note-list{
+            margin:0;
+            padding:0 18px 0 0;
+            display:grid;
+            gap:12px;
+            color:#5f7789;
+            line-height:1.8;
+          }
+
+          body.dashboard-white .home-note-list li::marker{
+            color:#1d6aa8;
+          }
+
+          .login-stage-v134{
+            background:
+              radial-gradient(circle at 18% 18%, rgba(78,165,234,.13), transparent 24%),
+              radial-gradient(circle at 82% 24%, rgba(53,129,194,.12), transparent 22%),
+              radial-gradient(circle at 50% 100%, rgba(30,87,141,.16), transparent 32%),
+              linear-gradient(135deg,#06101c,#0a1728 56%,#10243c);
+          }
+
+          .login-v134{
+            border-radius:30px;
+            border:1px solid rgba(96,157,207,.35);
+            box-shadow:0 30px 90px rgba(0,0,0,.48),0 0 60px rgba(47,139,207,.12);
+            backdrop-filter:blur(8px);
+            overflow:hidden;
+            position:relative;
+          }
+
+          .login-v134::before{
+            content:"";
+            position:absolute;
+            left:0;
+            right:0;
+            top:0;
+            height:6px;
+            background:linear-gradient(90deg,#2f8fe0,#1c5f98,#69c0ff);
+            opacity:.95;
+          }
+
+          .login-brand-row{
+            gap:18px;
+            margin-bottom:16px;
+          }
+
+          .login-v134 .login-logo-wrap{
+            width:92px;
+            height:92px;
+            border-radius:27px;
+            box-shadow:0 0 34px rgba(79,166,230,.18);
+          }
+
+          .login-brand-copy h1{
+            font-size:32px;
+          }
+
+          .login-trust-strip{
+            margin:10px 0 8px;
+            padding:10px 12px;
+            border-radius:14px;
+            background:rgba(11,34,54,.70);
+          }
+
+          .login-submit{
+            min-height:50px;
+            border-radius:15px;
+            box-shadow:0 14px 34px rgba(18,95,158,.28);
+          }
+
+          .loginrecovery{
+            margin-top:14px;
+          }
+
+          .loginrecovery .btn{
+            border-radius:13px;
+          }
+
+          @media(max-width:1180px){
+            body.dashboard-white .home-hero-grid,
+            body.dashboard-white .home-panels{
+              grid-template-columns:1fr;
+            }
+          }
+
+          @media(max-width:860px){
+            body.dashboard-white .home-hero-card{
+              grid-template-columns:1fr;
+            }
+            body.dashboard-white .home-hero-pills{
+              min-width:0;
+              width:100%;
+            }
+            body.dashboard-white .home-section-head{
+              flex-direction:column;
+              align-items:flex-start;
+            }
+            body.dashboard-white .home-summary-list{
+              grid-template-columns:1fr;
+            }
+          }
+
+          @media(max-width:700px){
+            body.dashboard-white .homeactions-main{
+              grid-template-columns:repeat(auto-fit,minmax(104px,104px)) !important;
+            }
+          }
+          """
+          css = css.rstrip() + "\n\n" + css_add.strip() + "\n"
+
+          pkg = json.loads(pkg_path.read_text(encoding='utf-8-sig'))
+          if str(pkg.get('version')) != '145.8.10':
+              raise SystemExit(f"Expected exact R8.10 package version, got {pkg.get('version')}")
+
+          pkg['version'] = '145.8.11'
+          pkg['description'] = 'Tahalil Alakkad Windows V145 R8.11 - balanced home layout, settings/logout removed from top shortcuts, premium viral login polish'
+
+          app_path.write_text(app, encoding='utf-8')
+          css_path.write_text(css, encoding='utf-8')
+          pkg_path.write_text(json.dumps(pkg, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+
+          (root / 'V145_R811_HOME_LAYOUT_NOTES.txt').write_text(
+              'Windows V145 R8.11 - Home Layout + Viral Login\n\n'
+              '- Home screen redesigned with balanced distribution and no large empty area.\n'
+              '- Settings and Logout removed from the top shortcut zone and kept separately in the sidebar bottom.\n'
+              '- Main actions remain draggable and reorder is limited to the main shortcut area only.\n'
+              '- Open remaining amount redesigned as a compact hero card instead of a wide empty block.\n'
+              '- Login screen received a premium/viral visual polish without changing auth logic.\n'
+              '- data.js, Firebase, core, Electron and all previous save/sync fixes remain unchanged.\n',
+              encoding='utf-8'
+          )
+
+          print('R811_HOME_LAYOUT_PATCH_APPLIED')
+          '@
+
+          $patcherPath = Join-Path $env:RUNNER_TEMP 'patch_r811.py'
+          $patcher | Set-Content $patcherPath -Encoding utf8
+          python $patcherPath $root
+          if ($LASTEXITCODE -ne 0) {
+            throw 'R8.11 patch failed'
+          }
+
+      - name: Audit R8.11 contracts and protected files
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $root = Join-Path $PWD 'build_windows/windows-system'
+
+          $pkg = Get-Content (Join-Path $root 'package.json') -Raw | ConvertFrom-Json
+          if ($pkg.version -ne '145.8.11') {
+            throw "Expected version 145.8.11, got $($pkg.version)"
+          }
+
+          $app = Get-Content (Join-Path $root 'src/app.js') -Raw
+          $css = Get-Content (Join-Path $root 'src/styles.css') -Raw
+
+          foreach ($marker in @(
+            'TAH_HOME_LAYOUT_R811',
+            'homeactions-main',
+            'الإعدادات</b> و<b>تسجيل الخروج',
+            'home-hero-grid',
+            'home-money-card'
+          )) {
+            if (!($app.Contains($marker) -or $css.Contains($marker))) {
+              throw "Missing R8.11 contract: $marker"
+            }
+          }
+
+          foreach ($forbidden in @(
+            "actions.push(['settings','mgr_health_3d.png','الإعدادات'],['logout','mgr_switch_3d.png','تسجيل الخروج'])",
+            '<div class="card" style="margin-top:14px"><h3 class="section-title">إجمالي المتبقي المفتوح</h3>'
+          )) {
+            if ($app.Contains($forbidden)) {
+              throw "Old dashboard block still present: $forbidden"
+            }
+          }
+
+          $actualData = (Get-FileHash (Join-Path $root 'src/data.js') -Algorithm SHA256).Hash.ToLowerInvariant()
+          $actualFirebase = (Get-FileHash (Join-Path $root 'src/firebase.js') -Algorithm SHA256).Hash.ToLowerInvariant()
+          $actualParity = (Get-FileHash (Join-Path $root 'src/v145r8-parity.js') -Algorithm SHA256).Hash.ToLowerInvariant()
+          $actualMain = (Get-FileHash (Join-Path $root 'electron/main.cjs') -Algorithm SHA256).Hash.ToLowerInvariant()
+          $actualPreload = (Get-FileHash (Join-Path $root 'electron/preload.cjs') -Algorithm SHA256).Hash.ToLowerInvariant()
+
+          if ($actualData -ne $env:R811_DATA_SHA256) { throw 'R8.11 changed data.js - blocked' }
+          if ($actualFirebase -ne $env:R811_FIREBASE_SHA256) { throw 'R8.11 changed firebase.js - blocked' }
+          if ($actualParity -ne $env:R811_PARITY_SHA256) { throw 'R8.11 changed v145r8-parity.js - blocked' }
+          if ($actualMain -ne $env:R811_MAIN_SHA256) { throw 'R8.11 changed electron/main.cjs - blocked' }
+          if ($actualPreload -ne $env:R811_PRELOAD_SHA256) { throw 'R8.11 changed electron/preload.cjs - blocked' }
+
+          node --check (Join-Path $root 'src/app.js')
+          if ($LASTEXITCODE -ne 0) { throw 'app.js syntax failed' }
+
+          Write-Host 'R8.11 AUDIT PASSED - HOME LAYOUT FIXED, LOGIN POLISHED, SAVE/SYNC CORE PROTECTED'
+
+      - name: Package R8.11 source before dependencies
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $root = Join-Path $PWD 'build_windows/windows-system'
+          $stage = Join-Path $env:RUNNER_TEMP 'source_stage_r811'
+
+          if (Test-Path $stage) { Remove-Item $stage -Recurse -Force }
+          New-Item -ItemType Directory -Force -Path $stage | Out-Null
+
+          Get-ChildItem -LiteralPath $root -Force |
+            Where-Object { @('node_modules','release','.git') -notcontains $_.Name } |
+            ForEach-Object {
+              Copy-Item -LiteralPath $_.FullName -Destination $stage -Recurse -Force
+            }
+
+          $zip = Join-Path $PWD 'Tahalil-Alakkad-V145-R8.11-Windows-Source.zip'
+          if (Test-Path $zip) { Remove-Item $zip -Force }
+
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          [System.IO.Compression.ZipFile]::CreateFromDirectory($stage,$zip,[System.IO.Compression.CompressionLevel]::Optimal,$false)
+
+          if (!(Test-Path $zip) -or (Get-Item $zip).Length -lt 50000) {
+            throw 'R8.11 source ZIP invalid'
+          }
+
+          $hash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  Tahalil-Alakkad-V145-R8.11-Windows-Source.zip" |
+            Set-Content 'Tahalil-Alakkad-V145-R8.11-Windows-Source.zip.sha256' -Encoding ascii
+
+          Copy-Item (Join-Path $root 'V145_R811_HOME_LAYOUT_NOTES.txt') 'V145_R811_HOME_LAYOUT_NOTES.txt' -Force
+
+      - name: Install dependencies
+        working-directory: build_windows/windows-system
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          npm install --no-audit --no-fund
+          if ($LASTEXITCODE -ne 0) { throw 'npm install failed' }
+
+      - name: Build Portable
+        working-directory: build_windows/windows-system
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          npm run dist:portable
+          if ($LASTEXITCODE -ne 0) { throw 'Portable build failed' }
+
+      - name: Portable startup smoke
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $release = Join-Path $PWD 'build_windows/windows-system/release'
+          $portable = Get-ChildItem $release -Filter '*Portable*.exe' -File | Sort-Object Length -Descending | Select-Object -First 1
+          if (!$portable) { throw 'Portable EXE missing for smoke test' }
+
+          $proc = Start-Process -FilePath $portable.FullName -PassThru
+          Start-Sleep -Seconds 12
+          if ($proc.HasExited) {
+            if ($proc.ExitCode -ne 0) { throw "Portable exited during smoke test with code $($proc.ExitCode)" }
+            throw 'Portable exited unexpectedly during smoke window'
+          }
+          Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
+          Write-Host 'Portable startup smoke passed'
+
+      - name: Build Setup
+        working-directory: build_windows/windows-system
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          npm run dist:setup
+          if ($LASTEXITCODE -ne 0) { throw 'Setup build failed' }
+
+      - name: Prepare R8.11 delivery files
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $release = Join-Path $PWD 'build_windows/windows-system/release'
+
+          $portable = Get-ChildItem $release -Filter '*Portable*.exe' -File | Sort-Object Length -Descending | Select-Object -First 1
+          $setup = Get-ChildItem $release -Filter '*Setup*.exe' -File | Sort-Object Length -Descending | Select-Object -First 1
+
+          if (!$portable -or !$setup) {
+            throw 'Portable or Setup EXE missing'
+          }
+
+          Copy-Item $portable.FullName 'Tahalil-Alakkad-V145-R8.11-Windows-Portable.exe' -Force
+          Copy-Item $setup.FullName 'Tahalil-Alakkad-V145-R8.11-Windows-Setup.exe' -Force
+
+          foreach ($name in @(
+            'Tahalil-Alakkad-V145-R8.11-Windows-Portable.exe',
+            'Tahalil-Alakkad-V145-R8.11-Windows-Setup.exe'
+          )) {
+            if ((Get-Item $name).Length -lt 100000) {
+              throw "$name unexpectedly small"
+            }
+            $hash = (Get-FileHash $name -Algorithm SHA256).Hash.ToLowerInvariant()
+            "$hash  $name" | Set-Content "$name.sha256" -Encoding ascii
+          }
+
+      - name: Upload R8.11 workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Tahalil-Alakkad-V145-R8.11-Windows-Home-Layout
+          path: |
+            Tahalil-Alakkad-V145-R8.11-Windows-Portable.exe
+            Tahalil-Alakkad-V145-R8.11-Windows-Portable.exe.sha256
+            Tahalil-Alakkad-V145-R8.11-Windows-Setup.exe
+            Tahalil-Alakkad-V145-R8.11-Windows-Setup.exe.sha256
+            Tahalil-Alakkad-V145-R8.11-Windows-Source.zip
+            Tahalil-Alakkad-V145-R8.11-Windows-Source.zip.sha256
+            V145_R811_HOME_LAYOUT_NOTES.txt
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Publish Windows V145 R8.11 release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          $tag = 'v145-r8.11-windows'
+          $title = 'تحاليل العقاد Windows V145 R8.11 — Home Layout + Viral Login'
+
+          $notes = @'
+          Windows V145 R8.11 — Home Layout + Viral Login
+
+          - Balanced home screen distribution with no giant empty area.
+          - Settings and Logout removed from the top shortcut row and kept separate in the sidebar bottom.
+          - Main shortcut area stays square / 3D / draggable.
+          - Remaining open balance redesigned as a compact hero card.
+          - Login screen visually polished to a more premium / viral style.
+          - data.js, Firebase, core and Electron files remain unchanged.
+          '@
+
+          $files = @(
+            'Tahalil-Alakkad-V145-R8.11-Windows-Portable.exe',
+            'Tahalil-Alakkad-V145-R8.11-Windows-Portable.exe.sha256',
+            'Tahalil-Alakkad-V145-R8.11-Windows-Setup.exe',
+            'Tahalil-Alakkad-V145-R8.11-Windows-Setup.exe.sha256',
+            'Tahalil-Alakkad-V145-R8.11-Windows-Source.zip',
+            'Tahalil-Alakkad-V145-R8.11-Windows-Source.zip.sha256',
+            'V145_R811_HOME_LAYOUT_NOTES.txt'
+          )
+
+          gh release view $tag --repo "$env:GITHUB_REPOSITORY" *> $null
+          if ($LASTEXITCODE -eq 0) {
+            gh release edit $tag --repo "$env:GITHUB_REPOSITORY" --title $title --notes $notes
+            if ($LASTEXITCODE -ne 0) { throw 'Could not update R8.11 release metadata' }
+          } else {
+            gh release create $tag --repo "$env:GITHUB_REPOSITORY" --title $title --notes $notes
+            if ($LASTEXITCODE -ne 0) { throw 'Could not create R8.11 release' }
+          }
+
+          gh release upload $tag @files --repo "$env:GITHUB_REPOSITORY" --clobber
+          if ($LASTEXITCODE -ne 0) { throw 'Could not upload R8.11 release files' }
+
+      - name: Final status
+        shell: pwsh
+        run: |
+          Write-Host 'WINDOWS V145 R8.11 HOME LAYOUT + VIRAL LOGIN - BUILT, AUDITED, CORE PROTECTED'
