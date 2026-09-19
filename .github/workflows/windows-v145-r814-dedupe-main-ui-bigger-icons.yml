@@ -1,0 +1,605 @@
+name: Windows V145 R8.14 De-Dupe Main UI + Bigger Icons
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: tahalil-windows-v145-r814-dedupe-main-ui
+  cancel-in-progress: false
+
+jobs:
+  windows-v145-r814:
+    name: Windows V145 R8.14 — De-Dupe Main UI + Bigger Icons
+    runs-on: windows-latest
+    timeout-minutes: 110
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: "false"
+      BASE_TAG: "v145-r8.13-windows"
+      BASE_SOURCE: "Tahalil-Alakkad-V145-R8.13-Windows-Source.zip"
+      BASE_SHA256: "dc93ec63e8e03695b21afdbb3de5f6da1d6c944bcd701df0a62660a7e5b3fd8a"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Restore exact R8.13 source and lock protected files
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          $zip = Join-Path $PWD $env:BASE_SOURCE
+          if (Test-Path $zip) { Remove-Item $zip -Force }
+
+          gh release download $env:BASE_TAG --repo "$env:GITHUB_REPOSITORY" --pattern $env:BASE_SOURCE --dir $PWD
+          if ($LASTEXITCODE -ne 0 -or !(Test-Path $zip)) {
+            throw 'Could not download exact R8.13 source release'
+          }
+
+          $hash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($hash -ne $env:BASE_SHA256) {
+            throw "R8.13 source hash mismatch: $hash"
+          }
+
+          $root = Join-Path $PWD 'build_windows/windows-system'
+          if (Test-Path (Join-Path $PWD 'build_windows')) {
+            Remove-Item (Join-Path $PWD 'build_windows') -Recurse -Force
+          }
+          New-Item -ItemType Directory -Force -Path $root | Out-Null
+          Expand-Archive -Path $zip -DestinationPath $root -Force
+
+          foreach ($required in @(
+            'package.json',
+            'src/app.js',
+            'src/styles.css',
+            'src/data.js',
+            'src/firebase.js',
+            'src/v145r8-parity.js',
+            'electron/main.cjs',
+            'electron/preload.cjs'
+          )) {
+            if (!(Test-Path (Join-Path $root $required))) {
+              throw "R8.13 source missing: $required"
+            }
+          }
+
+          $locked = @{
+            R814_DATA_SHA256     = (Get-FileHash (Join-Path $root 'src/data.js') -Algorithm SHA256).Hash.ToLowerInvariant()
+            R814_FIREBASE_SHA256 = (Get-FileHash (Join-Path $root 'src/firebase.js') -Algorithm SHA256).Hash.ToLowerInvariant()
+            R814_PARITY_SHA256   = (Get-FileHash (Join-Path $root 'src/v145r8-parity.js') -Algorithm SHA256).Hash.ToLowerInvariant()
+            R814_MAIN_SHA256     = (Get-FileHash (Join-Path $root 'electron/main.cjs') -Algorithm SHA256).Hash.ToLowerInvariant()
+            R814_PRELOAD_SHA256  = (Get-FileHash (Join-Path $root 'electron/preload.cjs') -Algorithm SHA256).Hash.ToLowerInvariant()
+          }
+
+          foreach ($pair in $locked.GetEnumerator()) {
+            "$($pair.Key)=$($pair.Value)" | Add-Content $env:GITHUB_ENV
+          }
+
+      - name: Apply R8.14 de-dupe dashboard patch
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $root = Join-Path $PWD 'build_windows/windows-system'
+
+          $patcher = @'
+          from pathlib import Path
+          import json, re, sys
+
+          root = Path(sys.argv[1])
+          app_path = root / 'src' / 'app.js'
+          css_path = root / 'src' / 'styles.css'
+          pkg_path = root / 'package.json'
+
+          app = app_path.read_text(encoding='utf-8-sig')
+          css = css_path.read_text(encoding='utf-8-sig')
+
+          for marker in ('TAH_SYSTEM_DASHBOARD_R813_FIXED','TAH_HOME_LAYOUT_R811','TAH_FULL_TIMESTAMP_R810'):
+              if marker not in app and marker not in css:
+                  raise SystemExit(f'Missing inherited marker: {marker}')
+
+          if 'TAH_MAIN_UI_DEDUPE_R814' in app or 'TAH_MAIN_UI_DEDUPE_R814' in css:
+              raise SystemExit('R8.14 already installed')
+
+          new_dashboard = """/* TAH_MAIN_UI_DEDUPE_R814 */
+          async function dashboard(c){
+            setPage('تشغيل اليوم',offlineGraceAccess?'وضع الطوارئ الآمن — بيانات مخزنة محليًا حتى عودة الاتصال':'واجهة سيستم مختصرة وواضحة');
+            worklist=await D.listWorklist(300);
+
+            const today=new Date();today.setHours(0,0,0,0);
+            const tt=worklist.filter(o=>o.created_at_ms>=today.getTime()&&!o.is_voided);
+            const processing=tt.filter(x=>x.workflow_status==='processing');
+            const ready=tt.filter(x=>x.workflow_status==='ready');
+            const pending=tt.filter(x=>!['processing','ready'].includes(x.workflow_status));
+            const recent=[...tt].sort((a,b)=>Number(b.created_at_ms||0)-Number(a.created_at_ms||0)).slice(0,8);
+
+            const statusLabel=s=>({
+              processing:'جاري التنفيذ',
+              ready:'جاهز',
+              received:'تم الاستلام',
+              delivered:'تم التسليم',
+              sent_to_lab:'تم الإرسال للمعمل',
+              draft:'قيد التسجيل'
+            }[s]||'قيد التسجيل');
+
+            const statusClass=s=>({
+              processing:'processing',
+              ready:'ready',
+              delivered:'ready',
+              received:'received',
+              sent_to_lab:'received'
+            }[s]||'pending');
+
+            let actions=[
+              ['quickimage','staff_search_3d.png','استعلام تحاليل'],
+              ['new','staff_new_order_3d.png','طلب جديد'],
+              ['customers','staff_customers_3d.png','العملاء'],
+              ['guide','staff_tests_3d.png','دليل التحاليل'],
+              ['worklist','mgr_reports_3d.png','الطلبات'],
+              ['vision','staff_qr_3d.png','قراءة روشتة / طلب عيادة']
+            ];
+            if(!actingProfile&&D.isAdmin(profile)){
+              actions.push(['adminops','mgr_health_3d.png','الإدارة']);
+              actions.push(['prices','mgr_reports_3d.png','الأسعار Lab 2 Lab']);
+              if(isActualManager())actions.push(['switchuser','mgr_switch_3d.png','تبديل المستخدم']);
+            }
+            actions=orderHomeActions(actions);
+
+            c.innerHTML=`${offlineGraceAccess?'<div class="notice" style="margin-bottom:10px">وضع الطوارئ الآمن: العمل مستمر بالبيانات المحلية حتى عودة الاتصال.</div>':''}
+              <div class="system-dashboard-r814">
+                <div class="sys814-header">
+                  <div>
+                    <h2>تشغيل اليوم</h2>
+                    <span>متابعة الطلبات والخدمات من مكان واحد</span>
+                  </div>
+                  <div class="sys814-live"><i></i><span>النظام متصل</span></div>
+                </div>
+
+                <div class="sys814-kpis">
+                  <div class="sys814-kpi"><span>طلبات اليوم</span><b>${tt.length}</b></div>
+                  <div class="sys814-kpi"><span>جاري التنفيذ</span><b>${processing.length}</b></div>
+                  <div class="sys814-kpi"><span>جاهز</span><b>${ready.length}</b></div>
+                  <div class="sys814-kpi"><span>قيد التسجيل</span><b>${pending.length}</b></div>
+                </div>
+
+                <section class="sys814-panel sys814-actions-panel">
+                  <div class="sys814-title-row">
+                    <h3>اختصارات النظام</h3>
+                    <small>اسحب الأيقونات لتغيير ترتيبها</small>
+                  </div>
+                  <div class="homeactions homeactions-main sys814-action-grid">
+                    ${actions.map(([tab,icon,label])=>`<button class="homeaction" data-home-tab="${tab}" title="اسحب لتغيير الترتيب"><span class="homeiconbox">${navGlyph(tab)}</span><span>${label}</span></button>`).join('')}
+                  </div>
+                </section>
+
+                <div class="sys814-grid">
+                  <section class="sys814-panel sys814-table-panel">
+                    <div class="sys814-title-row">
+                      <h3>آخر الطلبات اليوم</h3>
+                      <button class="sys814-link-btn" id="openAllOrders">عرض كل الطلبات</button>
+                    </div>
+                    <div class="sys814-table-wrap">
+                      <table class="sys814-table">
+                        <thead>
+                          <tr>
+                            <th>رقم الطلب</th>
+                            <th>العميل</th>
+                            <th>الوقت</th>
+                            <th>الحالة</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          ${recent.length?recent.map(o=>`
+                            <tr>
+                              <td><b>${esc(o.order_number||'—')}</b></td>
+                              <td>${esc(o.customer_name||o.customerName||'—')}</td>
+                              <td>${esc(fmtDate(o.created_at_ms||Date.now()))}</td>
+                              <td><span class="sys814-state ${statusClass(o.workflow_status)}">${statusLabel(o.workflow_status)}</span></td>
+                            </tr>
+                          `).join(''):`
+                            <tr><td colspan="4" class="sys814-empty">لا توجد طلبات مسجلة اليوم حتى الآن</td></tr>
+                          `}
+                        </tbody>
+                      </table>
+                    </div>
+                  </section>
+
+                  <aside class="sys814-panel sys814-side-panel">
+                    <div class="sys814-title-row"><h3>حالة التشغيل</h3><small>Live</small></div>
+                    <div class="sys814-status-list">
+                      <div><span>الاتصال</span><b class="oktxt">متصل</b></div>
+                      <div><span>مزامنة البيانات</span><b>نشطة</b></div>
+                      <div><span>وقت الجهاز</span><b>${typeof fullTimestamp==='function'?fullTimestamp():fmtDate(Date.now())}</b></div>
+                    </div>
+                  </aside>
+                </div>
+              </div>`;
+
+            enableHomeReorder();
+            $$('.homeactions-main [data-home-tab]').forEach(b=>b.onclick=async()=>{
+              const tab=b.dataset.homeTab;
+              if(tab==='switchuser')return showUserSwitcher();
+              return renderTab(tab);
+            });
+            const allOrders=$('#openAllOrders');
+            if(allOrders)allOrders.onclick=()=>renderTab('worklist');
+          }"""
+
+          app, n = re.subn(
+              r"(?:/\* TAH_SYSTEM_DASHBOARD_R813_FIXED \*/\n)?async function dashboard\(c\)\{.*?\}\nasync function newOrder",
+              new_dashboard + "\nasync function newOrder",
+              app,
+              count=1,
+              flags=re.S
+          )
+          if n != 1:
+              raise SystemExit('dashboard replacement failed')
+
+          css_add = """
+          /* TAH_MAIN_UI_DEDUPE_R814 */
+
+          body.dashboard-white .system-dashboard-r814{
+            display:grid;
+            gap:14px;
+            align-content:start;
+            min-height:calc(100vh - 132px);
+          }
+
+          body.dashboard-white .sys814-header{
+            display:flex;
+            align-items:flex-end;
+            justify-content:space-between;
+            gap:14px;
+            padding:0 2px;
+          }
+
+          body.dashboard-white .sys814-header h2{
+            margin:0 0 3px;
+            color:#113e66;
+            font-size:22px;
+          }
+
+          body.dashboard-white .sys814-header>div>span{
+            color:#72899a;
+            font-size:12px;
+          }
+
+          body.dashboard-white .sys814-live{
+            display:flex;
+            align-items:center;
+            gap:7px;
+            padding:7px 10px;
+            border:1px solid #d7e8df;
+            background:#f2fbf6;
+            border-radius:999px;
+          }
+
+          body.dashboard-white .sys814-live i{
+            width:8px;height:8px;border-radius:999px;background:#2c9b61;box-shadow:0 0 0 4px rgba(44,155,97,.10);
+          }
+
+          body.dashboard-white .sys814-live span{color:#28714e !important;font-size:11px !important;font-weight:800;}
+
+          body.dashboard-white .sys814-kpis{
+            display:grid;
+            grid-template-columns:repeat(4,minmax(0,1fr));
+            gap:10px;
+          }
+
+          body.dashboard-white .sys814-panel,
+          body.dashboard-white .sys814-kpi{
+            background:#fff;border:1px solid #d9e5ee;border-radius:16px;box-shadow:0 5px 16px rgba(25,66,98,.045);
+          }
+
+          body.dashboard-white .sys814-kpi{
+            min-height:78px;
+            padding:13px 14px;
+            display:grid;
+            gap:6px;
+            align-content:center;
+          }
+
+          body.dashboard-white .sys814-kpi span{color:#667f92;font-size:12px;font-weight:800;}
+          body.dashboard-white .sys814-kpi b{color:#0d416d;font-size:30px;line-height:1;}
+
+          body.dashboard-white .sys814-panel{padding:13px;}
+
+          body.dashboard-white .sys814-title-row{
+            display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:11px;
+          }
+          body.dashboard-white .sys814-title-row h3{margin:0;color:#123f68;font-size:16px;}
+          body.dashboard-white .sys814-title-row small{color:#8297a7;font-size:11px;}
+
+          body.dashboard-white .sys814-action-grid{
+            display:grid !important;
+            grid-template-columns:repeat(auto-fit,minmax(126px,126px)) !important;
+            gap:14px !important;
+            justify-content:flex-start !important;
+            margin:0 !important;
+          }
+
+          body.dashboard-white .sys814-action-grid .homeaction{
+            width:126px !important;min-width:126px !important;max-width:126px !important;
+            height:126px !important;min-height:126px !important;
+            border-radius:24px !important;padding:12px 8px !important;gap:8px !important;
+          }
+
+          body.dashboard-white .sys814-action-grid .homeiconbox{
+            width:60px !important;height:60px !important;flex:0 0 60px !important;border-radius:18px !important;padding:11px !important;
+          }
+
+          body.dashboard-white .sys814-action-grid .homeaction>span:last-child{
+            font-size:12px !important;line-height:1.25 !important;font-weight:800 !important;
+          }
+
+          body.dashboard-white .sys814-grid{
+            display:grid;
+            grid-template-columns:minmax(0,1.7fr) minmax(290px,.7fr);
+            gap:12px;
+          }
+
+          body.dashboard-white .sys814-table-wrap{overflow:auto;}
+          body.dashboard-white .sys814-table{width:100%;border-collapse:collapse;}
+          body.dashboard-white .sys814-table th,
+          body.dashboard-white .sys814-table td{padding:10px 9px;border-bottom:1px solid #e7eef3;text-align:right;white-space:nowrap;}
+          body.dashboard-white .sys814-table th{background:#f7fafc;color:#72899a;font-size:11px;font-weight:800;}
+          body.dashboard-white .sys814-table td{color:#244963;font-size:12px;}
+          body.dashboard-white .sys814-empty{padding:24px !important;text-align:center !important;color:#8599a8 !important;}
+
+          body.dashboard-white .sys814-state{
+            display:inline-flex;padding:5px 9px;border-radius:999px;min-width:80px;justify-content:center;font-size:10.5px;font-weight:800;
+          }
+          body.dashboard-white .sys814-state.processing{background:#eaf4ff;color:#236aa2;}
+          body.dashboard-white .sys814-state.ready{background:#edf9f1;color:#28724c;}
+          body.dashboard-white .sys814-state.received{background:#fff7e8;color:#95651d;}
+          body.dashboard-white .sys814-state.pending{background:#f1f4f6;color:#657c8c;}
+
+          body.dashboard-white .sys814-status-list{display:grid;gap:8px;}
+          body.dashboard-white .sys814-status-list>div{
+            display:flex;justify-content:space-between;gap:12px;padding:10px;background:#f8fbfd;border:1px solid #e6edf2;border-radius:11px;
+          }
+          body.dashboard-white .sys814-status-list span{color:#72889a;font-size:11px;}
+          body.dashboard-white .sys814-status-list b{color:#234c6a;font-size:11px;text-align:left;}
+          body.dashboard-white .sys814-status-list .oktxt{color:#2d7c54;}
+
+          body.dashboard-white .sys814-link-btn{border:0;background:transparent;color:#17669f;padding:3px 5px;font-size:11px;font-weight:800;}
+
+          body.dashboard-white .sidebottom{margin-top:auto !important;}
+
+          @media(max-width:1200px){
+            body.dashboard-white .sys814-grid{grid-template-columns:1fr;}
+          }
+          @media(max-width:900px){
+            body.dashboard-white .sys814-kpis{grid-template-columns:repeat(2,minmax(0,1fr));}
+          }
+          """
+
+          css = css.rstrip() + "\n\n" + css_add.strip() + "\n"
+
+          pkg = json.loads(pkg_path.read_text(encoding='utf-8-sig'))
+          if str(pkg.get('version')) != '145.8.13':
+              raise SystemExit(f"Expected exact R8.13 package version, got {pkg.get('version')}")
+
+          pkg['version'] = '145.8.14'
+          pkg['description'] = 'Tahalil Alakkad Windows V145 R8.14 - deduplicated main UI with bigger shortcuts and cleaner system layout'
+
+          app_path.write_text(app, encoding='utf-8')
+          css_path.write_text(css, encoding='utf-8')
+          pkg_path.write_text(json.dumps(pkg, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+
+          (root / 'V145_R814_DEDUPE_MAIN_UI_NOTES.txt').write_text(
+              'Windows V145 R8.14\n\n'
+              '- Removed duplicate information from the home screen.\n'
+              '- Removed the repeated distribution block and kept one clear status card.\n'
+              '- Shortcuts are larger while staying square / 3D.\n'
+              '- Recent orders table remains.\n'
+              '- Settings and Logout remain at sidebar bottom.\n'
+              '- All previous save / Firebase / timestamp / login / customer fixes remain unchanged.\n',
+              encoding='utf-8'
+          )
+          print('R814_DEDUPE_PATCH_APPLIED')
+          '@
+
+          $patcherPath = Join-Path $env:RUNNER_TEMP 'patch_r814.py'
+          $patcher | Set-Content $patcherPath -Encoding utf8
+          python $patcherPath $root
+          if ($LASTEXITCODE -ne 0) { throw 'R8.14 patch failed' }
+
+      - name: Audit R8.14 and protected files
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $root = Join-Path $PWD 'build_windows/windows-system'
+
+          $pkg = Get-Content (Join-Path $root 'package.json') -Raw | ConvertFrom-Json
+          if ($pkg.version -ne '145.8.14') { throw "Expected 145.8.14, got $($pkg.version)" }
+
+          $app = Get-Content (Join-Path $root 'src/app.js') -Raw
+          $css = Get-Content (Join-Path $root 'src/styles.css') -Raw
+
+          foreach ($marker in @(
+            'TAH_MAIN_UI_DEDUPE_R814',
+            'sys814-action-grid',
+            'sys814-status-list',
+            'آخر الطلبات اليوم'
+          )) {
+            if (!($app.Contains($marker) -or $css.Contains($marker))) {
+              throw "Missing R8.14 contract: $marker"
+            }
+          }
+
+          foreach ($forbidden in @(
+            'توزيع الطلبات',
+            'sys-bars',
+            'sys-progress-row'
+          )) {
+            if ($app.Contains($forbidden) -or $css.Contains($forbidden)) {
+              throw "Old duplicated widget still present: $forbidden"
+            }
+          }
+
+          $actualData = (Get-FileHash (Join-Path $root 'src/data.js') -Algorithm SHA256).Hash.ToLowerInvariant()
+          $actualFirebase = (Get-FileHash (Join-Path $root 'src/firebase.js') -Algorithm SHA256).Hash.ToLowerInvariant()
+          $actualParity = (Get-FileHash (Join-Path $root 'src/v145r8-parity.js') -Algorithm SHA256).Hash.ToLowerInvariant()
+          $actualMain = (Get-FileHash (Join-Path $root 'electron/main.cjs') -Algorithm SHA256).Hash.ToLowerInvariant()
+          $actualPreload = (Get-FileHash (Join-Path $root 'electron/preload.cjs') -Algorithm SHA256).Hash.ToLowerInvariant()
+
+          if ($actualData -ne $env:R814_DATA_SHA256) { throw 'data.js changed - blocked' }
+          if ($actualFirebase -ne $env:R814_FIREBASE_SHA256) { throw 'firebase.js changed - blocked' }
+          if ($actualParity -ne $env:R814_PARITY_SHA256) { throw 'core parity changed - blocked' }
+          if ($actualMain -ne $env:R814_MAIN_SHA256) { throw 'electron/main.cjs changed - blocked' }
+          if ($actualPreload -ne $env:R814_PRELOAD_SHA256) { throw 'electron/preload.cjs changed - blocked' }
+
+          node --check (Join-Path $root 'src/app.js')
+          if ($LASTEXITCODE -ne 0) { throw 'app.js syntax failed' }
+
+      - name: Package R8.14 source before dependencies
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $root = Join-Path $PWD 'build_windows/windows-system'
+          $stage = Join-Path $env:RUNNER_TEMP 'source_stage_r814'
+
+          if (Test-Path $stage) { Remove-Item $stage -Recurse -Force }
+          New-Item -ItemType Directory -Force -Path $stage | Out-Null
+
+          Get-ChildItem -LiteralPath $root -Force |
+            Where-Object { @('node_modules','release','.git') -notcontains $_.Name } |
+            ForEach-Object {
+              Copy-Item -LiteralPath $_.FullName -Destination $stage -Recurse -Force
+            }
+
+          $zip = Join-Path $PWD 'Tahalil-Alakkad-V145-R8.14-Windows-Source.zip'
+          if (Test-Path $zip) { Remove-Item $zip -Force }
+
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          [System.IO.Compression.ZipFile]::CreateFromDirectory($stage,$zip,[System.IO.Compression.CompressionLevel]::Optimal,$false)
+
+          if (!(Test-Path $zip) -or (Get-Item $zip).Length -lt 50000) { throw 'R8.14 source ZIP invalid' }
+
+          $hash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  Tahalil-Alakkad-V145-R8.14-Windows-Source.zip" | Set-Content 'Tahalil-Alakkad-V145-R8.14-Windows-Source.zip.sha256' -Encoding ascii
+          Copy-Item (Join-Path $root 'V145_R814_DEDUPE_MAIN_UI_NOTES.txt') 'V145_R814_DEDUPE_MAIN_UI_NOTES.txt' -Force
+
+      - name: Install dependencies
+        working-directory: build_windows/windows-system
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          npm install --no-audit --no-fund
+          if ($LASTEXITCODE -ne 0) { throw 'npm install failed' }
+
+      - name: Build Portable
+        working-directory: build_windows/windows-system
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          npm run dist:portable
+          if ($LASTEXITCODE -ne 0) { throw 'Portable build failed' }
+
+      - name: Portable startup smoke
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $release = Join-Path $PWD 'build_windows/windows-system/release'
+          $portable = Get-ChildItem $release -Filter '*Portable*.exe' -File | Sort-Object Length -Descending | Select-Object -First 1
+          if (!$portable) { throw 'Portable EXE missing' }
+          $proc = Start-Process -FilePath $portable.FullName -PassThru
+          Start-Sleep -Seconds 12
+          if ($proc.HasExited) {
+            if ($proc.ExitCode -ne 0) { throw "Portable exited with code $($proc.ExitCode)" }
+            throw 'Portable exited unexpectedly during smoke test'
+          }
+          Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
+
+      - name: Build Setup
+        working-directory: build_windows/windows-system
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          npm run dist:setup
+          if ($LASTEXITCODE -ne 0) { throw 'Setup build failed' }
+
+      - name: Prepare R8.14 delivery files
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $release = Join-Path $PWD 'build_windows/windows-system/release'
+          $portable = Get-ChildItem $release -Filter '*Portable*.exe' -File | Sort-Object Length -Descending | Select-Object -First 1
+          $setup = Get-ChildItem $release -Filter '*Setup*.exe' -File | Sort-Object Length -Descending | Select-Object -First 1
+          if (!$portable -or !$setup) { throw 'Portable or Setup EXE missing' }
+          Copy-Item $portable.FullName 'Tahalil-Alakkad-V145-R8.14-Windows-Portable.exe' -Force
+          Copy-Item $setup.FullName 'Tahalil-Alakkad-V145-R8.14-Windows-Setup.exe' -Force
+          foreach ($name in @(
+            'Tahalil-Alakkad-V145-R8.14-Windows-Portable.exe',
+            'Tahalil-Alakkad-V145-R8.14-Windows-Setup.exe'
+          )) {
+            $hash = (Get-FileHash $name -Algorithm SHA256).Hash.ToLowerInvariant()
+            "$hash  $name" | Set-Content "$name.sha256" -Encoding ascii
+          }
+
+      - name: Upload R8.14 workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Tahalil-Alakkad-V145-R8.14-Windows-DeDupe-UI
+          path: |
+            Tahalil-Alakkad-V145-R8.14-Windows-Portable.exe
+            Tahalil-Alakkad-V145-R8.14-Windows-Portable.exe.sha256
+            Tahalil-Alakkad-V145-R8.14-Windows-Setup.exe
+            Tahalil-Alakkad-V145-R8.14-Windows-Setup.exe.sha256
+            Tahalil-Alakkad-V145-R8.14-Windows-Source.zip
+            Tahalil-Alakkad-V145-R8.14-Windows-Source.zip.sha256
+            V145_R814_DEDUPE_MAIN_UI_NOTES.txt
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Publish Windows V145 R8.14 release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          $tag = 'v145-r8.14-windows'
+          $title = 'تحاليل العقاد Windows V145 R8.14 — De-Dupe Main UI + Bigger Icons'
+
+          $notes = @'
+          Windows V145 R8.14
+
+          - Removed duplicated information from the home screen.
+          - Removed the repeated distribution block and kept one clear status card.
+          - Shortcuts are larger while staying square / 3D.
+          - Recent orders table remains.
+          - Settings and Logout remain at sidebar bottom.
+          - All previous save / Firebase / timestamp / login / customer fixes remain unchanged.
+          '@
+
+          $files = @(
+            'Tahalil-Alakkad-V145-R8.14-Windows-Portable.exe',
+            'Tahalil-Alakkad-V145-R8.14-Windows-Portable.exe.sha256',
+            'Tahalil-Alakkad-V145-R8.14-Windows-Setup.exe',
+            'Tahalil-Alakkad-V145-R8.14-Windows-Setup.exe.sha256',
+            'Tahalil-Alakkad-V145-R8.14-Windows-Source.zip',
+            'Tahalil-Alakkad-V145-R8.14-Windows-Source.zip.sha256',
+            'V145_R814_DEDUPE_MAIN_UI_NOTES.txt'
+          )
+
+          gh release view $tag --repo "$env:GITHUB_REPOSITORY" *> $null
+          if ($LASTEXITCODE -eq 0) {
+            gh release edit $tag --repo "$env:GITHUB_REPOSITORY" --title $title --notes $notes
+            if ($LASTEXITCODE -ne 0) { throw 'Could not update R8.14 release' }
+          } else {
+            gh release create $tag --repo "$env:GITHUB_REPOSITORY" --title $title --notes $notes
+            if ($LASTEXITCODE -ne 0) { throw 'Could not create R8.14 release' }
+          }
+
+          gh release upload $tag @files --repo "$env:GITHUB_REPOSITORY" --clobber
+          if ($LASTEXITCODE -ne 0) { throw 'Could not upload R8.14 files' }
