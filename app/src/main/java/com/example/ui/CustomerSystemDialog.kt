@@ -1710,7 +1710,6 @@ internal fun CustomerOrderDetailsDialog(
     var showResultRevisionDialog by remember { mutableStateOf(false) }
     var resultRevisionNote by remember { mutableStateOf("") }
     var resultRevisionSending by remember { mutableStateOf(false) }
-    var voidReason by remember { mutableStateOf("") }
     var statusMessage by remember { mutableStateOf<String?>(null) }
     var statusSuccess by remember { mutableStateOf(true) }
     var pendingOutputOrder by remember { mutableStateOf<CustomerOrder?>(null) }
@@ -2161,22 +2160,15 @@ internal fun CustomerOrderDetailsDialog(
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(tr("الطلب هيختفي من قوائم التشغيل ويظل محفوظًا في سجل المراجعة. المعمل سيعرف أنه اتلغى.", "The order will leave active worklists but remain in the audit trail. The lab will see it as cancelled."))
-                    OutlinedTextField(
-                        value = voidReason,
-                        onValueChange = { voidReason = it.take(300) },
-                        modifier = Modifier.fillMaxWidth().heightIn(min = 112.dp),
-                        label = { Text(tr("سبب الإلغاء", "Void Reason")) },
-                        minLines = 2
-                    )
                 }
             },
             confirmButton = {
                 LabeledIconAction(label = tr("تأكيد الإلغاء", "Confirm Void"), onClick = {
-                        viewModel.voidOrder(activeCustomer, currentOrder, voidReason) { ok, message ->
+                        viewModel.voidOrder(activeCustomer, currentOrder, "") { ok, message ->
                             statusSuccess = ok
                             statusMessage = message
                             if (ok) {
-                                currentOrder = currentOrder.copy(isVoided = true, voidReason = voidReason.trim())
+                                currentOrder = currentOrder.copy(isVoided = true, voidReason = "إلغاء بدون سبب")
                                 showVoidDialog = false
                             }
                         }

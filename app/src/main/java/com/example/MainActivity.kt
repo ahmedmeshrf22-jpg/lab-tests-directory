@@ -49,7 +49,6 @@ import com.example.notifications.LabOrderBackgroundScheduler
 import com.example.notifications.OrderRealtimeNotificationService
 import com.example.notifications.BackupNotificationManager
 import com.example.notifications.AutoBackupScheduler
-import com.example.update.ForcedUpdateGate
 import com.example.resilience.ShadowBackupReplicator
 import com.google.firebase.FirebaseApp
 import com.google.firebase.FirebaseNetworkException
@@ -124,7 +123,7 @@ class MainActivity : FragmentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    ForcedUpdateGate {
+                    // V145 R10 LOCKED: updates are manual APK installs only.
                     var currentUser by remember { mutableStateOf(auth.currentUser) }
                     var isSplashActive by remember { mutableStateOf(true) }
                     var isLocallyUnlocked by remember { mutableStateOf(auth.currentUser != null) }
@@ -394,7 +393,6 @@ class MainActivity : FragmentActivity() {
                                 }
                             )
                         }
-                    }
                     }
                 }
             }

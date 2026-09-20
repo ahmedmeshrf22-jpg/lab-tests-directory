@@ -5446,24 +5446,21 @@ class LabTestsViewModel(application: Application) : AndroidViewModel(application
             onResult(false, tr("الحساب غير مصرح له بإلغاء الطلب", "Account cannot void this order"))
             return
         }
-        if (reason.trim().length < 3) {
-            onResult(false, tr("اكتب سبب الإلغاء", "Enter void reason"))
-            return
-        }
+        val cleanReason = reason.trim().ifBlank { "إلغاء بدون سبب" }
         val now = System.currentTimeMillis()
         queueOfflineAuditIfNeeded(
             action = "order_void",
             entityType = "order",
             entityId = order.id,
             title = "إلغاء طلب ${order.orderNumber}",
-            details = reason.trim(),
+            details = cleanReason,
             customerId = customer.id,
             orderId = order.id
         )
         val voidRef = firestore.collection(CUSTOMERS_COLLECTION).document(customer.id).collection("orders").document(order.id)
         val voidPatch = mapOf<String, Any?>(
             "is_voided" to true,
-            "void_reason" to reason.trim(),
+            "void_reason" to cleanReason,
             "voided_at_ms" to now,
             "voided_by_uid" to currentUid(),
             "voided_by_email" to currentEmail(),
@@ -5488,8 +5485,8 @@ class LabTestsViewModel(application: Application) : AndroidViewModel(application
         }
             .addOnSuccessListener {
                 loadCustomerOrders(customer.id)
-                logAudit("order_void", "order", order.id, "إلغاء طلب ${order.orderNumber}", reason.trim(), customerId = customer.id, orderId = order.id)
-                addCustomerActivity(customer.id, "order_void", "إلغاء ${order.orderNumber}", reason.trim())
+                logAudit("order_void", "order", order.id, "إلغاء طلب ${order.orderNumber}", cleanReason, customerId = customer.id, orderId = order.id)
+                addCustomerActivity(customer.id, "order_void", "إلغاء ${order.orderNumber}", cleanReason)
                 sendExternalOrderPush("cancelled", customer.id, order.id)
                 onResult(true, "تم إلغاء الطلب مع الاحتفاظ به في سجل المراجعة")
             }

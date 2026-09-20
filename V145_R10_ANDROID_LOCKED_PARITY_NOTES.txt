@@ -1,0 +1,10 @@
+Android V145 R10 LOCKED
+
+- Automatic/forced updater removed from startup.
+- REQUEST_INSTALL_PACKAGES permission removed.
+- No update manifest check, automatic APK download, or installer launch remains.
+- Future Android updates are manual APK installs only.
+- Cancel Order no longer asks for or requires a reason.
+- Cancellation remains a soft delete with audit/history preservation.
+- Firebase project, package name, signing identity, App Check, Firestore rules, device authorization, backup, catalogue sync and notifications are preserved.
+- Firestore rules are not changed or deployed by this workflow.
