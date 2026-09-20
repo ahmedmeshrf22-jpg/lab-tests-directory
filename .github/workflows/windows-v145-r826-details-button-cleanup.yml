@@ -1,0 +1,300 @@
+name: Windows V145 R8.26 Details Button Cleanup
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: tahalil-windows-v145-r826-details-button
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Windows V145 R8.26 — Details Button Cleanup
+    runs-on: windows-latest
+    timeout-minutes: 110
+
+    env:
+      BASE_TAG: v145-r8.25-windows
+      BASE_SOURCE: Tahalil-Alakkad-V145-R8.25-Windows-Source.zip
+      BASE_SHA256: 5e73555edc7145cf96734f7f83e9aef4efe068a4ab813b4311590ce541d3ab59
+      R826_STYLE_B64: LyogVEFIX1I4MjZfREVUQUlMU19CVVRUT05fQ0xFQU5VUCAqLwoud29yay1kZXRhaWxzLWJ0bntib3JkZXI6MXB4IHNvbGlkICMzNTYxODc7YmFja2dyb3VuZDojMTIzMTUyO2NvbG9yOiNmZmY7Ym9yZGVyLXJhZGl1czoxMHB4O3BhZGRpbmc6N3B4IDE2cHg7bWluLXdpZHRoOjgycHg7Zm9udC13ZWlnaHQ6NzAwfQoud29yay1kZXRhaWxzLWJ0bjpob3ZlcntiYWNrZ3JvdW5kOiMxOTQyNmQ7Ym9yZGVyLWNvbG9yOiM0YTc4YTJ9Cg==
+      R826_NOTES_B64: V2luZG93cyBWMTQ1IFI4LjI2IOKAlCBEZXRhaWxzIEJ1dHRvbiBDbGVhbnVwCgotIFJlbW92ZWQgdGhlIHZpc2libGUgRW5nbGlzaCAiVW5pZmllZCBTeXN0ZW0iIHdvcmRpbmcgZnJvbSB0aGUgc2lkZWJhci9zeXN0ZW0gdmVyc2lvbiBsYWJlbC4KLSBTaWRlYmFyIG5vdyBzaG93czog2YbYuNin2YUg2KXYr9in2LHYqSDYp9mE2KrYrdin2YTZitmELgotIFJlbW92ZWQgdGhlIHZpc2libGUgItmD2YTZitmDINmK2YXZitmGIiBoaW50IGZyb20gdGhlIGNsaW5pYyB3b3JrbGlzdC4KLSBUaGUgYWN0aW9uIGNvbHVtbiBpcyBub3cgbmFtZWQgItiq2YHYp9i12YrZhCIuCi0gRXZlcnkgb3JkZXIgcm93IGhhcyBhIGNsZWFuICLYqtmB2KfYtdmK2YQiIGJ1dHRvbi4KLSBDbGlja2luZyAi2KrZgdin2LXZitmEIiBvcGVucyB0aGUgc2FtZSBjb21wbGV0ZSBhY3Rpb25zIG1lbnUgaW1tZWRpYXRlbHkuCi0gUmlnaHQtY2xpY2sgcmVtYWlucyBzdXBwb3J0ZWQgYXMgYW4gb3B0aW9uYWwgc2hvcnRjdXQsIGJ1dCBpcyBubyBsb25nZXIgc2hvd24gYXMgYW4gaW5zdHJ1Y3Rpb24uCi0gTm8gRmlyZWJhc2UsIHN5bmNocm9uaXphdGlvbiwgbGFiIHNjcmVlbiwgcmVzdWx0cyBzdG9yYWdlLCBzZWN1cml0eSBoYXJkZW5pbmcsIG9yIGJ1c2luZXNzIGxvZ2ljIGNoYW5nZXMuCg==
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Restore exact R8.25 source
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $zip = Join-Path $PWD $env:BASE_SOURCE
+          if (Test-Path $zip) { Remove-Item $zip -Force }
+          gh release download $env:BASE_TAG --repo "$env:GITHUB_REPOSITORY" --pattern $env:BASE_SOURCE --dir $PWD
+          if ($LASTEXITCODE -ne 0 -or !(Test-Path $zip)) { throw 'Could not download exact R8.25 source' }
+
+          $hash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($hash -ne $env:BASE_SHA256) { throw "R8.25 source hash mismatch: $hash" }
+
+          $root = Join-Path $PWD 'build_windows/windows-system'
+          if (Test-Path (Join-Path $PWD 'build_windows')) { Remove-Item (Join-Path $PWD 'build_windows') -Recurse -Force }
+          New-Item -ItemType Directory -Force -Path $root | Out-Null
+          Expand-Archive -Path $zip -DestinationPath $root -Force
+
+          $pkg = Get-Content (Join-Path $root 'package.json') -Raw | ConvertFrom-Json
+          if ($pkg.version -ne '145.8.25') { throw "Expected 145.8.25, got $($pkg.version)" }
+
+          foreach ($item in @(
+            'src/data.js',
+            'src/firebase.js',
+            'src/resultStore.js',
+            'src/v145r8-parity.js',
+            'electron/main.cjs',
+            'electron/preload.cjs'
+          )) {
+            $name = 'R826_' + ($item -replace '[^A-Za-z0-9]','_').ToUpper() + '_SHA256'
+            $value = (Get-FileHash (Join-Path $root $item) -Algorithm SHA256).Hash.ToLowerInvariant()
+            "$name=$value" | Add-Content $env:GITHUB_ENV
+          }
+
+      - name: Apply clean Details button UI
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $root = Join-Path $PWD 'build_windows/windows-system'
+          $appPath = Join-Path $root 'src/app.js'
+          $cssPath = Join-Path $root 'src/styles.css'
+          $pkgPath = Join-Path $root 'package.json'
+
+          $app = Get-Content $appPath -Raw
+
+          $oldBrand = '<small>Unified System V145 R8</small>'
+          if (($app.Split($oldBrand).Count - 1) -ne 1) { throw 'Unexpected sidebar brand marker count' }
+          $app = $app.Replace($oldBrand,'<small>نظام إدارة التحاليل</small>')
+
+          $app = $app.Replace('Unified System V145 R8 • Windows','نظام إدارة التحاليل V145 R8 • Windows')
+
+          $oldSubtitle = "setPage('تشغيل الطلبات','قائمة نظيفة — كليك يمين على الطلب لفتح الإجراءات')"
+          if (!$app.Contains($oldSubtitle)) { throw 'R8.25 worklist subtitle missing' }
+          $app = $app.Replace($oldSubtitle,"setPage('تشغيل الطلبات','اضغط تفاصيل بجوار أي طلب لفتح كل الإجراءات')")
+
+          $workStart = $app.IndexOf('async function worklistPage(c){')
+          $workEnd = $app.IndexOf('async function labWorklistPage(c){',$workStart)
+          if ($workStart -lt 0 -or $workEnd -le $workStart) { throw 'Could not isolate worklistPage' }
+          $work = $app.Substring($workStart,$workEnd-$workStart)
+
+          if (!$work.Contains('<th>إجراءات</th>')) { throw 'Action header missing' }
+          $work = $work.Replace('<th>إجراءات</th>','<th>تفاصيل</th>')
+
+          if (!$work.Contains('title="كليك يمين لإظهار الإجراءات"')) { throw 'Old row hint missing' }
+          $work = $work.Replace('title="كليك يمين لإظهار الإجراءات"','title="اضغط تفاصيل لفتح إجراءات الطلب"')
+
+          $oldHint = '<td><span class="work-action-hint">كليك يمين</span></td>'
+          $newHint = '<td><button type="button" class="work-details-btn" data-o="${o.id}">تفاصيل</button></td>'
+          if (!$work.Contains($oldHint)) { throw 'Old visible right-click hint missing' }
+          $work = $work.Replace($oldHint,$newHint)
+
+          $oldBind = "  $$('.wf').forEach(x=>x.onchange=async()=>{try{await D.setWorkflow(x.dataset.c,x.dataset.o,x.value);toast('تم تحديث الحالة');await renderTab('worklist')}catch(e){toast(e.message,true)}});`r`n  $$('#wtbody tr[data-o]').forEach(tr=>{tr.onclick=e=>{if(e.target.closest('select,.wf'))return;selectRow(selectedOrderId===tr.dataset.o?'':tr.dataset.o);hideMenu();};tr.oncontextmenu=e=>{if(e.target.closest('select,.wf'))return;showMenu(tr.dataset.o,e);};});"
+          if (!$work.Contains($oldBind)) {
+            $oldBind = "  $$('.wf').forEach(x=>x.onchange=async()=>{try{await D.setWorkflow(x.dataset.c,x.dataset.o,x.value);toast('تم تحديث الحالة');await renderTab('worklist')}catch(e){toast(e.message,true)}});`n  $$('#wtbody tr[data-o]').forEach(tr=>{tr.onclick=e=>{if(e.target.closest('select,.wf'))return;selectRow(selectedOrderId===tr.dataset.o?'':tr.dataset.o);hideMenu();};tr.oncontextmenu=e=>{if(e.target.closest('select,.wf'))return;showMenu(tr.dataset.o,e);};});"
+          }
+          if (!$work.Contains($oldBind)) { throw 'Could not locate R8.25 worklist binding block' }
+
+          $newBind = "  $$('.wf').forEach(x=>x.onchange=async()=>{try{await D.setWorkflow(x.dataset.c,x.dataset.o,x.value);toast('تم تحديث الحالة');await renderTab('worklist')}catch(e){toast(e.message,true)}});`n  $$('.work-details-btn').forEach(b=>b.onclick=e=>{showMenu(b.dataset.o,e)});`n  $$('#wtbody tr[data-o]').forEach(tr=>{tr.onclick=e=>{if(e.target.closest('select,.wf,.work-details-btn'))return;selectRow(selectedOrderId===tr.dataset.o?'':tr.dataset.o);hideMenu();};tr.oncontextmenu=e=>{if(e.target.closest('select,.wf'))return;showMenu(tr.dataset.o,e);};});"
+          $work = $work.Replace($oldBind,$newBind)
+
+          $app = $app.Substring(0,$workStart) + $work + $app.Substring($workEnd)
+          Set-Content $appPath -Value $app -Encoding utf8
+
+          $css = Get-Content $cssPath -Raw
+          if ($css.Contains('TAH_R826_DETAILS_BUTTON_CLEANUP')) { throw 'R8.26 styles already exist' }
+          $style = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($env:R826_STYLE_B64))
+          Add-Content -Path $cssPath -Value "`r`n$style" -Encoding utf8
+
+          $pkg = Get-Content $pkgPath -Raw | ConvertFrom-Json
+          $pkg.version = '145.8.26'
+          $pkg.description = 'Tahalil Alakkad Windows V145 R8.26 - clean details button and Arabic system label'
+          $pkg | ConvertTo-Json -Depth 20 | Set-Content $pkgPath -Encoding utf8
+
+          $notes = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($env:R826_NOTES_B64))
+          $notes | Set-Content (Join-Path $root 'V145_R826_DETAILS_BUTTON_NOTES.txt') -Encoding utf8
+
+      - name: Audit R8.26 UI cleanup
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $root = Join-Path $PWD 'build_windows/windows-system'
+          $app = Get-Content (Join-Path $root 'src/app.js') -Raw
+          $css = Get-Content (Join-Path $root 'src/styles.css') -Raw
+          $pkg = Get-Content (Join-Path $root 'package.json') -Raw | ConvertFrom-Json
+
+          if ($pkg.version -ne '145.8.26') { throw "Expected 145.8.26, got $($pkg.version)" }
+          if ($app.Contains('Unified System')) { throw 'Visible Unified System wording still exists' }
+          if ($app.Contains('كليك يمين على الطلب')) { throw 'Old right-click subtitle still exists' }
+          if ($app.Contains('>كليك يمين<')) { throw 'Old visible right-click label still exists' }
+          if (!$app.Contains('نظام إدارة التحاليل')) { throw 'Arabic system label missing' }
+          if (!$app.Contains('class="work-details-btn"')) { throw 'Details button missing' }
+          if (!$app.Contains('>تفاصيل</button>')) { throw 'Details button text missing' }
+          if (!$app.Contains("$$('.work-details-btn').forEach")) { throw 'Details click handler missing' }
+          if (!$css.Contains('TAH_R826_DETAILS_BUTTON_CLEANUP')) { throw 'Details button style marker missing' }
+
+          $checks = @{
+            'src/data.js'='R826_SRC_DATA_JS_SHA256';
+            'src/firebase.js'='R826_SRC_FIREBASE_JS_SHA256';
+            'src/resultStore.js'='R826_SRC_RESULTSTORE_JS_SHA256';
+            'src/v145r8-parity.js'='R826_SRC_V145R8_PARITY_JS_SHA256';
+            'electron/main.cjs'='R826_ELECTRON_MAIN_CJS_SHA256';
+            'electron/preload.cjs'='R826_ELECTRON_PRELOAD_CJS_SHA256'
+          }
+          foreach ($pair in $checks.GetEnumerator()) {
+            $actual = (Get-FileHash (Join-Path $root $pair.Key) -Algorithm SHA256).Hash.ToLowerInvariant()
+            $expected = [Environment]::GetEnvironmentVariable($pair.Value)
+            if ($actual -ne $expected) { throw "$($pair.Key) changed - protected scope violated" }
+          }
+
+          node --check (Join-Path $root 'src/app.js')
+          if ($LASTEXITCODE -ne 0) { throw 'app.js syntax failed' }
+
+          $audit = @(
+            'R8.26 DETAILS BUTTON CLEANUP AUDIT: PASS',
+            'Unified System visible wording removed',
+            'Sidebar label changed to Arabic',
+            'Visible right-click hint replaced by Details button',
+            'Details button opens existing action menu',
+            'Firebase/data/results/security/lab logic unchanged'
+          )
+          $audit | Set-Content 'R826_DETAILS_BUTTON_AUDIT.txt' -Encoding utf8
+
+      - name: Package R8.26 source
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $root = Join-Path $PWD 'build_windows/windows-system'
+          $stage = Join-Path $env:RUNNER_TEMP 'source_stage_r826'
+          if (Test-Path $stage) { Remove-Item $stage -Recurse -Force }
+          New-Item -ItemType Directory -Force -Path $stage | Out-Null
+
+          Get-ChildItem -LiteralPath $root -Force |
+            Where-Object { @('node_modules','release','.git') -notcontains $_.Name } |
+            ForEach-Object { Copy-Item -LiteralPath $_.FullName -Destination $stage -Recurse -Force }
+
+          $zip = Join-Path $PWD 'Tahalil-Alakkad-V145-R8.26-Windows-Source.zip'
+          if (Test-Path $zip) { Remove-Item $zip -Force }
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          [System.IO.Compression.ZipFile]::CreateFromDirectory($stage,$zip,[System.IO.Compression.CompressionLevel]::Optimal,$false)
+
+          $hash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  Tahalil-Alakkad-V145-R8.26-Windows-Source.zip" | Set-Content 'Tahalil-Alakkad-V145-R8.26-Windows-Source.zip.sha256' -Encoding ascii
+          Copy-Item (Join-Path $root 'V145_R826_DETAILS_BUTTON_NOTES.txt') 'V145_R826_DETAILS_BUTTON_NOTES.txt' -Force
+
+      - name: Install dependencies
+        working-directory: build_windows/windows-system
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          npm install --no-audit --no-fund
+          if ($LASTEXITCODE -ne 0) { throw 'npm install failed' }
+
+      - name: Build Portable
+        working-directory: build_windows/windows-system
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          npm run dist:portable
+          if ($LASTEXITCODE -ne 0) { throw 'Portable build failed' }
+
+      - name: Portable smoke test
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $release = Join-Path $PWD 'build_windows/windows-system/release'
+          $portable = Get-ChildItem $release -Filter '*Portable*.exe' -File | Sort-Object Length -Descending | Select-Object -First 1
+          if (!$portable) { throw 'Portable EXE missing' }
+          $proc = Start-Process -FilePath $portable.FullName -PassThru
+          Start-Sleep -Seconds 12
+          if ($proc.HasExited) { throw "Portable exited unexpectedly: $($proc.ExitCode)" }
+          Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
+
+      - name: Build Setup
+        working-directory: build_windows/windows-system
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          npm run dist:setup
+          if ($LASTEXITCODE -ne 0) { throw 'Setup build failed' }
+
+      - name: Prepare delivery
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $release = Join-Path $PWD 'build_windows/windows-system/release'
+          $portable = Get-ChildItem $release -Filter '*Portable*.exe' -File | Sort-Object Length -Descending | Select-Object -First 1
+          $setup = Get-ChildItem $release -Filter '*Setup*.exe' -File | Sort-Object Length -Descending | Select-Object -First 1
+          if (!$portable -or !$setup) { throw 'Portable or Setup missing' }
+
+          Copy-Item $portable.FullName 'Tahalil-Alakkad-V145-R8.26-Windows-Portable.exe' -Force
+          Copy-Item $setup.FullName 'Tahalil-Alakkad-V145-R8.26-Windows-Setup.exe' -Force
+
+          foreach ($name in @(
+            'Tahalil-Alakkad-V145-R8.26-Windows-Portable.exe',
+            'Tahalil-Alakkad-V145-R8.26-Windows-Setup.exe'
+          )) {
+            $hash = (Get-FileHash $name -Algorithm SHA256).Hash.ToLowerInvariant()
+            "$hash  $name" | Set-Content "$name.sha256" -Encoding ascii
+          }
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Tahalil-Alakkad-V145-R8.26-Windows-Details-Button
+          path: |
+            Tahalil-Alakkad-V145-R8.26-Windows-Portable.exe
+            Tahalil-Alakkad-V145-R8.26-Windows-Portable.exe.sha256
+            Tahalil-Alakkad-V145-R8.26-Windows-Setup.exe
+            Tahalil-Alakkad-V145-R8.26-Windows-Setup.exe.sha256
+            Tahalil-Alakkad-V145-R8.26-Windows-Source.zip
+            Tahalil-Alakkad-V145-R8.26-Windows-Source.zip.sha256
+            V145_R826_DETAILS_BUTTON_NOTES.txt
+            R826_DETAILS_BUTTON_AUDIT.txt
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Publish R8.26 release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $tag = 'v145-r8.26-windows'
+          $title = 'تحاليل العقاد Windows V145 R8.26 — Details Button Cleanup'
+          $notes = Get-Content 'V145_R826_DETAILS_BUTTON_NOTES.txt' -Raw
+
+          gh release view $tag --repo "$env:GITHUB_REPOSITORY" *> $null
+          if ($LASTEXITCODE -eq 0) {
+            gh release edit $tag --repo "$env:GITHUB_REPOSITORY" --title $title --notes $notes
+          } else {
+            gh release create $tag --repo "$env:GITHUB_REPOSITORY" --title $title --notes $notes
+          }
+          if ($LASTEXITCODE -ne 0) { throw 'Could not create R8.26 release' }
+
+          gh release upload $tag `
+            Tahalil-Alakkad-V145-R8.26-Windows-Portable.exe `
+            Tahalil-Alakkad-V145-R8.26-Windows-Portable.exe.sha256 `
+            Tahalil-Alakkad-V145-R8.26-Windows-Setup.exe `
+            Tahalil-Alakkad-V145-R8.26-Windows-Setup.exe.sha256 `
+            Tahalil-Alakkad-V145-R8.26-Windows-Source.zip `
+            Tahalil-Alakkad-V145-R8.26-Windows-Source.zip.sha256 `
+            V145_R826_DETAILS_BUTTON_NOTES.txt `
+            R826_DETAILS_BUTTON_AUDIT.txt `
+            --repo "$env:GITHUB_REPOSITORY" --clobber
+          if ($LASTEXITCODE -ne 0) { throw 'Could not upload R8.26 release assets' }
