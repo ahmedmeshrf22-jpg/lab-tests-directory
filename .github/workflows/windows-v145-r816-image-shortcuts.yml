@@ -1,0 +1,359 @@
+name: Windows V145 R8.16 Image Shortcut Icons
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: tahalil-windows-v145-r816-image-shortcut-icons
+  cancel-in-progress: false
+
+jobs:
+  windows-v145-r816:
+    name: Windows V145 R8.16 — Image Shortcut Icons
+    runs-on: windows-latest
+    timeout-minutes: 110
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: "false"
+      BASE_TAG: "v145-r8.15-windows"
+      BASE_SOURCE: "Tahalil-Alakkad-V145-R8.15-Windows-Source.zip"
+      BASE_SHA256: "d4c3b3f8a9160319bd759b7e44bb7cbd1c99e1ba881aaee0e51abd79c4159fbd"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Restore exact R8.15 source
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          $zip = Join-Path $PWD $env:BASE_SOURCE
+          if (Test-Path $zip) { Remove-Item $zip -Force }
+
+          gh release download $env:BASE_TAG --repo "$env:GITHUB_REPOSITORY" --pattern $env:BASE_SOURCE --dir $PWD
+          if ($LASTEXITCODE -ne 0 -or !(Test-Path $zip)) {
+            throw 'Could not download exact R8.15 source release'
+          }
+
+          $hash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($hash -ne $env:BASE_SHA256) {
+            throw "R8.15 source hash mismatch: $hash"
+          }
+
+          $root = Join-Path $PWD 'build_windows/windows-system'
+          if (Test-Path (Join-Path $PWD 'build_windows')) {
+            Remove-Item (Join-Path $PWD 'build_windows') -Recurse -Force
+          }
+          New-Item -ItemType Directory -Force -Path $root | Out-Null
+          Expand-Archive -Path $zip -DestinationPath $root -Force
+
+          foreach ($required in @(
+            'package.json',
+            'src/app.js',
+            'src/styles.css',
+            'src/data.js',
+            'src/firebase.js',
+            'src/v145r8-parity.js',
+            'electron/main.cjs',
+            'electron/preload.cjs'
+          )) {
+            if (!(Test-Path (Join-Path $root $required))) {
+              throw "R8.15 source missing: $required"
+            }
+          }
+
+          $locked = @{
+            R816_DATA_SHA256     = (Get-FileHash (Join-Path $root 'src/data.js') -Algorithm SHA256).Hash.ToLowerInvariant()
+            R816_FIREBASE_SHA256 = (Get-FileHash (Join-Path $root 'src/firebase.js') -Algorithm SHA256).Hash.ToLowerInvariant()
+            R816_PARITY_SHA256   = (Get-FileHash (Join-Path $root 'src/v145r8-parity.js') -Algorithm SHA256).Hash.ToLowerInvariant()
+            R816_MAIN_SHA256     = (Get-FileHash (Join-Path $root 'electron/main.cjs') -Algorithm SHA256).Hash.ToLowerInvariant()
+            R816_PRELOAD_SHA256  = (Get-FileHash (Join-Path $root 'electron/preload.cjs') -Algorithm SHA256).Hash.ToLowerInvariant()
+          }
+
+          foreach ($pair in $locked.GetEnumerator()) {
+            "$($pair.Key)=$($pair.Value)" | Add-Content $env:GITHUB_ENV
+          }
+
+      - name: Replace shortcut glyphs with image icons
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $root = Join-Path $PWD 'build_windows/windows-system'
+
+          $patcher = @'
+          from pathlib import Path
+          import json, re, sys
+
+          root = Path(sys.argv[1])
+          app_path = root / 'src' / 'app.js'
+          css_path = root / 'src' / 'styles.css'
+          pkg_path = root / 'package.json'
+
+          app = app_path.read_text(encoding='utf-8-sig')
+          css = css_path.read_text(encoding='utf-8-sig')
+
+          if 'TAH_IMAGE_SHORTCUT_ICONS_R816' in app or 'TAH_IMAGE_SHORTCUT_ICONS_R816' in css:
+              raise SystemExit('R8.16 already installed')
+
+          if '${navGlyph(tab)}' not in app:
+              raise SystemExit('Could not find shortcut glyph renderer')
+
+          app = app.replace(
+              '${navGlyph(tab)}',
+              '${renderHomeShortcutIcon(icon,label)}'
+          )
+
+          helper = r'''
+
+          /* TAH_IMAGE_SHORTCUT_ICONS_R816 */
+          function renderHomeShortcutIcon(iconName,label){
+            const baseCandidates = [
+              `home-icons/${iconName}`,
+              `./home-icons/${iconName}`,
+              `/home-icons/${iconName}`
+            ];
+            const primary = baseCandidates[0];
+            const fallback1 = baseCandidates[1];
+            const fallback2 = baseCandidates[2];
+            return `<img class="homeiconimg" src="${primary}" alt="${esc(label||'') || ''}" draggable="false" onerror="if(this.dataset.f1!=='1'){this.dataset.f1='1';this.src='${fallback1}';return;} if(this.dataset.f2!=='1'){this.dataset.f2='1';this.src='${fallback2}';return;} this.style.display='none'; this.parentElement && this.parentElement.classList.add('homeiconimg-fallback'); this.parentElement && (this.parentElement.innerHTML='${navGlyph('dashboard')}');">`;
+          }
+          '''
+
+          if 'function renderHomeShortcutIcon(' not in app:
+              app += helper
+
+          css += r'''
+
+          /* TAH_IMAGE_SHORTCUT_ICONS_R816 */
+          .homeiconbox{
+            overflow:hidden;
+          }
+          .homeiconimg{
+            width:100%;
+            height:100%;
+            object-fit:contain;
+            display:block;
+            filter: drop-shadow(0 4px 10px rgba(15,71,116,.18));
+            user-select:none;
+            pointer-events:none;
+          }
+          .homeiconbox.homeiconimg-fallback,
+          .homeiconimg-fallback{
+            display:flex;
+            align-items:center;
+            justify-content:center;
+          }
+          '''
+
+          pkg = json.loads(pkg_path.read_text(encoding='utf-8-sig'))
+          if str(pkg.get('version')) != '145.8.15':
+              raise SystemExit(f"Expected exact R8.15 package version, got {pkg.get('version')}")
+
+          pkg['version'] = '145.8.16'
+          pkg['description'] = 'Tahalil Alakkad Windows V145 R8.16 - home shortcut icons rendered as image assets'
+
+          app_path.write_text(app, encoding='utf-8')
+          css_path.write_text(css, encoding='utf-8')
+          pkg_path.write_text(json.dumps(pkg, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+
+          (root / 'V145_R816_IMAGE_SHORTCUT_ICONS_NOTES.txt').write_text(
+              'Windows V145 R8.16\n\n'
+              '- Home shortcut icons now render as image assets instead of drawn glyphs.\n'
+              '- Existing dashboard, back arrow, save, Firebase, customer, timestamp and Electron behavior preserved.\n',
+              encoding='utf-8'
+          )
+          print('R816_IMAGE_SHORTCUT_ICONS_APPLIED')
+          '@
+
+          $patcherPath = Join-Path $env:RUNNER_TEMP 'patch_r816.py'
+          $patcher | Set-Content $patcherPath -Encoding utf8
+          python $patcherPath $root
+          if ($LASTEXITCODE -ne 0) { throw 'R8.16 patch failed' }
+
+      - name: Audit R8.16 and protected files
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $root = Join-Path $PWD 'build_windows/windows-system'
+
+          $pkg = Get-Content (Join-Path $root 'package.json') -Raw | ConvertFrom-Json
+          if ($pkg.version -ne '145.8.16') { throw "Expected 145.8.16, got $($pkg.version)" }
+
+          $app = Get-Content (Join-Path $root 'src/app.js') -Raw
+          $css = Get-Content (Join-Path $root 'src/styles.css') -Raw
+
+          foreach ($marker in @(
+            'TAH_IMAGE_SHORTCUT_ICONS_R816',
+            'renderHomeShortcutIcon(icon,label)',
+            'homeiconimg',
+            'home-icons/${iconName}'
+          )) {
+            if (!($app.Contains($marker) -or $css.Contains($marker))) {
+              throw "Missing R8.16 contract: $marker"
+            }
+          }
+
+          $actualData = (Get-FileHash (Join-Path $root 'src/data.js') -Algorithm SHA256).Hash.ToLowerInvariant()
+          $actualFirebase = (Get-FileHash (Join-Path $root 'src/firebase.js') -Algorithm SHA256).Hash.ToLowerInvariant()
+          $actualParity = (Get-FileHash (Join-Path $root 'src/v145r8-parity.js') -Algorithm SHA256).Hash.ToLowerInvariant()
+          $actualMain = (Get-FileHash (Join-Path $root 'electron/main.cjs') -Algorithm SHA256).Hash.ToLowerInvariant()
+          $actualPreload = (Get-FileHash (Join-Path $root 'electron/preload.cjs') -Algorithm SHA256).Hash.ToLowerInvariant()
+
+          if ($actualData -ne $env:R816_DATA_SHA256) { throw 'data.js changed - blocked' }
+          if ($actualFirebase -ne $env:R816_FIREBASE_SHA256) { throw 'firebase.js changed - blocked' }
+          if ($actualParity -ne $env:R816_PARITY_SHA256) { throw 'core parity changed - blocked' }
+          if ($actualMain -ne $env:R816_MAIN_SHA256) { throw 'electron/main.cjs changed - blocked' }
+          if ($actualPreload -ne $env:R816_PRELOAD_SHA256) { throw 'electron/preload.cjs changed - blocked' }
+
+          node --check (Join-Path $root 'src/app.js')
+          if ($LASTEXITCODE -ne 0) { throw 'app.js syntax failed' }
+
+      - name: Package R8.16 source
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $root = Join-Path $PWD 'build_windows/windows-system'
+          $stage = Join-Path $env:RUNNER_TEMP 'source_stage_r816'
+
+          if (Test-Path $stage) { Remove-Item $stage -Recurse -Force }
+          New-Item -ItemType Directory -Force -Path $stage | Out-Null
+
+          Get-ChildItem -LiteralPath $root -Force |
+            Where-Object { @('node_modules','release','.git') -notcontains $_.Name } |
+            ForEach-Object { Copy-Item -LiteralPath $_.FullName -Destination $stage -Recurse -Force }
+
+          $zip = Join-Path $PWD 'Tahalil-Alakkad-V145-R8.16-Windows-Source.zip'
+          if (Test-Path $zip) { Remove-Item $zip -Force }
+
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          [System.IO.Compression.ZipFile]::CreateFromDirectory($stage,$zip,[System.IO.Compression.CompressionLevel]::Optimal,$false)
+
+          if (!(Test-Path $zip) -or (Get-Item $zip).Length -lt 50000) { throw 'R8.16 source ZIP invalid' }
+
+          $hash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  Tahalil-Alakkad-V145-R8.16-Windows-Source.zip" | Set-Content 'Tahalil-Alakkad-V145-R8.16-Windows-Source.zip.sha256' -Encoding ascii
+          Copy-Item (Join-Path $root 'V145_R816_IMAGE_SHORTCUT_ICONS_NOTES.txt') 'V145_R816_IMAGE_SHORTCUT_ICONS_NOTES.txt' -Force
+
+      - name: Install dependencies
+        working-directory: build_windows/windows-system
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          npm install --no-audit --no-fund
+          if ($LASTEXITCODE -ne 0) { throw 'npm install failed' }
+
+      - name: Build Portable
+        working-directory: build_windows/windows-system
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          npm run dist:portable
+          if ($LASTEXITCODE -ne 0) { throw 'Portable build failed' }
+
+      - name: Portable startup smoke
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $release = Join-Path $PWD 'build_windows/windows-system/release'
+          $portable = Get-ChildItem $release -Filter '*Portable*.exe' -File | Sort-Object Length -Descending | Select-Object -First 1
+          if (!$portable) { throw 'Portable EXE missing' }
+
+          $proc = Start-Process -FilePath $portable.FullName -PassThru
+          Start-Sleep -Seconds 12
+          if ($proc.HasExited) {
+            if ($proc.ExitCode -ne 0) { throw "Portable exited with code $($proc.ExitCode)" }
+            throw 'Portable exited unexpectedly during smoke test'
+          }
+          Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
+
+      - name: Build Setup
+        working-directory: build_windows/windows-system
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          npm run dist:setup
+          if ($LASTEXITCODE -ne 0) { throw 'Setup build failed' }
+
+      - name: Prepare R8.16 delivery files
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $release = Join-Path $PWD 'build_windows/windows-system/release'
+          $portable = Get-ChildItem $release -Filter '*Portable*.exe' -File | Sort-Object Length -Descending | Select-Object -First 1
+          $setup = Get-ChildItem $release -Filter '*Setup*.exe' -File | Sort-Object Length -Descending | Select-Object -First 1
+
+          if (!$portable -or !$setup) { throw 'Portable or Setup EXE missing' }
+
+          Copy-Item $portable.FullName 'Tahalil-Alakkad-V145-R8.16-Windows-Portable.exe' -Force
+          Copy-Item $setup.FullName 'Tahalil-Alakkad-V145-R8.16-Windows-Setup.exe' -Force
+
+          foreach ($name in @(
+            'Tahalil-Alakkad-V145-R8.16-Windows-Portable.exe',
+            'Tahalil-Alakkad-V145-R8.16-Windows-Setup.exe'
+          )) {
+            $hash = (Get-FileHash $name -Algorithm SHA256).Hash.ToLowerInvariant()
+            "$hash  $name" | Set-Content "$name.sha256" -Encoding ascii
+          }
+
+      - name: Upload R8.16 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Tahalil-Alakkad-V145-R8.16-Windows-Image-Shortcut-Icons
+          path: |
+            Tahalil-Alakkad-V145-R8.16-Windows-Portable.exe
+            Tahalil-Alakkad-V145-R8.16-Windows-Portable.exe.sha256
+            Tahalil-Alakkad-V145-R8.16-Windows-Setup.exe
+            Tahalil-Alakkad-V145-R8.16-Windows-Setup.exe.sha256
+            Tahalil-Alakkad-V145-R8.16-Windows-Source.zip
+            Tahalil-Alakkad-V145-R8.16-Windows-Source.zip.sha256
+            V145_R816_IMAGE_SHORTCUT_ICONS_NOTES.txt
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Publish Windows V145 R8.16 release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          $tag = 'v145-r8.16-windows'
+          $title = 'تحاليل العقاد Windows V145 R8.16 — Image Shortcut Icons'
+
+          $notes = @'
+          Windows V145 R8.16
+
+          - Home shortcut icons now render as image assets instead of drawn glyphs.
+          - Existing dashboard, back arrow, save, Firebase, customer, timestamp and Electron behavior preserved.
+          '@
+
+          $files = @(
+            'Tahalil-Alakkad-V145-R8.16-Windows-Portable.exe',
+            'Tahalil-Alakkad-V145-R8.16-Windows-Portable.exe.sha256',
+            'Tahalil-Alakkad-V145-R8.16-Windows-Setup.exe',
+            'Tahalil-Alakkad-V145-R8.16-Windows-Setup.exe.sha256',
+            'Tahalil-Alakkad-V145-R8.16-Windows-Source.zip',
+            'Tahalil-Alakkad-V145-R8.16-Windows-Source.zip.sha256',
+            'V145_R816_IMAGE_SHORTCUT_ICONS_NOTES.txt'
+          )
+
+          gh release view $tag --repo "$env:GITHUB_REPOSITORY" *> $null
+          if ($LASTEXITCODE -eq 0) {
+            gh release edit $tag --repo "$env:GITHUB_REPOSITORY" --title $title --notes $notes
+          } else {
+            gh release create $tag --repo "$env:GITHUB_REPOSITORY" --title $title --notes $notes
+          }
+          if ($LASTEXITCODE -ne 0) { throw 'Could not create/update R8.16 release' }
+
+          gh release upload $tag @files --repo "$env:GITHUB_REPOSITORY" --clobber
+          if ($LASTEXITCODE -ne 0) { throw 'Could not upload R8.16 files' }
