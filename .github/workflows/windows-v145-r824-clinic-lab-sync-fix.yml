@@ -1,0 +1,278 @@
+name: Windows V145 R8.24 Clinic Lab Sync Fix
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: tahalil-windows-v145-r824-clinic-lab-sync
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Windows V145 R8.24 — Clinic Lab Sync Fix
+    runs-on: windows-latest
+    timeout-minutes: 110
+
+    env:
+      BASE_TAG: v145-r8.23-windows
+      BASE_SOURCE: Tahalil-Alakkad-V145-R8.23-Windows-Source.zip
+      BASE_SHA256: 1468b22d60bcb9e2e0cb0fd8da46ed6744afd1ddb8470dbbb23ea429b0c908f3
+      R824_WORKLIST_B64: ZXhwb3J0IGFzeW5jIGZ1bmN0aW9uIGxpc3RXb3JrbGlzdChtYXg9MzAwKXsKICAvKiBUQUhfUjgyNF9BTExfREFZU19XT1JLTElTVF9TWU5DICovCiAgY29uc3QgYmFzZT1jb2xsZWN0aW9uR3JvdXAoZGIsJ29yZGVycycpOwogIGNvbnN0IG9yZGVyZWQ9cXVlcnkoYmFzZSxvcmRlckJ5KCd1cGRhdGVkX2F0X21zJywnZGVzYycpLGxpbWl0KG1heCkpOwogIGxldCBwcmltYXJ5PWF3YWl0IHNlcnZlclRoZW5DYWNoZShvcmRlcmVkKTsKICBpZighcHJpbWFyeSl7CiAgICB0cnl7Y29uc3Qgcz1hd2FpdCBnZXREb2NzRnJvbVNlcnZlcihiYXNlKTtzaGFkb3dEb2NzKHMpO3ByaW1hcnk9e3NuYXBzaG90OnMsc291cmNlOidzZXJ2ZXInfTt9Y2F0Y2h7fQogICAgaWYoIXByaW1hcnkpe3RyeXtjb25zdCBzPWF3YWl0IGdldERvY3NGcm9tQ2FjaGUoYmFzZSk7aWYocy5kb2NzLmxlbmd0aCl7c2hhZG93RG9jcyhzKTtwcmltYXJ5PXtzbmFwc2hvdDpzLHNvdXJjZTonY2FjaGUnfTt9fWNhdGNoe319CiAgfQogIGlmKHByaW1hcnkpcmV0dXJuIHNvcnRCeVVwZGF0ZShwcmltYXJ5LnNuYXBzaG90LmRvY3MubWFwKG1hcE9yZGVyRG9jKS5maWx0ZXIoeD0+IXguaXNfdm9pZGVkKSkuc2xpY2UoMCxtYXgpOwogIGNvbnN0IGRvY3M9YXdhaXQgZmFpbG92ZXJEb2N1bWVudHMoJ29yZGVyJywnY3VzdG9tZXJzLycsJ9iq2LTYutmK2YQg2KfZhNi32YTYqNin2KonKTsKICByZXR1cm4gc29ydEJ5VXBkYXRlKHNoYWRvd1Jvd3MoZG9jcykubWFwKHg9Pih7Y3VzdG9tZXJJZDp4LmN1c3RvbWVyX2lkfHwnJywuLi54fSkpLmZpbHRlcih4PT4heC5pc192b2lkZWQpKS5zbGljZSgwLG1heCk7Cn0KCmV4cG9ydCBmdW5jdGlvbiB3YXRjaFdvcmtsaXN0KGNiLG1heD0zMDApewogIGxldCBzdG9wcGVkPWZhbHNlLHVuc3ViPW51bGw7CiAgY29uc3QgZW1lcmdlbmN5PWFzeW5jIGU9PntpZihzdG9wcGVkKXJldHVybjtjb25zdCBkb2NzPWF3YWl0IGZhaWxvdmVyRG9jdW1lbnRzKCdvcmRlcicsJ2N1c3RvbWVycy8nLCfZhdiq2KfYqNi52Kkg2KfZhNi32YTYqNin2KonKTtjb25zdCByb3dzPXNvcnRCeVVwZGF0ZShzaGFkb3dSb3dzKGRvY3MpLm1hcCh4PT4oe2N1c3RvbWVySWQ6eC5jdXN0b21lcl9pZHx8JycsLi4ueH0pKS5maWx0ZXIoeD0+IXguaXNfdm9pZGVkKSkuc2xpY2UoMCxtYXgpO2NiKHJvd3MsZSk7fTsKICBjb25zdCBhdHRhY2g9KGZhbGxiYWNrPWZhbHNlKT0+e2lmKHN0b3BwZWQpcmV0dXJuO3RyeXt1bnN1Yj8uKCl9Y2F0Y2h7fWNvbnN0IGJhc2U9Y29sbGVjdGlvbkdyb3VwKGRiLCdvcmRlcnMnKSxxPWZhbGxiYWNrP2Jhc2U6cXVlcnkoYmFzZSxvcmRlckJ5KCd1cGRhdGVkX2F0X21zJywnZGVzYycpLGxpbWl0KG1heCkpO3Vuc3ViPW9uU25hcHNob3QocSxzbmFwPT57aWYoc3RvcHBlZClyZXR1cm47c2hhZG93RG9jcyhzbmFwKTtjYihzb3J0QnlVcGRhdGUoc25hcC5kb2NzLm1hcChtYXBPcmRlckRvYykuZmlsdGVyKHg9PiF4LmlzX3ZvaWRlZCkpLnNsaWNlKDAsbWF4KSk7fSxlPT57aWYoIWZhbGxiYWNrKWF0dGFjaCh0cnVlKTtlbHNlIGVtZXJnZW5jeShlKTt9KTt9OwogIGF0dGFjaChmYWxzZSk7cmV0dXJuKCk9PntzdG9wcGVkPXRydWU7dHJ5e3Vuc3ViPy4oKX1jYXRjaHt9fTsKfQo=
+      R824_NOTES_B64: V2luZG93cyBWMTQ1IFI4LjI0IOKAlCBDbGluaWMvTGFiIFdvcmtsaXN0IFN5bmMgRml4CgpSb290IGNhdXNlIGZpeGVkOgotIENsaW5pYyB3b3JrbGlzdCB3YXMgaGFyZC1jb2RlZCB0byBsb2FkIFRPREFZIG9ubHksIGV2ZW4gd2hpbGUgdGhlIFVJIHNob3dlZCAi2YPZhCDYp9mE2KPZitin2YUiLgotIExhYiB3b3JrbGlzdCBsb2FkcyBzaGFyZWQgbGFiX29yZGVycyBhY3Jvc3MgZGF0ZXMsIHNvIG9sZGVyIGFjdGl2ZSBvcmRlcnMgYXBwZWFyZWQgaW4gdGhlIGxhYiBidXQgZGlzYXBwZWFyZWQgZnJvbSB0aGUgY2xpbmljLgoKRml4OgotIENsaW5pYyBsaXN0V29ya2xpc3Qgbm93IHJlYWRzIHNoYXJlZCBjdXN0b21lciBvcmRlcnMgYWNyb3NzIGFsbCBkYXRlcyB1c2luZyBjb2xsZWN0aW9uR3JvdXAoJ29yZGVycycpLgotIENsaW5pYyBsaXZlIHdhdGNoV29ya2xpc3Qgbm93IHdhdGNoZXMgYWxsIGRhdGVzIHRvby4KLSAi2YPZhCDYp9mE2KPZitin2YUiIGlzIG5vdyByZWFsOyAi2KfZhNmK2YjZhSDZgdmC2LciIHJlbWFpbnMgYSBVSSBmaWx0ZXIuCi0gT3JkZXJzIGFyZSBzb3J0ZWQgYnkgdXBkYXRlZF9hdF9tcyBzbyBvbGRlciBvcmRlcnMgdXBkYXRlZCBieSB0aGUgbGFiIHN0YXkgdmlzaWJsZS4KLSBGYWxsYmFjayBzdGlsbCB3b3JrcyBpZiB0aGUgb3JkZXJlZCBxdWVyeS9pbmRleCBmYWlscy4KLSBObyBGaXJlYmFzZSBzY2hlbWEsIEZpcmVzdG9yZSBydWxlcywgbGFiIG9yZGVyIGxvZ2ljLCByZXN1bHQgdXBsb2FkLCBzZWN1cml0eSBoYXJkZW5pbmcsIG9yIFVJIGxheW91dCBjaGFuZ2VzLgo=
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Restore exact R8.23 source
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $zip = Join-Path $PWD $env:BASE_SOURCE
+          if (Test-Path $zip) { Remove-Item $zip -Force }
+          gh release download $env:BASE_TAG --repo "$env:GITHUB_REPOSITORY" --pattern $env:BASE_SOURCE --dir $PWD
+          if ($LASTEXITCODE -ne 0 -or !(Test-Path $zip)) { throw 'Could not download exact R8.23 source' }
+
+          $hash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($hash -ne $env:BASE_SHA256) { throw "R8.23 source hash mismatch: $hash" }
+
+          $root = Join-Path $PWD 'build_windows/windows-system'
+          if (Test-Path (Join-Path $PWD 'build_windows')) { Remove-Item (Join-Path $PWD 'build_windows') -Recurse -Force }
+          New-Item -ItemType Directory -Force -Path $root | Out-Null
+          Expand-Archive -Path $zip -DestinationPath $root -Force
+
+          $pkg = Get-Content (Join-Path $root 'package.json') -Raw | ConvertFrom-Json
+          if ($pkg.version -ne '145.8.23') { throw "Expected 145.8.23, got $($pkg.version)" }
+
+          foreach ($item in @(
+            'src/app.js',
+            'src/firebase.js',
+            'src/resultStore.js',
+            'src/styles.css',
+            'src/v145r8-parity.js',
+            'electron/main.cjs',
+            'electron/preload.cjs'
+          )) {
+            $name = 'R824_' + ($item -replace '[^A-Za-z0-9]','_').ToUpper() + '_SHA256'
+            $value = (Get-FileHash (Join-Path $root $item) -Algorithm SHA256).Hash.ToLowerInvariant()
+            "$name=$value" | Add-Content $env:GITHUB_ENV
+          }
+
+      - name: Fix clinic worklist all-days sync
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $root = Join-Path $PWD 'build_windows/windows-system'
+          $dataPath = Join-Path $root 'src/data.js'
+          $pkgPath = Join-Path $root 'package.json'
+
+          $data = Get-Content $dataPath -Raw
+          if ($data.Contains('TAH_R824_ALL_DAYS_WORKLIST_SYNC')) { throw 'R8.24 marker already exists' }
+
+          $startMarker = 'export async function listWorklist(max=300){'
+          $endMarker = 'function mapOrderDoc'
+          $start = $data.IndexOf($startMarker)
+          $end = $data.IndexOf($endMarker, $start)
+          if ($start -lt 0 -or $end -le $start) { throw 'Could not locate clinic worklist block' }
+
+          $newBlock = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($env:R824_WORKLIST_B64))
+          $data = $data.Substring(0,$start) + $newBlock + "`r`n" + $data.Substring($end)
+          Set-Content $dataPath -Value $data -Encoding utf8
+
+          $pkg = Get-Content $pkgPath -Raw | ConvertFrom-Json
+          $pkg.version = '145.8.24'
+          $pkg.description = 'Tahalil Alakkad Windows V145 R8.24 - clinic lab worklist all-days sync fix'
+          $pkg | ConvertTo-Json -Depth 20 | Set-Content $pkgPath -Encoding utf8
+
+          $notes = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($env:R824_NOTES_B64))
+          $notes | Set-Content (Join-Path $root 'V145_R824_CLINIC_LAB_SYNC_NOTES.txt') -Encoding utf8
+
+      - name: Audit sync fix and protected scope
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $root = Join-Path $PWD 'build_windows/windows-system'
+          $data = Get-Content (Join-Path $root 'src/data.js') -Raw
+          $pkg = Get-Content (Join-Path $root 'package.json') -Raw | ConvertFrom-Json
+
+          if ($pkg.version -ne '145.8.24') { throw "Expected 145.8.24, got $($pkg.version)" }
+
+          foreach ($marker in @(
+            'TAH_R824_ALL_DAYS_WORKLIST_SYNC',
+            "collectionGroup(db,'orders')",
+            "orderBy('updated_at_ms','desc')",
+            'export async function listWorklist(max=300)',
+            'export function watchWorklist(cb,max=300)'
+          )) {
+            if (!$data.Contains($marker)) { throw "R8.24 sync marker missing: $marker" }
+          }
+
+          if ($data.Contains("where('created_at_ms','>=',start.getTime())")) {
+            throw 'Old today-only clinic worklist filter still exists in patched worklist block'
+          }
+
+          $checks = @{
+            'src/app.js'='R824_SRC_APP_JS_SHA256';
+            'src/firebase.js'='R824_SRC_FIREBASE_JS_SHA256';
+            'src/resultStore.js'='R824_SRC_RESULTSTORE_JS_SHA256';
+            'src/styles.css'='R824_SRC_STYLES_CSS_SHA256';
+            'src/v145r8-parity.js'='R824_SRC_V145R8_PARITY_JS_SHA256';
+            'electron/main.cjs'='R824_ELECTRON_MAIN_CJS_SHA256';
+            'electron/preload.cjs'='R824_ELECTRON_PRELOAD_CJS_SHA256'
+          }
+
+          foreach ($pair in $checks.GetEnumerator()) {
+            $actual = (Get-FileHash (Join-Path $root $pair.Key) -Algorithm SHA256).Hash.ToLowerInvariant()
+            $expected = [Environment]::GetEnvironmentVariable($pair.Value)
+            if ($actual -ne $expected) { throw "$($pair.Key) changed - protected scope violated" }
+          }
+
+          node --check (Join-Path $root 'src/data.js')
+          if ($LASTEXITCODE -ne 0) { throw 'data.js syntax failed' }
+          node --check (Join-Path $root 'src/app.js')
+          if ($LASTEXITCODE -ne 0) { throw 'app.js syntax failed' }
+          node --check (Join-Path $root 'electron/main.cjs')
+          if ($LASTEXITCODE -ne 0) { throw 'main.cjs syntax failed' }
+
+          $audit = @(
+            'R8.24 CLINIC/LAB SYNC AUDIT: PASS',
+            'Root cause: clinic listWorklist/watchWorklist were hard-coded to today only',
+            'Fix: all-date collectionGroup orders for initial load + realtime watch',
+            'UI date filter remains responsible for All Days vs Today',
+            'Lab/results/Firebase/security/UI files unchanged'
+          )
+          $audit | Set-Content 'R824_CLINIC_LAB_SYNC_AUDIT.txt' -Encoding utf8
+
+      - name: Package R8.24 source
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $root = Join-Path $PWD 'build_windows/windows-system'
+          $stage = Join-Path $env:RUNNER_TEMP 'source_stage_r824'
+          if (Test-Path $stage) { Remove-Item $stage -Recurse -Force }
+          New-Item -ItemType Directory -Force -Path $stage | Out-Null
+
+          Get-ChildItem -LiteralPath $root -Force |
+            Where-Object { @('node_modules','release','.git') -notcontains $_.Name } |
+            ForEach-Object { Copy-Item -LiteralPath $_.FullName -Destination $stage -Recurse -Force }
+
+          $zip = Join-Path $PWD 'Tahalil-Alakkad-V145-R8.24-Windows-Source.zip'
+          if (Test-Path $zip) { Remove-Item $zip -Force }
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          [System.IO.Compression.ZipFile]::CreateFromDirectory($stage,$zip,[System.IO.Compression.CompressionLevel]::Optimal,$false)
+
+          $hash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  Tahalil-Alakkad-V145-R8.24-Windows-Source.zip" | Set-Content 'Tahalil-Alakkad-V145-R8.24-Windows-Source.zip.sha256' -Encoding ascii
+          Copy-Item (Join-Path $root 'V145_R824_CLINIC_LAB_SYNC_NOTES.txt') 'V145_R824_CLINIC_LAB_SYNC_NOTES.txt' -Force
+
+      - name: Install dependencies
+        working-directory: build_windows/windows-system
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          npm install --no-audit --no-fund
+          if ($LASTEXITCODE -ne 0) { throw 'npm install failed' }
+
+      - name: Build Portable
+        working-directory: build_windows/windows-system
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          npm run dist:portable
+          if ($LASTEXITCODE -ne 0) { throw 'Portable build failed' }
+
+      - name: Portable smoke test
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $release = Join-Path $PWD 'build_windows/windows-system/release'
+          $portable = Get-ChildItem $release -Filter '*Portable*.exe' -File | Sort-Object Length -Descending | Select-Object -First 1
+          if (!$portable) { throw 'Portable EXE missing' }
+          $proc = Start-Process -FilePath $portable.FullName -PassThru
+          Start-Sleep -Seconds 12
+          if ($proc.HasExited) { throw "Portable exited unexpectedly: $($proc.ExitCode)" }
+          Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
+
+      - name: Build Setup
+        working-directory: build_windows/windows-system
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          npm run dist:setup
+          if ($LASTEXITCODE -ne 0) { throw 'Setup build failed' }
+
+      - name: Prepare delivery
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $release = Join-Path $PWD 'build_windows/windows-system/release'
+          $portable = Get-ChildItem $release -Filter '*Portable*.exe' -File | Sort-Object Length -Descending | Select-Object -First 1
+          $setup = Get-ChildItem $release -Filter '*Setup*.exe' -File | Sort-Object Length -Descending | Select-Object -First 1
+          if (!$portable -or !$setup) { throw 'Portable or Setup missing' }
+
+          Copy-Item $portable.FullName 'Tahalil-Alakkad-V145-R8.24-Windows-Portable.exe' -Force
+          Copy-Item $setup.FullName 'Tahalil-Alakkad-V145-R8.24-Windows-Setup.exe' -Force
+
+          foreach ($name in @(
+            'Tahalil-Alakkad-V145-R8.24-Windows-Portable.exe',
+            'Tahalil-Alakkad-V145-R8.24-Windows-Setup.exe'
+          )) {
+            $hash = (Get-FileHash $name -Algorithm SHA256).Hash.ToLowerInvariant()
+            "$hash  $name" | Set-Content "$name.sha256" -Encoding ascii
+          }
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Tahalil-Alakkad-V145-R8.24-Windows-Clinic-Lab-Sync
+          path: |
+            Tahalil-Alakkad-V145-R8.24-Windows-Portable.exe
+            Tahalil-Alakkad-V145-R8.24-Windows-Portable.exe.sha256
+            Tahalil-Alakkad-V145-R8.24-Windows-Setup.exe
+            Tahalil-Alakkad-V145-R8.24-Windows-Setup.exe.sha256
+            Tahalil-Alakkad-V145-R8.24-Windows-Source.zip
+            Tahalil-Alakkad-V145-R8.24-Windows-Source.zip.sha256
+            V145_R824_CLINIC_LAB_SYNC_NOTES.txt
+            R824_CLINIC_LAB_SYNC_AUDIT.txt
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Publish R8.24 release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $tag = 'v145-r8.24-windows'
+          $title = 'تحاليل العقاد Windows V145 R8.24 — Clinic/Lab Sync Fix'
+          $notes = Get-Content 'V145_R824_CLINIC_LAB_SYNC_NOTES.txt' -Raw
+
+          gh release view $tag --repo "$env:GITHUB_REPOSITORY" *> $null
+          if ($LASTEXITCODE -eq 0) {
+            gh release edit $tag --repo "$env:GITHUB_REPOSITORY" --title $title --notes $notes
+          } else {
+            gh release create $tag --repo "$env:GITHUB_REPOSITORY" --title $title --notes $notes
+          }
+          if ($LASTEXITCODE -ne 0) { throw 'Could not create R8.24 release' }
+
+          gh release upload $tag `
+            Tahalil-Alakkad-V145-R8.24-Windows-Portable.exe `
+            Tahalil-Alakkad-V145-R8.24-Windows-Portable.exe.sha256 `
+            Tahalil-Alakkad-V145-R8.24-Windows-Setup.exe `
+            Tahalil-Alakkad-V145-R8.24-Windows-Setup.exe.sha256 `
+            Tahalil-Alakkad-V145-R8.24-Windows-Source.zip `
+            Tahalil-Alakkad-V145-R8.24-Windows-Source.zip.sha256 `
+            V145_R824_CLINIC_LAB_SYNC_NOTES.txt `
+            R824_CLINIC_LAB_SYNC_AUDIT.txt `
+            --repo "$env:GITHUB_REPOSITORY" --clobber
+          if ($LASTEXITCODE -ne 0) { throw 'Could not upload R8.24 release assets' }
