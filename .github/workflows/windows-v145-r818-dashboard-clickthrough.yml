@@ -1,0 +1,369 @@
+name: Windows V145 R8.18 Dashboard Click-Through
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: tahalil-windows-v145-r818-dashboard-clickthrough
+  cancel-in-progress: false
+
+jobs:
+  windows-v145-r818:
+    name: Windows V145 R8.18 — Dashboard Click-Through
+    runs-on: windows-latest
+    timeout-minutes: 110
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: "false"
+      BASE_TAG: "v145-r8.17-windows"
+      BASE_SOURCE: "Tahalil-Alakkad-V145-R8.17-Windows-Source.zip"
+      BASE_SHA256: "9972c341045ec039a525f1f76ac0330156223405184472606ad2a98641000aba"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Restore exact R8.17 source
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $zip = Join-Path $PWD $env:BASE_SOURCE
+          if (Test-Path $zip) { Remove-Item $zip -Force }
+          gh release download $env:BASE_TAG --repo "$env:GITHUB_REPOSITORY" --pattern $env:BASE_SOURCE --dir $PWD
+          if ($LASTEXITCODE -ne 0 -or !(Test-Path $zip)) { throw 'Could not download exact R8.17 source release' }
+          $hash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($hash -ne $env:BASE_SHA256) { throw "R8.17 source hash mismatch: $hash" }
+
+          $root = Join-Path $PWD 'build_windows/windows-system'
+          if (Test-Path (Join-Path $PWD 'build_windows')) { Remove-Item (Join-Path $PWD 'build_windows') -Recurse -Force }
+          New-Item -ItemType Directory -Force -Path $root | Out-Null
+          Expand-Archive -Path $zip -DestinationPath $root -Force
+
+          foreach ($required in @('package.json','src/app.js','src/styles.css','src/data.js','src/firebase.js','src/v145r8-parity.js','electron/main.cjs','electron/preload.cjs')) {
+            if (!(Test-Path (Join-Path $root $required))) { throw "R8.17 source missing: $required" }
+          }
+
+          $locked = @{
+            R818_DATA_SHA256     = (Get-FileHash (Join-Path $root 'src/data.js') -Algorithm SHA256).Hash.ToLowerInvariant()
+            R818_FIREBASE_SHA256 = (Get-FileHash (Join-Path $root 'src/firebase.js') -Algorithm SHA256).Hash.ToLowerInvariant()
+            R818_PARITY_SHA256   = (Get-FileHash (Join-Path $root 'src/v145r8-parity.js') -Algorithm SHA256).Hash.ToLowerInvariant()
+            R818_MAIN_SHA256     = (Get-FileHash (Join-Path $root 'electron/main.cjs') -Algorithm SHA256).Hash.ToLowerInvariant()
+            R818_PRELOAD_SHA256  = (Get-FileHash (Join-Path $root 'electron/preload.cjs') -Algorithm SHA256).Hash.ToLowerInvariant()
+          }
+          foreach ($pair in $locked.GetEnumerator()) { "$($pair.Key)=$($pair.Value)" | Add-Content $env:GITHUB_ENV }
+
+      - name: Apply R8.18 dashboard click-through
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $root = Join-Path $PWD 'build_windows/windows-system'
+
+          $patcher = @'
+          from pathlib import Path
+          import json, sys
+
+          root=Path(sys.argv[1])
+          app_path=root/'src/app.js'
+          css_path=root/'src/styles.css'
+          pkg_path=root/'package.json'
+          app=app_path.read_text(encoding='utf-8-sig')
+          css=css_path.read_text(encoding='utf-8-sig')
+
+          if 'TAH_DASHBOARD_CLICKTHROUGH_R818' in app or 'TAH_DASHBOARD_CLICKTHROUGH_R818' in css:
+              raise SystemExit('R8.18 already installed')
+
+          needle="$$('[data-tab]').forEach(b=>b.onclick=()=>renderTab(b.dataset.tab));$('#settingsBottom').onclick=()=>renderTab('settings');"
+          insert="""$$('[data-tab]').forEach(b=>b.onclick=()=>renderTab(b.dataset.tab));
+           const topOnline=$('#onlineBadge');if(topOnline){topOnline.classList.add('sys818-top-click');topOnline.title='فتح حالة النظام';topOnline.onclick=()=>renderTab('system')}
+           const topUser=$('#userBadge');if(topUser){topUser.classList.add('sys818-top-click');topUser.title='فتح الإعدادات';topUser.onclick=()=>renderTab('settings')}
+           const topClock=$('#deviceClock');if(topClock){topClock.classList.add('sys818-top-click');topClock.title='فتح بيانات اليوم';topClock.onclick=()=>{if(can('can_view_sales_reports')){window.__r818ReportToday=true;renderTab('reports')}else renderTab('worklist')}}
+           $('#settingsBottom').onclick=()=>renderTab('settings');"""
+          if needle not in app: raise SystemExit('App shell anchor not found')
+          app=app.replace(needle,insert,1)
+
+          replacements={
+            '<div class="sys814-header">':'<div class="sys814-header sys818-dashboard-header" data-r818-work="all">',
+            '<div class="sys814-live"><i></i><span>النظام متصل</span></div>':'<div class="sys814-live sys818-click" data-r818-system="1"><i></i><span>النظام متصل</span></div>',
+            '<div class="sys814-kpi"><span>طلبات اليوم</span><b>${tt.length}</b></div>':'<div class="sys814-kpi sys818-click" data-r818-work="all"><span>طلبات اليوم</span><b>${tt.length}</b></div>',
+            '<div class="sys814-kpi"><span>جاري التنفيذ</span><b>${processing.length}</b></div>':'<div class="sys814-kpi sys818-click" data-r818-work="processing"><span>جاري التنفيذ</span><b>${processing.length}</b></div>',
+            '<div class="sys814-kpi"><span>جاهز</span><b>${ready.length}</b></div>':'<div class="sys814-kpi sys818-click" data-r818-work="ready"><span>جاهز</span><b>${ready.length}</b></div>',
+            '<div class="sys814-kpi"><span>قيد التسجيل</span><b>${pending.length}</b></div>':'<div class="sys814-kpi sys818-click" data-r818-work="dashboard_pending"><span>قيد التسجيل</span><b>${pending.length}</b></div>',
+            '<section class="sys814-panel sys814-table-panel">':'<section class="sys814-panel sys814-table-panel sys818-click" data-r818-table="1">',
+            '<tr>\n                    <td><b>${esc(o.order_number||\'—\')}</b></td>':'<tr class="sys818-order-row" data-order-number="${esc(o.order_number||\'\')}">\n                    <td><b>${esc(o.order_number||\'—\')}</b></td>',
+            '<aside class="sys814-panel sys814-side-panel">':'<aside class="sys814-panel sys814-side-panel sys818-click" data-r818-system="1">'
+          }
+          for old,new in replacements.items():
+              if old not in app: raise SystemExit('Dashboard anchor not found: '+old[:60])
+              app=app.replace(old,new,1)
+
+          needle="""  const allOrders=$('#openAllOrders');
+            if(allOrders)allOrders.onclick=()=>renderTab('worklist');
+          }"""
+          replacement="""  const openDashboardOrders=(status='all',query='')=>{
+            window.__r818WorklistIntent={status,query,todayOnly:true};
+            return renderTab('worklist');
+          };
+          $$('[data-r818-work]').forEach(el=>el.onclick=e=>{
+            if(e.target.closest('[data-r818-system]'))return;
+            openDashboardOrders(el.dataset.r818Work||'all','');
+          });
+          $$('.sys818-order-row').forEach(row=>row.onclick=e=>{
+            e.stopPropagation();
+            openDashboardOrders('all',row.dataset.orderNumber||'');
+          });
+          $$('[data-r818-system]').forEach(el=>el.onclick=e=>{
+            e.stopPropagation();
+            renderTab('system');
+          });
+          const tablePanel=$('[data-r818-table]');
+          if(tablePanel)tablePanel.onclick=e=>{
+            if(e.target.closest('button')||e.target.closest('.sys818-order-row'))return;
+            openDashboardOrders('all','');
+          };
+          const allOrders=$('#openAllOrders');
+          if(allOrders)allOrders.onclick=e=>{e.stopPropagation();window.__r818WorklistIntent=null;renderTab('worklist')};
+          }"""
+          if needle not in app: raise SystemExit('Dashboard handler anchor not found')
+          app=app.replace(needle,replacement,1)
+
+          needle="""async function worklistPage(c){
+           if(isLabUser()){await labWorklistPage(c);return}
+           setPage('تشغيل الطلبات','الحالة والتحصيل والتعديل والمشاركة — نفس الطلب على الموبايل والكمبيوتر');worklist=await D.listWorklist(300);if(!Object.keys(overrides).length)overrides=await D.loadOverrides().catch(()=>({}));
+           c.innerHTML=`<div class="toolbar"><div class="field"><label>بحث</label><input id="wq" placeholder="رقم الطلب / العميل / الهاتف / الملف"></div><div class="field"><label>الحالة</label><select id="wstatus"><option value="active">الطلبات المفتوحة</option><option value="new">جديد</option><option value="sent_to_lab">مرسل للمعمل</option><option value="processing">جاري التنفيذ</option><option value="ready">جاهز</option><option value="delivered">تم التسليم</option><option value="all">الكل</option></select></div><button class="btn" id="wr">تحديث</button></div><div class="tablewrap"><table class="table"><thead><tr><th>رقم الطلب</th><th>العميل</th><th>تحاليل</th><th>الإجمالي</th><th>الدفع</th><th>التشغيل</th><th>إجراءات</th></tr></thead><tbody id="wtbody"></tbody></table></div><div id="workDetail" style="margin-top:14px"></div>`;
+           const getO=id=>worklist.find(x=>x.id===id);
+           const render=()=>{const q=D.normalize($('#wq').value||''),st=$('#wstatus').value||'active',arr=worklist.filter(o=>!o.is_voided).filter(o=>st==='active'?o.workflow_status!=='delivered':st==='all'||o.workflow_status===st).filter(o=>D.normalize(`${o.order_number} ${o.customer_name} ${o.customer_phone} ${o.customer_file_number}`).includes(q));"""
+          replacement="""async function worklistPage(c){
+           if(isLabUser()){await labWorklistPage(c);return}
+           const dashboardIntent=window.__r818WorklistIntent||null;window.__r818WorklistIntent=null;
+           setPage('تشغيل الطلبات','الحالة والتحصيل والتعديل والمشاركة — نفس الطلب على الموبايل والكمبيوتر');worklist=await D.listWorklist(300);if(!Object.keys(overrides).length)overrides=await D.loadOverrides().catch(()=>({}));
+           c.innerHTML=`<div class="toolbar"><div class="field"><label>بحث</label><input id="wq" placeholder="رقم الطلب / العميل / الهاتف / الملف"></div><div class="field"><label>الحالة</label><select id="wstatus"><option value="active">الطلبات المفتوحة</option><option value="new">جديد</option><option value="sent_to_lab">مرسل للمعمل</option><option value="processing">جاري التنفيذ</option><option value="ready">جاهز</option><option value="dashboard_pending">قيد التسجيل</option><option value="delivered">تم التسليم</option><option value="all">الكل</option></select></div><div class="field"><label>التاريخ</label><select id="wdate"><option value="all">كل الأيام</option><option value="today">اليوم فقط</option></select></div><button class="btn" id="wr">تحديث</button></div><div class="tablewrap"><table class="table"><thead><tr><th>رقم الطلب</th><th>العميل</th><th>تحاليل</th><th>الإجمالي</th><th>الدفع</th><th>التشغيل</th><th>إجراءات</th></tr></thead><tbody id="wtbody"></tbody></table></div><div id="workDetail" style="margin-top:14px"></div>`;
+           if(dashboardIntent){
+             if(dashboardIntent.query)$('#wq').value=dashboardIntent.query;
+             if(dashboardIntent.status&&Array.from($('#wstatus').options).some(o=>o.value===dashboardIntent.status))$('#wstatus').value=dashboardIntent.status;
+             if(dashboardIntent.todayOnly)$('#wdate').value='today';
+           }
+           const getO=id=>worklist.find(x=>x.id===id);
+           const render=()=>{const q=D.normalize($('#wq').value||''),st=$('#wstatus').value||'active',day=$('#wdate').value||'all',todayStart=(()=>{const d=new Date();d.setHours(0,0,0,0);return d.getTime()})(),arr=worklist.filter(o=>!o.is_voided).filter(o=>day!=='today'||Number(o.created_at_ms||0)>=todayStart).filter(o=>st==='active'?o.workflow_status!=='delivered':st==='all'?true:st==='dashboard_pending'?!['processing','ready'].includes(o.workflow_status):o.workflow_status===st).filter(o=>D.normalize(`${o.order_number} ${o.customer_name} ${o.customer_phone} ${o.customer_file_number}`).includes(q));"""
+          if needle not in app: raise SystemExit('Worklist anchor not found')
+          app=app.replace(needle,replacement,1)
+
+          needle="$('#wq').oninput=render;$('#wstatus').onchange=render;$('#wr').onclick=()=>renderTab('worklist');"
+          replacement="$('#wq').oninput=render;$('#wstatus').onchange=render;$('#wdate').onchange=render;$('#wr').onclick=()=>renderTab('worklist');"
+          if needle not in app: raise SystemExit('Worklist binding anchor not found')
+          app=app.replace(needle,replacement,1)
+
+          needle="""async function reportsPage(c){
+           setPage('التقارير','تقويم وفلاتر + تقرير PDF من نفس بيانات Firebase');if(!can('can_view_sales_reports'))throw new Error('حسابك لا يملك صلاحية التقارير');
+           const now=new Date(),from=new Date();from.setDate(now.getDate()-7);const iso=d=>d.toISOString().slice(0,10);let lastRows=[];"""
+          replacement="""async function reportsPage(c){
+           setPage('التقارير','تقويم وفلاتر + تقرير PDF من نفس بيانات Firebase');if(!can('can_view_sales_reports'))throw new Error('حسابك لا يملك صلاحية التقارير');
+           const reportTodayIntent=!!window.__r818ReportToday;window.__r818ReportToday=false;
+           const now=new Date(),from=new Date();from.setDate(now.getDate()-7);const iso=d=>d.toISOString().slice(0,10);let lastRows=[];"""
+          if needle not in app: raise SystemExit('Report start anchor not found')
+          app=app.replace(needle,replacement,1)
+
+          needle=""" c.innerHTML=`<div class="toolbar"><div class="field"><label>من</label><input id="rf" type="date" value="${iso(from)}"></div><div class="field"><label>إلى</label><input id="rt" type="date" value="${iso(now)}"></div><button class="btn preset" data-p="today">اليوم</button><button class="btn preset" data-p="week">7 أيام</button><button class="btn preset" data-p="month">هذا الشهر</button><button class="btn primary" id="rr">عرض</button><button class="btn" id="reportPdf">حفظ PDF</button></div><div id="report"></div>`;
+           const render=async()=>"""
+          replacement=""" c.innerHTML=`<div class="toolbar"><div class="field"><label>من</label><input id="rf" type="date" value="${iso(from)}"></div><div class="field"><label>إلى</label><input id="rt" type="date" value="${iso(now)}"></div><button class="btn preset" data-p="today">اليوم</button><button class="btn preset" data-p="week">7 أيام</button><button class="btn preset" data-p="month">هذا الشهر</button><button class="btn primary" id="rr">عرض</button><button class="btn" id="reportPdf">حفظ PDF</button></div><div id="report"></div>`;
+           if(reportTodayIntent){$('#rf').value=iso(now);$('#rt').value=iso(now)}
+           const render=async()=>"""
+          if needle not in app: raise SystemExit('Report date anchor not found')
+          app=app.replace(needle,replacement,1)
+
+          app += "\n/* TAH_DASHBOARD_CLICKTHROUGH_R818 */\n"
+          css += """
+
+          /* TAH_DASHBOARD_CLICKTHROUGH_R818 */
+          .sys818-click,
+          .sys818-top-click,
+          .sys818-dashboard-header [data-r818-work],
+          [data-r818-system]{cursor:pointer}
+          .sys818-click{transition:transform .14s ease,box-shadow .14s ease,border-color .14s ease}
+          .sys818-click:hover{transform:translateY(-1px);box-shadow:0 8px 20px rgba(19,64,102,.10);border-color:#b8cede}
+          .sys818-order-row{cursor:pointer;transition:background .12s ease}
+          .sys818-order-row:hover td{background:#f3f8fc}
+          .sys818-top-click{transition:filter .12s ease,transform .12s ease}
+          .sys818-top-click:hover{filter:brightness(.98);transform:translateY(-1px)}
+          """
+
+          pkg=json.loads(pkg_path.read_text(encoding='utf-8-sig'))
+          if str(pkg.get('version'))!='145.8.17': raise SystemExit(f"Expected exact R8.17 package version, got {pkg.get('version')}")
+          pkg['version']='145.8.18'
+          pkg['description']='Tahalil Alakkad Windows V145 R8.18 - dashboard click-through navigation'
+
+          app_path.write_text(app,encoding='utf-8')
+          css_path.write_text(css,encoding='utf-8')
+          pkg_path.write_text(json.dumps(pkg,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
+
+          (root/'V145_R818_DASHBOARD_CLICKTHROUGH_NOTES.txt').write_text(
+              'Windows V145 R8.18\n\n'
+              '- Dashboard KPI cards open the matching orders directly.\n'
+              '- Recent order rows open that order in the orders screen.\n'
+              '- Device date/time opens today report when permitted.\n'
+              '- Connection/status widgets open system status.\n'
+              '- User badge opens settings.\n'
+              '- Added Today/All-days filter to orders for direct dashboard navigation.\n'
+              '- Existing R8.17 customer right-click behavior is preserved.\n',
+              encoding='utf-8'
+          )
+          print('R818_DASHBOARD_CLICKTHROUGH_APPLIED')
+          '@
+
+          $patcherPath = Join-Path $env:RUNNER_TEMP 'patch_r818.py'
+          $patcher | Set-Content $patcherPath -Encoding utf8
+          python $patcherPath $root
+          if ($LASTEXITCODE -ne 0) { throw 'R8.18 patch failed' }
+
+      - name: Audit R8.18
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $root = Join-Path $PWD 'build_windows/windows-system'
+          $pkg = Get-Content (Join-Path $root 'package.json') -Raw | ConvertFrom-Json
+          if ($pkg.version -ne '145.8.18') { throw "Expected 145.8.18, got $($pkg.version)" }
+          $app = Get-Content (Join-Path $root 'src/app.js') -Raw
+          $css = Get-Content (Join-Path $root 'src/styles.css') -Raw
+          foreach ($marker in @('TAH_DASHBOARD_CLICKTHROUGH_R818','data-r818-work','sys818-order-row','__r818WorklistIntent','__r818ReportToday','id="wdate"','dashboard_pending')) {
+            if (!($app.Contains($marker) -or $css.Contains($marker))) { throw "Missing R8.18 contract: $marker" }
+          }
+          if ((Get-FileHash (Join-Path $root 'src/data.js') -Algorithm SHA256).Hash.ToLowerInvariant() -ne $env:R818_DATA_SHA256) { throw 'data.js changed - blocked' }
+          if ((Get-FileHash (Join-Path $root 'src/firebase.js') -Algorithm SHA256).Hash.ToLowerInvariant() -ne $env:R818_FIREBASE_SHA256) { throw 'firebase.js changed - blocked' }
+          if ((Get-FileHash (Join-Path $root 'src/v145r8-parity.js') -Algorithm SHA256).Hash.ToLowerInvariant() -ne $env:R818_PARITY_SHA256) { throw 'core parity changed - blocked' }
+          if ((Get-FileHash (Join-Path $root 'electron/main.cjs') -Algorithm SHA256).Hash.ToLowerInvariant() -ne $env:R818_MAIN_SHA256) { throw 'electron/main.cjs changed - blocked' }
+          if ((Get-FileHash (Join-Path $root 'electron/preload.cjs') -Algorithm SHA256).Hash.ToLowerInvariant() -ne $env:R818_PRELOAD_SHA256) { throw 'electron/preload.cjs changed - blocked' }
+          node --check (Join-Path $root 'src/app.js')
+          if ($LASTEXITCODE -ne 0) { throw 'app.js syntax failed' }
+
+      - name: Package R8.18 source
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $root = Join-Path $PWD 'build_windows/windows-system'
+          $stage = Join-Path $env:RUNNER_TEMP 'source_stage_r818'
+          if (Test-Path $stage) { Remove-Item $stage -Recurse -Force }
+          New-Item -ItemType Directory -Force -Path $stage | Out-Null
+          Get-ChildItem -LiteralPath $root -Force | Where-Object { @('node_modules','release','.git') -notcontains $_.Name } | ForEach-Object { Copy-Item -LiteralPath $_.FullName -Destination $stage -Recurse -Force }
+          $zip = Join-Path $PWD 'Tahalil-Alakkad-V145-R8.18-Windows-Source.zip'
+          if (Test-Path $zip) { Remove-Item $zip -Force }
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          [System.IO.Compression.ZipFile]::CreateFromDirectory($stage,$zip,[System.IO.Compression.CompressionLevel]::Optimal,$false)
+          if (!(Test-Path $zip) -or (Get-Item $zip).Length -lt 50000) { throw 'R8.18 source ZIP invalid' }
+          $hash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  Tahalil-Alakkad-V145-R8.18-Windows-Source.zip" | Set-Content 'Tahalil-Alakkad-V145-R8.18-Windows-Source.zip.sha256' -Encoding ascii
+          Copy-Item (Join-Path $root 'V145_R818_DASHBOARD_CLICKTHROUGH_NOTES.txt') 'V145_R818_DASHBOARD_CLICKTHROUGH_NOTES.txt' -Force
+
+      - name: Install dependencies
+        working-directory: build_windows/windows-system
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          npm install --no-audit --no-fund
+          if ($LASTEXITCODE -ne 0) { throw 'npm install failed' }
+
+      - name: Build Portable
+        working-directory: build_windows/windows-system
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          npm run dist:portable
+          if ($LASTEXITCODE -ne 0) { throw 'Portable build failed' }
+
+      - name: Portable startup smoke
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $release = Join-Path $PWD 'build_windows/windows-system/release'
+          $portable = Get-ChildItem $release -Filter '*Portable*.exe' -File | Sort-Object Length -Descending | Select-Object -First 1
+          if (!$portable) { throw 'Portable EXE missing' }
+          $proc = Start-Process -FilePath $portable.FullName -PassThru
+          Start-Sleep -Seconds 12
+          if ($proc.HasExited) {
+            if ($proc.ExitCode -ne 0) { throw "Portable exited with code $($proc.ExitCode)" }
+            throw 'Portable exited unexpectedly during smoke test'
+          }
+          Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
+
+      - name: Build Setup
+        working-directory: build_windows/windows-system
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          npm run dist:setup
+          if ($LASTEXITCODE -ne 0) { throw 'Setup build failed' }
+
+      - name: Prepare R8.18 delivery files
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $release = Join-Path $PWD 'build_windows/windows-system/release'
+          $portable = Get-ChildItem $release -Filter '*Portable*.exe' -File | Sort-Object Length -Descending | Select-Object -First 1
+          $setup = Get-ChildItem $release -Filter '*Setup*.exe' -File | Sort-Object Length -Descending | Select-Object -First 1
+          if (!$portable -or !$setup) { throw 'Portable or Setup EXE missing' }
+          Copy-Item $portable.FullName 'Tahalil-Alakkad-V145-R8.18-Windows-Portable.exe' -Force
+          Copy-Item $setup.FullName 'Tahalil-Alakkad-V145-R8.18-Windows-Setup.exe' -Force
+          foreach ($name in @('Tahalil-Alakkad-V145-R8.18-Windows-Portable.exe','Tahalil-Alakkad-V145-R8.18-Windows-Setup.exe')) {
+            $hash = (Get-FileHash $name -Algorithm SHA256).Hash.ToLowerInvariant()
+            "$hash  $name" | Set-Content "$name.sha256" -Encoding ascii
+          }
+
+      - name: Upload R8.18 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Tahalil-Alakkad-V145-R8.18-Windows-Dashboard-ClickThrough
+          path: |
+            Tahalil-Alakkad-V145-R8.18-Windows-Portable.exe
+            Tahalil-Alakkad-V145-R8.18-Windows-Portable.exe.sha256
+            Tahalil-Alakkad-V145-R8.18-Windows-Setup.exe
+            Tahalil-Alakkad-V145-R8.18-Windows-Setup.exe.sha256
+            Tahalil-Alakkad-V145-R8.18-Windows-Source.zip
+            Tahalil-Alakkad-V145-R8.18-Windows-Source.zip.sha256
+            V145_R818_DASHBOARD_CLICKTHROUGH_NOTES.txt
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Publish Windows V145 R8.18 release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $tag = 'v145-r8.18-windows'
+          $title = 'تحاليل العقاد Windows V145 R8.18 — Dashboard Click-Through'
+          $notes = @'
+          Windows V145 R8.18
+
+          - Dashboard KPI cards open the matching orders directly.
+          - Recent order rows open that order in the orders screen.
+          - Device date/time opens today's report when permitted.
+          - Connection/status widgets open system status.
+          - User badge opens settings.
+          - Added Today/All-days filter to orders.
+          - R8.17 customer selection/right-click behavior preserved.
+          '@
+          $files = @(
+            'Tahalil-Alakkad-V145-R8.18-Windows-Portable.exe',
+            'Tahalil-Alakkad-V145-R8.18-Windows-Portable.exe.sha256',
+            'Tahalil-Alakkad-V145-R8.18-Windows-Setup.exe',
+            'Tahalil-Alakkad-V145-R8.18-Windows-Setup.exe.sha256',
+            'Tahalil-Alakkad-V145-R8.18-Windows-Source.zip',
+            'Tahalil-Alakkad-V145-R8.18-Windows-Source.zip.sha256',
+            'V145_R818_DASHBOARD_CLICKTHROUGH_NOTES.txt'
+          )
+          gh release view $tag --repo "$env:GITHUB_REPOSITORY" *> $null
+          if ($LASTEXITCODE -eq 0) {
+            gh release edit $tag --repo "$env:GITHUB_REPOSITORY" --title $title --notes $notes
+          } else {
+            gh release create $tag --repo "$env:GITHUB_REPOSITORY" --title $title --notes $notes
+          }
+          if ($LASTEXITCODE -ne 0) { throw 'Could not create/update R8.18 release' }
+          gh release upload $tag @files --repo "$env:GITHUB_REPOSITORY" --clobber
+          if ($LASTEXITCODE -ne 0) { throw 'Could not upload R8.18 files' }
