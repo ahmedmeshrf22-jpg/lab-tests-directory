@@ -1,0 +1,253 @@
+name: Windows V145 R8.26 Details Button Cleanup FIXED
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: tahalil-windows-v145-r826-details-button-fixed
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Windows V145 R8.26 — Details Button Cleanup FIXED
+    runs-on: windows-latest
+    timeout-minutes: 110
+
+    env:
+      BASE_TAG: v145-r8.25-windows
+      BASE_SOURCE: Tahalil-Alakkad-V145-R8.25-Windows-Source.zip
+      BASE_SHA256: 5e73555edc7145cf96734f7f83e9aef4efe068a4ab813b4311590ce541d3ab59
+      R826_PATCH_B64: CmZyb20gcGF0aGxpYiBpbXBvcnQgUGF0aAppbXBvcnQganNvbgoKcm9vdCA9IFBhdGgoImJ1aWxkX3dpbmRvd3Mvd2luZG93cy1zeXN0ZW0iKQphcHBfcCA9IHJvb3QgLyAic3JjL2FwcC5qcyIKY3NzX3AgPSByb290IC8gInNyYy9zdHlsZXMuY3NzIgpwa2dfcCA9IHJvb3QgLyAicGFja2FnZS5qc29uIgoKcyA9IGFwcF9wLnJlYWRfdGV4dChlbmNvZGluZz0idXRmLTgiKQoKb2xkX2JyYW5kID0gJzxzbWFsbD5VbmlmaWVkIFN5c3RlbSBWMTQ1IFI4PC9zbWFsbD4nCmlmIHMuY291bnQob2xkX2JyYW5kKSAhPSAxOgogICAgcmFpc2UgU3lzdGVtRXhpdChmIlVuZXhwZWN0ZWQgc2lkZWJhciBicmFuZCBtYXJrZXIgY291bnQ6IHtzLmNvdW50KG9sZF9icmFuZCl9IikKcyA9IHMucmVwbGFjZShvbGRfYnJhbmQsICc8c21hbGw+2YbYuNin2YUg2KXYr9in2LHYqSDYp9mE2KrYrdin2YTZitmEPC9zbWFsbD4nLCAxKQpzID0gcy5yZXBsYWNlKCdVbmlmaWVkIFN5c3RlbSBWMTQ1IFI4IOKAoiBXaW5kb3dzJywgJ9mG2LjYp9mFINil2K/Yp9ix2Kkg2KfZhNiq2K3Yp9mE2YrZhCBWMTQ1IFI4IOKAoiBXaW5kb3dzJykKCnN0YXJ0ID0gcy5pbmRleCgnYXN5bmMgZnVuY3Rpb24gd29ya2xpc3RQYWdlKGMpeycpCmVuZCA9IHMuaW5kZXgoJ1xuYXN5bmMgZnVuY3Rpb24gbGFiV29ya2xpc3RQYWdlKGMpeycsIHN0YXJ0KQp3ID0gc1tzdGFydDplbmRdCgpvbGQgPSAic2V0UGFnZSgn2KrYtNi62YrZhCDYp9mE2LfZhNio2KfYqicsJ9mC2KfYptmF2Kkg2YbYuNmK2YHYqSDigJQg2YPZhNmK2YMg2YrZhdmK2YYg2LnZhNmJINin2YTYt9mE2Kgg2YTZgdiq2K0g2KfZhNil2KzYsdin2KHYp9iqJykiCmlmIG9sZCBub3QgaW4gdzoKICAgIHJhaXNlIFN5c3RlbUV4aXQoIlI4LjI1IHdvcmtsaXN0IHN1YnRpdGxlIG1pc3NpbmciKQp3ID0gdy5yZXBsYWNlKG9sZCwgInNldFBhZ2UoJ9iq2LTYutmK2YQg2KfZhNi32YTYqNin2KonLCfYp9i22LrYtyDYqtmB2KfYtdmK2YQg2KjYrNmI2KfYsSDYo9mKINi32YTYqCDZhNmB2KrYrSDZg9mEINin2YTYpdis2LHYp9ih2KfYqicpIiwgMSkKCmlmICc8dGg+2KXYrNix2KfYodin2Ko8L3RoPicgbm90IGluIHc6CiAgICByYWlzZSBTeXN0ZW1FeGl0KCJBY3Rpb24gaGVhZGVyIG1pc3NpbmciKQp3ID0gdy5yZXBsYWNlKCc8dGg+2KXYrNix2KfYodin2Ko8L3RoPicsICc8dGg+2KrZgdin2LXZitmEPC90aD4nLCAxKQoKaWYgJ3RpdGxlPSLZg9mE2YrZgyDZitmF2YrZhiDZhNil2LjZh9in2LEg2KfZhNil2KzYsdin2KHYp9iqIicgbm90IGluIHc6CiAgICByYWlzZSBTeXN0ZW1FeGl0KCJPbGQgcm93IHRpdGxlIG1pc3NpbmciKQp3ID0gdy5yZXBsYWNlKAogICAgJ3RpdGxlPSLZg9mE2YrZgyDZitmF2YrZhiDZhNil2LjZh9in2LEg2KfZhNil2KzYsdin2KHYp9iqIicsCiAgICAndGl0bGU9Itin2LbYuti3INiq2YHYp9i12YrZhCDZhNmB2KrYrSDYpdis2LHYp9ih2KfYqiDYp9mE2LfZhNioIicsCiAgICAxLAopCgpvbGRfaGludCA9ICc8dGQ+PHNwYW4gY2xhc3M9IndvcmstYWN0aW9uLWhpbnQiPtmD2YTZitmDINmK2YXZitmGPC9zcGFuPjwvdGQ+JwpuZXdfaGludCA9ICc8dGQ+PGJ1dHRvbiB0eXBlPSJidXR0b24iIGNsYXNzPSJ3b3JrLWRldGFpbHMtYnRuIiBkYXRhLW89IiR7by5pZH0iPtiq2YHYp9i12YrZhDwvYnV0dG9uPjwvdGQ+JwppZiBvbGRfaGludCBub3QgaW4gdzoKICAgIHJhaXNlIFN5c3RlbUV4aXQoIk9sZCB2aXNpYmxlIHJpZ2h0LWNsaWNrIGhpbnQgbWlzc2luZyIpCncgPSB3LnJlcGxhY2Uob2xkX2hpbnQsIG5ld19oaW50LCAxKQoKb2xkX2JpbmQgPSAiIiIgICQkKCcud2YnKS5mb3JFYWNoKHg9Pngub25jaGFuZ2U9YXN5bmMoKT0+e3RyeXthd2FpdCBELnNldFdvcmtmbG93KHguZGF0YXNldC5jLHguZGF0YXNldC5vLHgudmFsdWUpO3RvYXN0KCfYqtmFINiq2K3Yr9mK2Ksg2KfZhNit2KfZhNipJyk7YXdhaXQgcmVuZGVyVGFiKCd3b3JrbGlzdCcpfWNhdGNoKGUpe3RvYXN0KGUubWVzc2FnZSx0cnVlKX19KTsKICAkJCgnI3d0Ym9keSB0cltkYXRhLW9dJykuZm9yRWFjaCh0cj0+e3RyLm9uY2xpY2s9ZT0+e2lmKGUudGFyZ2V0LmNsb3Nlc3QoJ3NlbGVjdCwud2YnKSlyZXR1cm47c2VsZWN0Um93KHNlbGVjdGVkT3JkZXJJZD09PXRyLmRhdGFzZXQubz8nJzp0ci5kYXRhc2V0Lm8pO2hpZGVNZW51KCk7fTt0ci5vbmNvbnRleHRtZW51PWU9PntpZihlLnRhcmdldC5jbG9zZXN0KCdzZWxlY3QsLndmJykpcmV0dXJuO3Nob3dNZW51KHRyLmRhdGFzZXQubyxlKTt9O30pOwoiIiIKbmV3X2JpbmQgPSAiIiIgICQkKCcud2YnKS5mb3JFYWNoKHg9Pngub25jaGFuZ2U9YXN5bmMoKT0+e3RyeXthd2FpdCBELnNldFdvcmtmbG93KHguZGF0YXNldC5jLHguZGF0YXNldC5vLHgudmFsdWUpO3RvYXN0KCfYqtmFINiq2K3Yr9mK2Ksg2KfZhNit2KfZhNipJyk7YXdhaXQgcmVuZGVyVGFiKCd3b3JrbGlzdCcpfWNhdGNoKGUpe3RvYXN0KGUubWVzc2FnZSx0cnVlKX19KTsKICAkJCgnLndvcmstZGV0YWlscy1idG4nKS5mb3JFYWNoKGI9PmIub25jbGljaz1lPT57c2hvd01lbnUoYi5kYXRhc2V0Lm8sZSl9KTsKICAkJCgnI3d0Ym9keSB0cltkYXRhLW9dJykuZm9yRWFjaCh0cj0+e3RyLm9uY2xpY2s9ZT0+e2lmKGUudGFyZ2V0LmNsb3Nlc3QoJ3NlbGVjdCwud2YsLndvcmstZGV0YWlscy1idG4nKSlyZXR1cm47c2VsZWN0Um93KHNlbGVjdGVkT3JkZXJJZD09PXRyLmRhdGFzZXQubz8nJzp0ci5kYXRhc2V0Lm8pO2hpZGVNZW51KCk7fTt0ci5vbmNvbnRleHRtZW51PWU9PntpZihlLnRhcmdldC5jbG9zZXN0KCdzZWxlY3QsLndmJykpcmV0dXJuO3Nob3dNZW51KHRyLmRhdGFzZXQubyxlKTt9O30pOwoiIiIKaWYgb2xkX2JpbmQgbm90IGluIHc6CiAgICByYWlzZSBTeXN0ZW1FeGl0KCJDb3VsZCBub3QgbG9jYXRlIGV4YWN0IFI4LjI1IHdvcmtsaXN0IGJpbmRpbmcgYmxvY2siKQp3ID0gdy5yZXBsYWNlKG9sZF9iaW5kLCBuZXdfYmluZCwgMSkKCnMgPSBzWzpzdGFydF0gKyB3ICsgc1tlbmQ6XQphcHBfcC53cml0ZV90ZXh0KHMsIGVuY29kaW5nPSJ1dGYtOCIpCgpjc3MgPSBjc3NfcC5yZWFkX3RleHQoZW5jb2Rpbmc9InV0Zi04IikKbWFya2VyID0gIlRBSF9SODI2X0RFVEFJTFNfQlVUVE9OX0NMRUFOVVAiCmlmIG1hcmtlciBpbiBjc3M6CiAgICByYWlzZSBTeXN0ZW1FeGl0KCJSOC4yNiBzdHlsZSBtYXJrZXIgYWxyZWFkeSBleGlzdHMiKQpjc3MgKz0gIiIiCi8qIFRBSF9SODI2X0RFVEFJTFNfQlVUVE9OX0NMRUFOVVAgKi8KLndvcmstZGV0YWlscy1idG57Ym9yZGVyOjFweCBzb2xpZCAjMzU2MTg3O2JhY2tncm91bmQ6IzEyMzE1Mjtjb2xvcjojZmZmO2JvcmRlci1yYWRpdXM6MTBweDtwYWRkaW5nOjdweCAxNnB4O21pbi13aWR0aDo4MnB4O2ZvbnQtd2VpZ2h0OjcwMH0KLndvcmstZGV0YWlscy1idG46aG92ZXJ7YmFja2dyb3VuZDojMTk0MjZkO2JvcmRlci1jb2xvcjojNGE3OGEyfQoiIiIKY3NzX3Aud3JpdGVfdGV4dChjc3MsIGVuY29kaW5nPSJ1dGYtOCIpCgpwa2cgPSBqc29uLmxvYWRzKHBrZ19wLnJlYWRfdGV4dChlbmNvZGluZz0idXRmLTgiKSkKcGtnWyJ2ZXJzaW9uIl0gPSAiMTQ1LjguMjYiCnBrZ1siZGVzY3JpcHRpb24iXSA9ICJUYWhhbGlsIEFsYWtrYWQgV2luZG93cyBWMTQ1IFI4LjI2IC0gY2xlYW4gZGV0YWlscyBidXR0b24gYW5kIEFyYWJpYyBzeXN0ZW0gbGFiZWwiCnBrZ19wLndyaXRlX3RleHQoanNvbi5kdW1wcyhwa2csIGVuc3VyZV9hc2NpaT1GYWxzZSwgaW5kZW50PTIpLCBlbmNvZGluZz0idXRmLTgiKQoKbm90ZXMgPSAiIiJXaW5kb3dzIFYxNDUgUjguMjYg4oCUIERldGFpbHMgQnV0dG9uIENsZWFudXAKCi0gUmVtb3ZlZCB0aGUgdmlzaWJsZSBFbmdsaXNoIFVuaWZpZWQgU3lzdGVtIHdvcmRpbmcgZnJvbSB0aGUgc2lkZWJhci9zeXN0ZW0gdmVyc2lvbiBsYWJlbC4KLSBTaWRlYmFyIG5vdyBzaG93czog2YbYuNin2YUg2KXYr9in2LHYqSDYp9mE2KrYrdin2YTZitmELgotIFJlbW92ZWQgdGhlIHZpc2libGUg2YPZhNmK2YMg2YrZhdmK2YYgaGludCBmcm9tIHRoZSBjbGluaWMgd29ya2xpc3QuCi0gVGhlIGFjdGlvbiBjb2x1bW4gaXMgbm93IG5hbWVkINiq2YHYp9i12YrZhC4KLSBFdmVyeSBvcmRlciByb3cgaGFzIGEgY2xlYW4g2KrZgdin2LXZitmEIGJ1dHRvbi4KLSBDbGlja2luZyDYqtmB2KfYtdmK2YQgb3BlbnMgdGhlIGV4aXN0aW5nIGNvbXBsZXRlIGFjdGlvbiBtZW51IGltbWVkaWF0ZWx5LgotIFJpZ2h0LWNsaWNrIHJlbWFpbnMgc3VwcG9ydGVkIG9ubHkgYXMgYW4gb3B0aW9uYWwgc2hvcnRjdXQuCi0gRmlyZWJhc2UsIHN5bmMsIHJlc3VsdHMsIGxhYiBzY3JlZW4gYW5kIHNlY3VyaXR5IGxvZ2ljIGFyZSB1bmNoYW5nZWQuCiIiIgoocm9vdCAvICJWMTQ1X1I4MjZfREVUQUlMU19CVVRUT05fTk9URVMudHh0Iikud3JpdGVfdGV4dChub3RlcywgZW5jb2Rpbmc9InV0Zi04IikKcHJpbnQoIlI4LjI2IHBhdGNoIGFwcGxpZWQiKQo=
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Restore exact R8.25 source
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $zip = Join-Path $PWD $env:BASE_SOURCE
+          if (Test-Path $zip) { Remove-Item $zip -Force }
+          gh release download $env:BASE_TAG --repo "$env:GITHUB_REPOSITORY" --pattern $env:BASE_SOURCE --dir $PWD
+          if ($LASTEXITCODE -ne 0 -or !(Test-Path $zip)) { throw 'Could not download exact R8.25 source' }
+
+          $hash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($hash -ne $env:BASE_SHA256) { throw "R8.25 source hash mismatch: $hash" }
+
+          $root = Join-Path $PWD 'build_windows/windows-system'
+          if (Test-Path (Join-Path $PWD 'build_windows')) { Remove-Item (Join-Path $PWD 'build_windows') -Recurse -Force }
+          New-Item -ItemType Directory -Force -Path $root | Out-Null
+          Expand-Archive -Path $zip -DestinationPath $root -Force
+
+          $pkg = Get-Content (Join-Path $root 'package.json') -Raw | ConvertFrom-Json
+          if ($pkg.version -ne '145.8.25') { throw "Expected 145.8.25, got $($pkg.version)" }
+
+          foreach ($item in @(
+            'src/data.js',
+            'src/firebase.js',
+            'src/resultStore.js',
+            'src/v145r8-parity.js',
+            'electron/main.cjs',
+            'electron/preload.cjs'
+          )) {
+            $name = 'R826_' + ($item -replace '[^A-Za-z0-9]','_').ToUpper() + '_SHA256'
+            $value = (Get-FileHash (Join-Path $root $item) -Algorithm SHA256).Hash.ToLowerInvariant()
+            "$name=$value" | Add-Content $env:GITHUB_ENV
+          }
+
+      - name: Apply R8.26 patch with exact Python matcher
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $patchPath = Join-Path $env:RUNNER_TEMP 'r826_patch.py'
+          [IO.File]::WriteAllBytes($patchPath,[Convert]::FromBase64String($env:R826_PATCH_B64))
+          python $patchPath
+          if ($LASTEXITCODE -ne 0) { throw 'R8.26 Python patch failed' }
+
+      - name: Audit R8.26 cleanup
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $root = Join-Path $PWD 'build_windows/windows-system'
+          $app = Get-Content (Join-Path $root 'src/app.js') -Raw
+          $css = Get-Content (Join-Path $root 'src/styles.css') -Raw
+          $pkg = Get-Content (Join-Path $root 'package.json') -Raw | ConvertFrom-Json
+
+          if ($pkg.version -ne '145.8.26') { throw "Expected 145.8.26, got $($pkg.version)" }
+          if ($app.Contains('Unified System')) { throw 'Unified System wording still exists' }
+          if ($app.Contains('>كليك يمين<')) { throw 'Visible right-click hint still exists' }
+          if (!$app.Contains('نظام إدارة التحاليل')) { throw 'Arabic system label missing' }
+          if (!$app.Contains('class="work-details-btn"')) { throw 'Details button missing' }
+          if (!$app.Contains('>تفاصيل</button>')) { throw 'Details text missing' }
+          if (!$app.Contains("$$('.work-details-btn').forEach")) { throw 'Details click handler missing' }
+          if (!$css.Contains('TAH_R826_DETAILS_BUTTON_CLEANUP')) { throw 'R8.26 style marker missing' }
+
+          $checks = @{
+            'src/data.js'='R826_SRC_DATA_JS_SHA256';
+            'src/firebase.js'='R826_SRC_FIREBASE_JS_SHA256';
+            'src/resultStore.js'='R826_SRC_RESULTSTORE_JS_SHA256';
+            'src/v145r8-parity.js'='R826_SRC_V145R8_PARITY_JS_SHA256';
+            'electron/main.cjs'='R826_ELECTRON_MAIN_CJS_SHA256';
+            'electron/preload.cjs'='R826_ELECTRON_PRELOAD_CJS_SHA256'
+          }
+          foreach ($pair in $checks.GetEnumerator()) {
+            $actual = (Get-FileHash (Join-Path $root $pair.Key) -Algorithm SHA256).Hash.ToLowerInvariant()
+            $expected = [Environment]::GetEnvironmentVariable($pair.Value)
+            if ($actual -ne $expected) { throw "$($pair.Key) changed - protected scope violated" }
+          }
+
+          node --check (Join-Path $root 'src/app.js')
+          if ($LASTEXITCODE -ne 0) { throw 'app.js syntax failed' }
+          node --check (Join-Path $root 'src/data.js')
+          if ($LASTEXITCODE -ne 0) { throw 'data.js syntax failed' }
+          node --check (Join-Path $root 'electron/main.cjs')
+          if ($LASTEXITCODE -ne 0) { throw 'main.cjs syntax failed' }
+
+          @(
+            'R8.26 DETAILS BUTTON CLEANUP AUDIT: PASS',
+            'Exact R8.25 source used',
+            'Unified System removed',
+            'Visible right-click hint replaced by Details button',
+            'Details opens existing actions menu',
+            'Firebase/data/results/security/lab logic unchanged'
+          ) | Set-Content 'R826_DETAILS_BUTTON_AUDIT.txt' -Encoding utf8
+
+      - name: Package R8.26 source
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $root = Join-Path $PWD 'build_windows/windows-system'
+          $stage = Join-Path $env:RUNNER_TEMP 'source_stage_r826'
+          if (Test-Path $stage) { Remove-Item $stage -Recurse -Force }
+          New-Item -ItemType Directory -Force -Path $stage | Out-Null
+
+          Get-ChildItem -LiteralPath $root -Force |
+            Where-Object { @('node_modules','release','.git') -notcontains $_.Name } |
+            ForEach-Object { Copy-Item -LiteralPath $_.FullName -Destination $stage -Recurse -Force }
+
+          $zip = Join-Path $PWD 'Tahalil-Alakkad-V145-R8.26-Windows-Source.zip'
+          if (Test-Path $zip) { Remove-Item $zip -Force }
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          [System.IO.Compression.ZipFile]::CreateFromDirectory($stage,$zip,[System.IO.Compression.CompressionLevel]::Optimal,$false)
+
+          $hash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  Tahalil-Alakkad-V145-R8.26-Windows-Source.zip" | Set-Content 'Tahalil-Alakkad-V145-R8.26-Windows-Source.zip.sha256' -Encoding ascii
+          Copy-Item (Join-Path $root 'V145_R826_DETAILS_BUTTON_NOTES.txt') 'V145_R826_DETAILS_BUTTON_NOTES.txt' -Force
+
+      - name: Install dependencies
+        working-directory: build_windows/windows-system
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          npm install --no-audit --no-fund
+          if ($LASTEXITCODE -ne 0) { throw 'npm install failed' }
+
+      - name: Build Portable
+        working-directory: build_windows/windows-system
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          npm run dist:portable
+          if ($LASTEXITCODE -ne 0) { throw 'Portable build failed' }
+
+      - name: Portable smoke test
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $release = Join-Path $PWD 'build_windows/windows-system/release'
+          $portable = Get-ChildItem $release -Filter '*Portable*.exe' -File | Sort-Object Length -Descending | Select-Object -First 1
+          if (!$portable) { throw 'Portable EXE missing' }
+          $proc = Start-Process -FilePath $portable.FullName -PassThru
+          Start-Sleep -Seconds 12
+          if ($proc.HasExited) { throw "Portable exited unexpectedly: $($proc.ExitCode)" }
+          Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
+
+      - name: Build Setup
+        working-directory: build_windows/windows-system
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          npm run dist:setup
+          if ($LASTEXITCODE -ne 0) { throw 'Setup build failed' }
+
+      - name: Prepare delivery
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $release = Join-Path $PWD 'build_windows/windows-system/release'
+          $portable = Get-ChildItem $release -Filter '*Portable*.exe' -File | Sort-Object Length -Descending | Select-Object -First 1
+          $setup = Get-ChildItem $release -Filter '*Setup*.exe' -File | Sort-Object Length -Descending | Select-Object -First 1
+          if (!$portable -or !$setup) { throw 'Portable or Setup missing' }
+
+          Copy-Item $portable.FullName 'Tahalil-Alakkad-V145-R8.26-Windows-Portable.exe' -Force
+          Copy-Item $setup.FullName 'Tahalil-Alakkad-V145-R8.26-Windows-Setup.exe' -Force
+
+          foreach ($name in @(
+            'Tahalil-Alakkad-V145-R8.26-Windows-Portable.exe',
+            'Tahalil-Alakkad-V145-R8.26-Windows-Setup.exe'
+          )) {
+            $hash = (Get-FileHash $name -Algorithm SHA256).Hash.ToLowerInvariant()
+            "$hash  $name" | Set-Content "$name.sha256" -Encoding ascii
+          }
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Tahalil-Alakkad-V145-R8.26-Windows-Details-Button-FIXED
+          path: |
+            Tahalil-Alakkad-V145-R8.26-Windows-Portable.exe
+            Tahalil-Alakkad-V145-R8.26-Windows-Portable.exe.sha256
+            Tahalil-Alakkad-V145-R8.26-Windows-Setup.exe
+            Tahalil-Alakkad-V145-R8.26-Windows-Setup.exe.sha256
+            Tahalil-Alakkad-V145-R8.26-Windows-Source.zip
+            Tahalil-Alakkad-V145-R8.26-Windows-Source.zip.sha256
+            V145_R826_DETAILS_BUTTON_NOTES.txt
+            R826_DETAILS_BUTTON_AUDIT.txt
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Publish R8.26 release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $tag = 'v145-r8.26-windows'
+          $title = 'تحاليل العقاد Windows V145 R8.26 — Details Button Cleanup'
+          $notes = Get-Content 'V145_R826_DETAILS_BUTTON_NOTES.txt' -Raw
+
+          gh release view $tag --repo "$env:GITHUB_REPOSITORY" *> $null
+          if ($LASTEXITCODE -eq 0) {
+            gh release edit $tag --repo "$env:GITHUB_REPOSITORY" --title $title --notes $notes
+          } else {
+            gh release create $tag --repo "$env:GITHUB_REPOSITORY" --title $title --notes $notes
+          }
+          if ($LASTEXITCODE -ne 0) { throw 'Could not create R8.26 release' }
+
+          gh release upload $tag `
+            Tahalil-Alakkad-V145-R8.26-Windows-Portable.exe `
+            Tahalil-Alakkad-V145-R8.26-Windows-Portable.exe.sha256 `
+            Tahalil-Alakkad-V145-R8.26-Windows-Setup.exe `
+            Tahalil-Alakkad-V145-R8.26-Windows-Setup.exe.sha256 `
+            Tahalil-Alakkad-V145-R8.26-Windows-Source.zip `
+            Tahalil-Alakkad-V145-R8.26-Windows-Source.zip.sha256 `
+            V145_R826_DETAILS_BUTTON_NOTES.txt `
+            R826_DETAILS_BUTTON_AUDIT.txt `
+            --repo "$env:GITHUB_REPOSITORY" --clobber
+          if ($LASTEXITCODE -ne 0) { throw 'Could not upload R8.26 release assets' }
