@@ -1,0 +1,280 @@
+name: Windows V145 R8.23 Order Icon Details
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: tahalil-windows-v145-r823-order-details
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Windows V145 R8.23 — Order Icon Details
+    runs-on: windows-latest
+    timeout-minutes: 110
+    env:
+      BASE_TAG: v145-r8.22-windows
+      BASE_SOURCE: Tahalil-Alakkad-V145-R8.22-Windows-Source.zip
+      BASE_SHA256: d74bb2622e072dacd1d0a9c00fe1ba58e53d86d49103df8f46d2470e2c9697e5
+      R823_LAB_FUNCTION_B64: YXN5bmMgZnVuY3Rpb24gbGFiV29ya2xpc3RQYWdlKGMpewogIC8qIFRBSF9SODIzX09SREVSX0lDT05fREVUQUlMUyAqLwogIHNldFBhZ2UoJ9i32YTYqNin2Kog2KfZhNmF2LnZhdmEJywn2YPZhCDYt9mE2Kgg2YrYuNmH2LEg2YPYo9mK2YLZiNmG2Kkg2KjYs9mK2LfYqSDigJQg2KfYtti62Lcg2LnZhNmK2Ycg2YTZgdiq2K0g2YPZhCDYp9mE2KrZgdin2LXZitmEINmI2KfZhNmG2KrYp9im2Kwg2K/Yp9iu2YTZhycpOwogIHdvcmtsaXN0PWF3YWl0IEQubGlzdExhYk9yZGVycygyMDApOwogIGxldCBvcGVuTGFiT3JkZXJJZD0nJyxsYWJTdGF0dXNGaWx0ZXI9J2FsbCc7CiAgYy5pbm5lckhUTUw9YDxkaXYgY2xhc3M9ImdyaWQgbGFic3RhdHMgbGFiLXI4MjMtc3RhdHMiPjxidXR0b24gY2xhc3M9ImNhcmQgc3RhdCBsYWItcjgyMy1maWx0ZXIgYWN0aXZlIiBkYXRhLXN0PSJhbGwiPjxzcGFuPtmD2YQg2KfZhNi32YTYqNin2Ko8L3NwYW4+PGIgaWQ9ImxhYkNvdW50QWxsIj4wPC9iPjwvYnV0dG9uPjxidXR0b24gY2xhc3M9ImNhcmQgc3RhdCBsYWItcjgyMy1maWx0ZXIiIGRhdGEtc3Q9InNlbnRfdG9fbGFiIj48c3Bhbj7Yt9mE2KjYp9iqINis2K/Zitiv2Kk8L3NwYW4+PGIgaWQ9ImxhYkNvdW50TmV3Ij4wPC9iPjwvYnV0dG9uPjxidXR0b24gY2xhc3M9ImNhcmQgc3RhdCBsYWItcjgyMy1maWx0ZXIiIGRhdGEtc3Q9InByb2Nlc3NpbmciPjxzcGFuPtis2KfYsdmKINin2YTYqtmG2YHZitiwPC9zcGFuPjxiIGlkPSJsYWJDb3VudFByb2Nlc3NpbmciPjA8L2I+PC9idXR0b24+PGJ1dHRvbiBjbGFzcz0iY2FyZCBzdGF0IGxhYi1yODIzLWZpbHRlciIgZGF0YS1zdD0icmVhZHkiPjxzcGFuPtin2YTZhtiq2KfYptisINin2YTZhdix2LPZhNipPC9zcGFuPjxiIGlkPSJsYWJDb3VudFJlYWR5Ij4wPC9iPjwvYnV0dG9uPjwvZGl2PjxkaXYgY2xhc3M9ImNhcmQgbGFiLXI4MjMtc2VhcmNoIj48ZGl2IGNsYXNzPSJmaWVsZCI+PGxhYmVsPtio2K3YqyDYqNix2YLZhSDYp9mE2LfZhNioINij2Ygg2KfYs9mFL9mH2KfYqtmBINin2YTYudmF2YrZhCDYo9mIINix2YLZhSDYp9mE2YXZhNmBPC9sYWJlbD48aW5wdXQgaWQ9ImxhYlNlYXJjaCIgcGxhY2Vob2xkZXI9Itin2KjYrdirINmH2YbYpy4uLiI+PC9kaXY+PC9kaXY+PGRpdiBpZD0ibGFiT3JkZXJzR3JpZCIgY2xhc3M9ImxhYi1yODIzLWdyaWQiPjwvZGl2PmA7CiAgY29uc3QgZ2V0Tz1pZD0+d29ya2xpc3QuZmluZCh4PT54LmlkPT09aWQpOwogIGNvbnN0IHN0YXR1c0xhYmVsPW89Pm8ud29ya2Zsb3dfc3RhdHVzPT09J3NlbnRfdG9fbGFiJz8n2LfZhNioINis2K/ZitivJzpvLndvcmtmbG93X3N0YXR1cz09PSdwcm9jZXNzaW5nJz8n2KzYp9ix2Yog2KfZhNiq2YbZgdmK2LAnOm8ud29ya2Zsb3dfc3RhdHVzPT09J3JlYWR5Jz8n2KfZhNmG2KrZitis2Kkg2YXYsdmB2YjYudipJzp3b3JrZmxvd05hbWUoby53b3JrZmxvd19zdGF0dXMpOwogIGNvbnN0IHN0YXR1c0NsYXNzPW89Pm8ud29ya2Zsb3dfc3RhdHVzPT09J3NlbnRfdG9fbGFiJz8nbmV3JzpvLndvcmtmbG93X3N0YXR1cz09PSdwcm9jZXNzaW5nJz8ncHJvY2Vzc2luZyc6by53b3JrZmxvd19zdGF0dXM9PT0ncmVhZHknPydyZWFkeSc6J290aGVyJzsKICBjb25zdCByZXN1bHRSb3dzPW89PihvLnJlc3VsdF91cmxzfHxbXSkubWFwKCh1LGkpPT57Y29uc3QgbmFtZT1vLnJlc3VsdF9uYW1lcz8uW2ldfHxg2YbYqtmK2KzYqSAke2krMX1gO3JldHVybmA8ZGl2IGNsYXNzPSJsYWItcjgyMy1yZXN1bHQiPjxzcGFuIGNsYXNzPSJsYWItcjgyMy1maWxlaWNvbiI+4panPC9zcGFuPjxiPiR7ZXNjKG5hbWUpfTwvYj48ZGl2IGNsYXNzPSJ0b29sYmFyIj48YnV0dG9uIGNsYXNzPSJidG4gbGFicmVzdWx0IiBkYXRhLXVybD0iJHtlc2ModSl9Ij7Zgdiq2K08L2J1dHRvbj48YnV0dG9uIGNsYXNzPSJidG4gbGFicmVzdWx0ZG93bmxvYWQiIGRhdGEtdXJsPSIke2VzYyh1KX0iIGRhdGEtbmFtZT0iJHtlc2MobmFtZSl9Ij7Yqtit2YXZitmEPC9idXR0b24+PGJ1dHRvbiBjbGFzcz0iYnRuIGxhYnJlc3VsdHNoYXJlIiBkYXRhLXVybD0iJHtlc2ModSl9IiBkYXRhLW5hbWU9IiR7ZXNjKG5hbWUpfSI+2YXYtNin2LHZg9ipPC9idXR0b24+PC9kaXY+PC9kaXY+YH0pLmpvaW4oJycpfHwnPGRpdiBjbGFzcz0ibXV0ZWQiPtmE2Kcg2KrZiNis2K8g2YbYqtmK2KzYqSDZhdix2YHZiNi52Kkg2K/Yp9iu2YQg2KfZhNi32YTYqCDYrdiq2Ykg2KfZhNii2YY8L2Rpdj4nOwogIGNvbnN0IGRldGFpbD1vPT5gPGRpdiBjbGFzcz0ibGFiLXI4MjMtZGV0YWlsIiAke29wZW5MYWJPcmRlcklkPT09by5pZD8nJzonaGlkZGVuJ30+PGRpdiBjbGFzcz0ibGFiLXI4MjMtaW5mbyI+PGRpdj48c21hbGw+2KfYs9mFINin2YTYudmF2YrZhDwvc21hbGw+PGI+JHtlc2Moby5jdXN0b21lcl9uYW1lfHwn4oCUJyl9PC9iPjwvZGl2PjxkaXY+PHNtYWxsPtin2YTZh9in2KrZgTwvc21hbGw+PGI+JHtlc2Moby5jdXN0b21lcl9waG9uZXx8J+KAlCcpfTwvYj48L2Rpdj48ZGl2PjxzbWFsbD7YsdmC2YUg2KfZhNmF2YTZgTwvc21hbGw+PGI+JHtlc2Moby5jdXN0b21lcl9maWxlX251bWJlcnx8J+KAlCcpfTwvYj48L2Rpdj48ZGl2PjxzbWFsbD7Yp9mE2LnZhdixPC9zbWFsbD48Yj4ke2VzYyhvLmN1c3RvbWVyX2FnZXx8J+KAlCcpfTwvYj48L2Rpdj48ZGl2PjxzbWFsbD7Yp9mE2YbZiNi5PC9zbWFsbD48Yj4ke2VzYyhvLmN1c3RvbWVyX2dlbmRlcnx8J+KAlCcpfTwvYj48L2Rpdj48ZGl2PjxzbWFsbD7Yotiu2LEg2KrYrdiv2YrYqzwvc21hbGw+PGI+JHtmbXREYXRlKG8udXBkYXRlZF9hdF9tc3x8by5jcmVhdGVkX2F0X21zKX08L2I+PC9kaXY+PC9kaXY+PGRpdiBjbGFzcz0ibGFiLXI4MjMtc2VjdGlvbiI+PGg0Ptin2YTYqtit2KfZhNmK2YQg2KfZhNmF2LfZhNmI2KjYqTwvaDQ+PGRpdiBjbGFzcz0ibGFiLXI4MjMtdGVzdHMiPiR7KG8uaXRlbXN8fFtdKS5tYXAoeD0+YDxzcGFuPiR7ZXNjKHguYXJhYmljX25hbWV8fHguZW5nbGlzaF9uYW1lfHwnJyl9PC9zcGFuPmApLmpvaW4oJycpfHwnPHNwYW4gY2xhc3M9Im11dGVkIj7ZhNinINiq2YjYrNivINiq2K3Yp9mE2YrZhDwvc3Bhbj4nfTwvZGl2PjwvZGl2PiR7by5ub3Rlcz9gPGRpdiBjbGFzcz0ibGFiLXI4MjMtc2VjdGlvbiI+PGg0PtmF2YTYp9it2LjYp9iqINin2YTYt9mE2Kg8L2g0PjxkaXYgY2xhc3M9Im5vdGljZSI+JHtlc2Moby5ub3Rlcyl9PC9kaXY+PC9kaXY+YDonJ308ZGl2IGNsYXNzPSJsYWItcjgyMy1zZWN0aW9uIGxhYi1yODIzLXJlc3VsdHMiPjxkaXYgY2xhc3M9ImxhYi1yODIzLXNlY3Rpb24taGVhZCI+PGg0Ptin2YTZhtiq2YrYrNipINiv2KfYrtmEINmG2YHYsyDYp9mE2LfZhNioPC9oND48ZGl2IGNsYXNzPSJ0b29sYmFyIj48YnV0dG9uIGNsYXNzPSJidG4gZ29vZCBsYWJ1cGxvYWRmaWxlcyIgZGF0YS1vPSIke28uaWR9IiAke28ud29ya2Zsb3dfc3RhdHVzPT09J3NlbnRfdG9fbGFiJz8nZGlzYWJsZWQgdGl0bGU9Itin2LPYqtmE2YUg2KfZhNi32YTYqCDYo9mI2YTYp9mLIic6Jyd9Pu+8iyDYsdmB2Lkg2LXZiNixIC8gUERGPC9idXR0b24+PGJ1dHRvbiBjbGFzcz0iYnRuIGxhYnVwbG9hZGNhbWVyYSIgZGF0YS1vPSIke28uaWR9IiAke28ud29ya2Zsb3dfc3RhdHVzPT09J3NlbnRfdG9fbGFiJz8nZGlzYWJsZWQgdGl0bGU9Itin2LPYqtmE2YUg2KfZhNi32YTYqCDYo9mI2YTYp9mLIic6Jyd9PtmD2KfZhdmK2LHYpzwvYnV0dG9uPjwvZGl2PjwvZGl2PiR7cmVzdWx0Um93cyhvKX08L2Rpdj48ZGl2IGNsYXNzPSJsYWItcjgyMy1hY3Rpb25zIj4ke28ud29ya2Zsb3dfc3RhdHVzPT09J3NlbnRfdG9fbGFiJz9gPGJ1dHRvbiBjbGFzcz0iYnRuIHByaW1hcnkgbGFiYWNjZXB0IiBkYXRhLW89IiR7by5pZH0iPtin2LPYqtmE2KfZhSDYp9mE2LfZhNioINmI2KjYr9ihINin2YTYqtmG2YHZitiwPC9idXR0b24+YDonJ308YnV0dG9uIGNsYXNzPSJidG4gbGFiZWRpdCIgZGF0YS1vPSIke28uaWR9Ij7Yqti52K/ZitmEINin2YTYqNmK2KfZhtin2Ko8L2J1dHRvbj48YnV0dG9uIGNsYXNzPSJidG4gbGFicGRmIiBkYXRhLW89IiR7by5pZH0iPlBERjwvYnV0dG9uPjxidXR0b24gY2xhc3M9ImJ0biBsYWJwbmciIGRhdGEtbz0iJHtvLmlkfSI+2LXZiNix2Kk8L2J1dHRvbj48YnV0dG9uIGNsYXNzPSJidG4gYmFkIGxhYmRlbGV0ZSIgZGF0YS1vPSIke28uaWR9Ij7YpdmE2LrYp9ihINin2YTYt9mE2Kg8L2J1dHRvbj48L2Rpdj48L2Rpdj5gOwogIGNvbnN0IHRpbGU9bz0+YDxhcnRpY2xlIGNsYXNzPSJsYWItcjgyMy1vcmRlciAke29wZW5MYWJPcmRlcklkPT09by5pZD8nb3Blbic6Jyd9IiBkYXRhLW89IiR7by5pZH0iPjxidXR0b24gY2xhc3M9ImxhYi1yODIzLXRpbGUiIGRhdGEtb3Blbi1vcmRlcj0iJHtvLmlkfSIgdHlwZT0iYnV0dG9uIj48c3BhbiBjbGFzcz0ibGFiLXI4MjMtb3JkZXJpY29uIj7ilqQ8L3NwYW4+PHNwYW4gY2xhc3M9ImxhYi1yODIzLXRpbGV0ZXh0Ij48Yj4ke2VzYyhvLm9yZGVyX251bWJlcnx8J9i32YTYqCcpfTwvYj48c21hbGw+JHtlc2Moby5jdXN0b21lcl9uYW1lfHwnJyl9IOKAoiAke28udGVzdHNfY291bnR8fG8uaXRlbXM/Lmxlbmd0aHx8MH0g2KrYrdmE2YrZhDwvc21hbGw+PC9zcGFuPjxzcGFuIGNsYXNzPSJsYWItcjgyMy1zdGF0dXMgJHtzdGF0dXNDbGFzcyhvKX0iPiR7c3RhdHVzTGFiZWwobyl9PC9zcGFuPjxzcGFuIGNsYXNzPSJsYWItcjgyMy1jaGV2cm9uIj4ke29wZW5MYWJPcmRlcklkPT09by5pZD8n4oyDJzon4oyEJ308L3NwYW4+PC9idXR0b24+JHtkZXRhaWwobyl9PC9hcnRpY2xlPmA7CiAgY29uc3QgYmluZExhYj0oKT0+ewogICAgJCQoJ1tkYXRhLW9wZW4tb3JkZXJdJykuZm9yRWFjaChiPT5iLm9uY2xpY2s9KCk9PntvcGVuTGFiT3JkZXJJZD1vcGVuTGFiT3JkZXJJZD09PWIuZGF0YXNldC5vcGVuT3JkZXI/Jyc6Yi5kYXRhc2V0Lm9wZW5PcmRlcjtyZW5kZXJSb3dzKHdvcmtsaXN0KX0pOwogICAgJCQoJy5sYWItcjgyMy1maWx0ZXInKS5mb3JFYWNoKGI9PmIub25jbGljaz0oKT0+e2xhYlN0YXR1c0ZpbHRlcj1iLmRhdGFzZXQuc3R8fCdhbGwnOyQkKCcubGFiLXI4MjMtZmlsdGVyJykuZm9yRWFjaCh4PT54LmNsYXNzTGlzdC50b2dnbGUoJ2FjdGl2ZScseD09PWIpKTtyZW5kZXJSb3dzKHdvcmtsaXN0KX0pOwogICAgJCQoJy5sYWJhY2NlcHQnKS5mb3JFYWNoKGI9PmIub25jbGljaz1hc3luYygpPT57Y29uc3Qgbz1nZXRPKGIuZGF0YXNldC5vKTt0cnl7YXdhaXQgRC5sYWJBY2NlcHRPcmRlcihvKTtvcGVuTGFiT3JkZXJJZD1vLmlkO3RvYXN0KCfYqtmFINin2LPYqtmE2KfZhSDYp9mE2LfZhNioINmI2KjYr9ihINin2YTYqtmG2YHZitiwJyk7d29ya2xpc3Q9YXdhaXQgRC5saXN0TGFiT3JkZXJzKDIwMCk7cmVuZGVyUm93cyh3b3JrbGlzdCl9Y2F0Y2goZSl7dG9hc3QoZS5tZXNzYWdlLHRydWUpfX0pOwogICAgJCQoJy5sYWJ1cGxvYWRmaWxlcycpLmZvckVhY2goYj0+Yi5vbmNsaWNrPWFzeW5jKCk9Pntjb25zdCBvPWdldE8oYi5kYXRhc2V0Lm8pO2lmKCFvKXJldHVybjthd2FpdCBzZW5kTGFiUmVzdWx0cyhvLCdmaWxlcycpO29wZW5MYWJPcmRlcklkPW8uaWQ7d29ya2xpc3Q9YXdhaXQgRC5saXN0TGFiT3JkZXJzKDIwMCk7cmVuZGVyUm93cyh3b3JrbGlzdCl9KTsKICAgICQkKCcubGFidXBsb2FkY2FtZXJhJykuZm9yRWFjaChiPT5iLm9uY2xpY2s9YXN5bmMoKT0+e2NvbnN0IG89Z2V0TyhiLmRhdGFzZXQubyk7aWYoIW8pcmV0dXJuO2F3YWl0IHNlbmRMYWJSZXN1bHRzKG8sJ2NhbWVyYScpO29wZW5MYWJPcmRlcklkPW8uaWQ7d29ya2xpc3Q9YXdhaXQgRC5saXN0TGFiT3JkZXJzKDIwMCk7cmVuZGVyUm93cyh3b3JrbGlzdCl9KTsKICAgICQkKCcubGFiZWRpdCcpLmZvckVhY2goYj0+Yi5vbmNsaWNrPWFzeW5jKCk9Pntjb25zdCBvPWdldE8oYi5kYXRhc2V0Lm8pLGZvcm09YXdhaXQgdGFoYWxpbERhdGFGb3JtKHt0aXRsZTpg2KrYudiv2YrZhCDYt9mE2Kgg2KfZhNmF2LnZhdmEIOKAlCAke28ub3JkZXJfbnVtYmVyfHwnJ31gLGZpZWxkczpbe25hbWU6J25hbWUnLGxhYmVsOifYp9iz2YUg2KfZhNi52YXZitmEJyx2YWx1ZTpvLmN1c3RvbWVyX25hbWV8fCcnfSx7bmFtZToncGhvbmUnLGxhYmVsOifYp9mE2YfYp9iq2YEnLHZhbHVlOm8uY3VzdG9tZXJfcGhvbmV8fCcnfSx7bmFtZTonYWdlJyxsYWJlbDon2KfZhNi52YXYsScsdmFsdWU6by5jdXN0b21lcl9hZ2V8fCcnfSx7bmFtZTonZ2VuZGVyJyxsYWJlbDon2KfZhNmG2YjYuScsdHlwZTonc2VsZWN0Jyx2YWx1ZTpvLmN1c3RvbWVyX2dlbmRlcnx8Jycsb3B0aW9uczpbe3ZhbHVlOicnLGxhYmVsOifigJQg2KfYrtiq2LEg4oCUJ30sJ9iw2YPYsScsJ9ij2YbYq9mJJ119LHtuYW1lOidub3RlcycsbGFiZWw6J9mF2YTYp9it2LjYp9iqINin2YTZhdi52YXZhCAvINin2YTYt9mE2KgnLHR5cGU6J3RleHRhcmVhJyxyb3dzOjQsdmFsdWU6by5ub3Rlc3x8Jyd9XX0pO2lmKCFmb3JtKXJldHVybjtjb25zdCB7bmFtZSxwaG9uZSxhZ2UsZ2VuZGVyLG5vdGVzfT1mb3JtO3RyeXthd2FpdCBELmxhYkVkaXRPcmRlckRldGFpbHMobyx7Y3VzdG9tZXJOYW1lOm5hbWUsY3VzdG9tZXJQaG9uZTpwaG9uZSxjdXN0b21lckFnZTphZ2UsY3VzdG9tZXJHZW5kZXI6Z2VuZGVyLG5vdGVzfSk7b3BlbkxhYk9yZGVySWQ9by5pZDt0b2FzdChvLndvcmtmbG93X3N0YXR1cz09PSdzZW50X3RvX2xhYic/J9iq2YUg2KfYs9iq2YTYp9mFINmI2KrYudiv2YrZhCDYp9mE2LfZhNioINmI2KXYqNmE2KfYuiDYp9mE2LnZitin2K/YqSc6J9iq2YUg2KrYudiv2YrZhCDYp9mE2LfZhNioINmI2KXYqNmE2KfYuiDYp9mE2LnZitin2K/YqScpO3dvcmtsaXN0PWF3YWl0IEQubGlzdExhYk9yZGVycygyMDApO3JlbmRlclJvd3Mod29ya2xpc3QpfWNhdGNoKGUpe3RvYXN0KGUubWVzc2FnZSx0cnVlKX19KTsKICAgICQkKCcubGFicGRmJykuZm9yRWFjaChiPT5iLm9uY2xpY2s9KCk9PnNhdmVPcmRlclBkZihnZXRPKGIuZGF0YXNldC5vKSwnbGFiJykpOwogICAgJCQoJy5sYWJwbmcnKS5mb3JFYWNoKGI9PmIub25jbGljaz0oKT0+c2F2ZU9yZGVySW1hZ2UoZ2V0TyhiLmRhdGFzZXQubyksJ2xhYicpKTsKICAgICQkKCcubGFiZGVsZXRlJykuZm9yRWFjaChiPT5iLm9uY2xpY2s9YXN5bmMoKT0+e2NvbnN0IG89Z2V0TyhiLmRhdGFzZXQubyk7aWYoIW8pcmV0dXJuO2lmKCFjb25maXJtKGDYpdmE2LrYp9ihICR7by5vcmRlcl9udW1iZXJ8fCfYp9mE2LfZhNioJ33Yn2ApKXJldHVybjt0cnl7Yi5kaXNhYmxlZD10cnVlO2F3YWl0IEQubGFiQ2FuY2VsT3JkZXIobyk7d29ya2xpc3Q9d29ya2xpc3QuZmlsdGVyKHg9PnguaWQhPT1vLmlkKTtpZihvcGVuTGFiT3JkZXJJZD09PW8uaWQpb3BlbkxhYk9yZGVySWQ9Jyc7cmVuZGVyUm93cyh3b3JrbGlzdCk7dG9hc3QoJ9iq2YUg2KXZhNi62KfYoSDYp9mE2LfZhNioINmI2KXYqNmE2KfYuiDYp9mE2LnZitin2K/YqScpfWNhdGNoKGUpe3RvYXN0KGUubWVzc2FnZXx8ZSx0cnVlKX1maW5hbGx5e2IuZGlzYWJsZWQ9ZmFsc2V9fSk7CiAgICAkJCgnLmxhYnJlc3VsdCcpLmZvckVhY2goYj0+Yi5vbmNsaWNrPSgpPT5vcGVuUmVzdWx0VXJsKGIuZGF0YXNldC51cmwpKTsKICAgICQkKCcubGFicmVzdWx0ZG93bmxvYWQnKS5mb3JFYWNoKGI9PmIub25jbGljaz0oKT0+ZG93bmxvYWRSZXN1bHRVcmwoYi5kYXRhc2V0LnVybCxiLmRhdGFzZXQubmFtZSkpOwogICAgJCQoJy5sYWJyZXN1bHRzaGFyZScpLmZvckVhY2goYj0+Yi5vbmNsaWNrPSgpPT5zaGFyZVJlc3VsdFVybChiLmRhdGFzZXQudXJsLGIuZGF0YXNldC5uYW1lKSk7CiAgfTsKICBjb25zdCByZW5kZXJSb3dzPXJvd3M9Pnt3b3JrbGlzdD1yb3dzO2NvbnN0IHE9RC5ub3JtYWxpemUoJCgnI2xhYlNlYXJjaCcpPy52YWx1ZXx8JycpLGZpbHRlcmVkPXJvd3MuZmlsdGVyKG89PkQubm9ybWFsaXplKGAke28ub3JkZXJfbnVtYmVyfSAke28uY3VzdG9tZXJfbmFtZX0gJHtvLmN1c3RvbWVyX3Bob25lfSAke28uY3VzdG9tZXJfZmlsZV9udW1iZXJ9YCkuaW5jbHVkZXMocSkpLmZpbHRlcihvPT5sYWJTdGF0dXNGaWx0ZXI9PT0nYWxsJ3x8by53b3JrZmxvd19zdGF0dXM9PT1sYWJTdGF0dXNGaWx0ZXIpOyQoJyNsYWJDb3VudEFsbCcpLnRleHRDb250ZW50PXJvd3MubGVuZ3RoOyQoJyNsYWJDb3VudE5ldycpLnRleHRDb250ZW50PXJvd3MuZmlsdGVyKG89Pm8ud29ya2Zsb3dfc3RhdHVzPT09J3NlbnRfdG9fbGFiJykubGVuZ3RoOyQoJyNsYWJDb3VudFByb2Nlc3NpbmcnKS50ZXh0Q29udGVudD1yb3dzLmZpbHRlcihvPT5vLndvcmtmbG93X3N0YXR1cz09PSdwcm9jZXNzaW5nJykubGVuZ3RoOyQoJyNsYWJDb3VudFJlYWR5JykudGV4dENvbnRlbnQ9cm93cy5maWx0ZXIobz0+by53b3JrZmxvd19zdGF0dXM9PT0ncmVhZHknKS5sZW5ndGg7JCgnI2xhYk9yZGVyc0dyaWQnKS5pbm5lckhUTUw9ZmlsdGVyZWQubWFwKHRpbGUpLmpvaW4oJycpfHwnPGRpdiBjbGFzcz0iY2FyZCBtdXRlZCI+2YTYpyDYqtmI2KzYryDYt9mE2KjYp9iqINmF2LfYp9io2YLYqTwvZGl2Pic7YmluZExhYigpO307CiAgJCgnI2xhYlNlYXJjaCcpLm9uaW5wdXQ9KCk9PnJlbmRlclJvd3Mod29ya2xpc3QpO2xhYkxpdmVSZW5kZXJlcj1yb3dzPT57Y29uc3Qga2VlcE9wZW49b3BlbkxhYk9yZGVySWQ7d29ya2xpc3Q9cm93cztvcGVuTGFiT3JkZXJJZD1yb3dzLnNvbWUobz0+by5pZD09PWtlZXBPcGVuKT9rZWVwT3BlbjonJztyZW5kZXJSb3dzKHJvd3MpfTtyZW5kZXJSb3dzKHdvcmtsaXN0KTsKfQo=
+      R823_CSS_B64: LyogVEFIX1I4MjNfT1JERVJfSUNPTl9ERVRBSUxTIOKAlCBjb21wYWN0IG9yZGVyIHRpbGVzIHdpdGggaW5saW5lIGZ1bGwgZGV0YWlscy9yZXN1bHRzLiAqLwoubGFiLXI4MjMtc3RhdHN7Z3JpZC10ZW1wbGF0ZS1jb2x1bW5zOnJlcGVhdCg0LG1pbm1heCgwLDFmcikpO2dhcDoxMHB4O21hcmdpbi1ib3R0b206MTJweH0KLmxhYi1yODIzLWZpbHRlcnthcHBlYXJhbmNlOm5vbmU7dGV4dC1hbGlnbjpyaWdodDtjdXJzb3I6cG9pbnRlcjttaW4taGVpZ2h0Ojc2cHg7dHJhbnNpdGlvbjouMThzIGVhc2U7Ym9yZGVyOjFweCBzb2xpZCAjZGJlNWVjIWltcG9ydGFudDtiYWNrZ3JvdW5kOiNmZmYhaW1wb3J0YW50O2NvbG9yOiMxNzNmNjAhaW1wb3J0YW50fQoubGFiLXI4MjMtZmlsdGVyOmhvdmVyLC5sYWItcjgyMy1maWx0ZXIuYWN0aXZle3RyYW5zZm9ybTp0cmFuc2xhdGVZKC0xcHgpO2JvcmRlci1jb2xvcjojODNiOWQzIWltcG9ydGFudDtib3gtc2hhZG93OjAgN3B4IDE4cHggcmdiYSgyMyw3MiwxMDUsLjA4KSFpbXBvcnRhbnQ7YmFja2dyb3VuZDojZjNmOWZjIWltcG9ydGFudH0KLmxhYi1yODIzLWZpbHRlciBie2ZvbnQtc2l6ZToyNXB4IWltcG9ydGFudDtjb2xvcjojMGU1MjdkIWltcG9ydGFudH0KLmxhYi1yODIzLXNlYXJjaHttYXJnaW4tYm90dG9tOjEycHg7cGFkZGluZzoxMnB4IDE0cHghaW1wb3J0YW50fQoubGFiLXI4MjMtZ3JpZHtkaXNwbGF5OmdyaWQ7Z3JpZC10ZW1wbGF0ZS1jb2x1bW5zOnJlcGVhdCgzLG1pbm1heCgwLDFmcikpO2dhcDoxMnB4O2FsaWduLWl0ZW1zOnN0YXJ0fQoubGFiLXI4MjMtb3JkZXJ7YmFja2dyb3VuZDojZmZmO2JvcmRlcjoxcHggc29saWQgI2RjZTZlZDtib3JkZXItcmFkaXVzOjE2cHg7Ym94LXNoYWRvdzowIDNweCAxMnB4IHJnYmEoMjAsNTksODYsLjA0NSk7b3ZlcmZsb3c6aGlkZGVuO21pbi13aWR0aDowfQoubGFiLXI4MjMtb3JkZXIub3BlbntncmlkLWNvbHVtbjoxLy0xO2JvcmRlci1jb2xvcjojOWJjNmRiO2JveC1zaGFkb3c6MCAxMHB4IDI2cHggcmdiYSgxNiw3NSwxMTIsLjA5KX0KLmxhYi1yODIzLXRpbGV7d2lkdGg6MTAwJTtib3JkZXI6MDtiYWNrZ3JvdW5kOiNmZmY7ZGlzcGxheTpncmlkO2dyaWQtdGVtcGxhdGUtY29sdW1uczo1NHB4IG1pbm1heCgwLDFmcikgYXV0byAyNHB4O2dhcDoxMHB4O2FsaWduLWl0ZW1zOmNlbnRlcjtwYWRkaW5nOjEzcHg7dGV4dC1hbGlnbjpyaWdodDtjb2xvcjojMTczZjYwO2N1cnNvcjpwb2ludGVyfQoubGFiLXI4MjMtdGlsZTpob3ZlcntiYWNrZ3JvdW5kOiNmOGZiZmR9Ci5sYWItcjgyMy1vcmRlcmljb257d2lkdGg6NTRweDtoZWlnaHQ6NTRweDtib3JkZXItcmFkaXVzOjE0cHg7ZGlzcGxheTpncmlkO3BsYWNlLWl0ZW1zOmNlbnRlcjtiYWNrZ3JvdW5kOmxpbmVhci1ncmFkaWVudCgxODBkZWcsI2Y3ZmJmZCwjZThmMmY3KTtib3JkZXI6MXB4IHNvbGlkICNkNWU2ZWY7Zm9udC1zaXplOjI2cHg7Y29sb3I6IzEyNjI4ZDtib3gtc2hhZG93Omluc2V0IDAgMXB4ICNmZmZ9Ci5sYWItcjgyMy10aWxldGV4dHtkaXNwbGF5OmZsZXg7ZmxleC1kaXJlY3Rpb246Y29sdW1uO2dhcDo0cHg7bWluLXdpZHRoOjB9LmxhYi1yODIzLXRpbGV0ZXh0IGJ7Zm9udC1zaXplOjE0cHg7d2hpdGUtc3BhY2U6bm93cmFwO292ZXJmbG93OmhpZGRlbjt0ZXh0LW92ZXJmbG93OmVsbGlwc2lzfS5sYWItcjgyMy10aWxldGV4dCBzbWFsbHtmb250LXNpemU6MTFweDtjb2xvcjojNzE4Njk3O3doaXRlLXNwYWNlOm5vd3JhcDtvdmVyZmxvdzpoaWRkZW47dGV4dC1vdmVyZmxvdzplbGxpcHNpc30KLmxhYi1yODIzLXN0YXR1c3tmb250LXNpemU6MTAuNXB4O2ZvbnQtd2VpZ2h0OjgwMDtib3JkZXItcmFkaXVzOjk5OXB4O3BhZGRpbmc6NXB4IDhweDt3aGl0ZS1zcGFjZTpub3dyYXA7Ym9yZGVyOjFweCBzb2xpZCB0cmFuc3BhcmVudH0ubGFiLXI4MjMtc3RhdHVzLm5ld3tiYWNrZ3JvdW5kOiNlZWY3ZmY7Y29sb3I6IzE3NjU4Zjtib3JkZXItY29sb3I6I2NmZTdmNX0ubGFiLXI4MjMtc3RhdHVzLnByb2Nlc3Npbmd7YmFja2dyb3VuZDojZmZmOGU4O2NvbG9yOiM4YzYyMDA7Ym9yZGVyLWNvbG9yOiNmMWRmYWF9LmxhYi1yODIzLXN0YXR1cy5yZWFkeXtiYWNrZ3JvdW5kOiNlZGY5ZjI7Y29sb3I6IzI4NzA0Yjtib3JkZXItY29sb3I6I2NjZWJkOH0ubGFiLXI4MjMtc3RhdHVzLm90aGVye2JhY2tncm91bmQ6I2Y0ZjVmNztjb2xvcjojNjY3NDgyO2JvcmRlci1jb2xvcjojZTFlNWU5fS5sYWItcjgyMy1jaGV2cm9ue2ZvbnQtc2l6ZToxOHB4O2NvbG9yOiM2ZTg0OTU7dGV4dC1hbGlnbjpjZW50ZXJ9Ci5sYWItcjgyMy1kZXRhaWx7Ym9yZGVyLXRvcDoxcHggc29saWQgI2U2ZWRmMjtwYWRkaW5nOjE2cHg7YmFja2dyb3VuZDojZmJmZGZlfS5sYWItcjgyMy1kZXRhaWxbaGlkZGVuXXtkaXNwbGF5Om5vbmUhaW1wb3J0YW50fQoubGFiLXI4MjMtaW5mb3tkaXNwbGF5OmdyaWQ7Z3JpZC10ZW1wbGF0ZS1jb2x1bW5zOnJlcGVhdCgzLG1pbm1heCgwLDFmcikpO2dhcDo4cHg7bWFyZ2luLWJvdHRvbToxNHB4fS5sYWItcjgyMy1pbmZvPmRpdntiYWNrZ3JvdW5kOiNmZmY7Ym9yZGVyOjFweCBzb2xpZCAjZTFlOWVlO2JvcmRlci1yYWRpdXM6MTFweDtwYWRkaW5nOjlweCAxMXB4O2Rpc3BsYXk6ZmxleDtmbGV4LWRpcmVjdGlvbjpjb2x1bW47Z2FwOjNweH0ubGFiLXI4MjMtaW5mbyBzbWFsbHtmb250LXNpemU6MTBweDtjb2xvcjojN2I4ZTlkfS5sYWItcjgyMy1pbmZvIGJ7Zm9udC1zaXplOjEyLjVweDtjb2xvcjojMjEzZjU1fQoubGFiLXI4MjMtc2VjdGlvbntiYWNrZ3JvdW5kOiNmZmY7Ym9yZGVyOjFweCBzb2xpZCAjZTFlOWVlO2JvcmRlci1yYWRpdXM6MTJweDtwYWRkaW5nOjEycHg7bWFyZ2luLXRvcDoxMHB4fS5sYWItcjgyMy1zZWN0aW9uIGg0e21hcmdpbjowIDAgMTBweDtjb2xvcjojMTc0YjZjO2ZvbnQtc2l6ZToxM3B4fS5sYWItcjgyMy10ZXN0c3tkaXNwbGF5OmZsZXg7ZmxleC13cmFwOndyYXA7Z2FwOjdweH0ubGFiLXI4MjMtdGVzdHMgc3BhbntiYWNrZ3JvdW5kOiNmMGY2Zjk7Ym9yZGVyOjFweCBzb2xpZCAjZDhlN2VmO2JvcmRlci1yYWRpdXM6OXB4O3BhZGRpbmc6NnB4IDlweDtmb250LXNpemU6MTEuNXB4O2NvbG9yOiMyMzRkNjZ9Ci5sYWItcjgyMy1zZWN0aW9uLWhlYWR7ZGlzcGxheTpmbGV4O2FsaWduLWl0ZW1zOmNlbnRlcjtqdXN0aWZ5LWNvbnRlbnQ6c3BhY2UtYmV0d2VlbjtnYXA6MTBweDtmbGV4LXdyYXA6d3JhcH0ubGFiLXI4MjMtc2VjdGlvbi1oZWFkIGg0e21hcmdpbjowfS5sYWItcjgyMy1yZXN1bHR7ZGlzcGxheTpncmlkO2dyaWQtdGVtcGxhdGUtY29sdW1uczozMnB4IG1pbm1heCgwLDFmcikgYXV0bzthbGlnbi1pdGVtczpjZW50ZXI7Z2FwOjlweDtwYWRkaW5nOjlweCAwO2JvcmRlci10b3A6MXB4IHNvbGlkICNlZGYxZjR9LmxhYi1yODIzLXJlc3VsdDpmaXJzdC1vZi10eXBle21hcmdpbi10b3A6OHB4fS5sYWItcjgyMy1maWxlaWNvbnt3aWR0aDozMHB4O2hlaWdodDozMHB4O2JvcmRlci1yYWRpdXM6OHB4O2JhY2tncm91bmQ6I2VkZjVmOTtkaXNwbGF5OmdyaWQ7cGxhY2UtaXRlbXM6Y2VudGVyO2NvbG9yOiMxNjVmODd9LmxhYi1yODIzLXJlc3VsdCBie2ZvbnQtc2l6ZToxMnB4O292ZXJmbG93OmhpZGRlbjt0ZXh0LW92ZXJmbG93OmVsbGlwc2lzO3doaXRlLXNwYWNlOm5vd3JhcH0KLmxhYi1yODIzLWFjdGlvbnN7ZGlzcGxheTpmbGV4O2ZsZXgtd3JhcDp3cmFwO2dhcDo4cHg7bWFyZ2luLXRvcDoxMnB4O3BhZGRpbmctdG9wOjEycHg7Ym9yZGVyLXRvcDoxcHggc29saWQgI2U2ZWRmMn0KQG1lZGlhKG1heC13aWR0aDoxMTgwcHgpey5sYWItcjgyMy1ncmlke2dyaWQtdGVtcGxhdGUtY29sdW1uczpyZXBlYXQoMixtaW5tYXgoMCwxZnIpKX0ubGFiLXI4MjMtaW5mb3tncmlkLXRlbXBsYXRlLWNvbHVtbnM6cmVwZWF0KDIsbWlubWF4KDAsMWZyKSl9fQpAbWVkaWEobWF4LXdpZHRoOjc4MHB4KXsubGFiLXI4MjMtc3RhdHN7Z3JpZC10ZW1wbGF0ZS1jb2x1bW5zOnJlcGVhdCgyLG1pbm1heCgwLDFmcikpfS5sYWItcjgyMy1ncmlke2dyaWQtdGVtcGxhdGUtY29sdW1uczoxZnJ9LmxhYi1yODIzLWluZm97Z3JpZC10ZW1wbGF0ZS1jb2x1bW5zOjFmcn0ubGFiLXI4MjMtdGlsZXtncmlkLXRlbXBsYXRlLWNvbHVtbnM6NDhweCBtaW5tYXgoMCwxZnIpIDIycHh9LmxhYi1yODIzLW9yZGVyaWNvbnt3aWR0aDo0OHB4O2hlaWdodDo0OHB4fS5sYWItcjgyMy1zdGF0dXN7Z3JpZC1jb2x1bW46Mi8zO2p1c3RpZnktc2VsZjpzdGFydH0ubGFiLXI4MjMtY2hldnJvbntncmlkLWNvbHVtbjozO2dyaWQtcm93OjEvM30ubGFiLXI4MjMtcmVzdWx0e2dyaWQtdGVtcGxhdGUtY29sdW1uczozMHB4IG1pbm1heCgwLDFmcil9LmxhYi1yODIzLXJlc3VsdCAudG9vbGJhcntncmlkLWNvbHVtbjoxLy0xfX0K
+      R823_NOTES_B64: V2luZG93cyBWMTQ1IFI4LjIzIOKAlCBPcmRlciBJY29uIERldGFpbHMKCi0gTGFiIG9yZGVycyBub3cgYXJyaXZlIGFzIGNvbXBhY3Qgb3JkZXIgaWNvbnMvY2FyZHMgaW5zdGVhZCBvZiBsYXJnZSBhbHdheXMtb3BlbiBibG9ja3MuCi0gQ2xpY2tpbmcgYW4gb3JkZXIgb3BlbnMgdGhlIGNvbXBsZXRlIGRldGFpbHMgaW5zaWRlIHRoYXQgc2FtZSBvcmRlci4KLSBGdWxsIGN1c3RvbWVyIGRldGFpbHMsIHRlc3RzLCBub3RlcyBhbmQgdGltZXN0YW1wcyBhcmUgc2hvd24gaW5zaWRlIHRoZSBleHBhbmRlZCBvcmRlci4KLSBSZXN1bHQgdXBsb2FkIGlzIGluc2lkZSB0aGUgc2FtZSBleHBhbmRlZCBvcmRlcjogSW1hZ2VzL1BERiBvciBDYW1lcmEuCi0gVXBsb2FkZWQgcmVzdWx0IGZpbGVzIGFwcGVhciBpbW1lZGlhdGVseSBpbnNpZGUgdGhlIHNhbWUgb3JkZXIgd2l0aCBPcGVuIC8gRG93bmxvYWQgLyBTaGFyZS4KLSBFeGlzdGluZyBGaXJlYmFzZSBwYXRocyBhbmQgbGFiVXBsb2FkUmVzdWx0cyBkYXRhIG1vZGVsIGFyZSB1bmNoYW5nZWQ7IHJlc3VsdHMgc3RheSBhdHRhY2hlZCB0byB0aGUgc2FtZSBvcmRlciBJRC4KLSBLZWVwcyBSOC4yMiBvcmdhbml6ZWQgZGFzaGJvYXJkLCBSOC4yMSBzZWN1cml0eSBoYXJkZW5pbmcgYW5kIFI4LjIwIG1hbnVhbC11cGRhdGUgbG9jay4KLSBObyBGaXJlc3RvcmUgcnVsZXMsIEZpcmViYXNlIGNvbmZpZ3VyYXRpb24sIGN1c3RvbWVyL29yZGVyIHNjaGVtYSBvciBzZWN1cml0eSBsb2dpYyBjaGFuZ2VzLgo=
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Restore exact R8.22 source
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $zip = Join-Path $PWD $env:BASE_SOURCE
+          if (Test-Path $zip) { Remove-Item $zip -Force }
+          gh release download $env:BASE_TAG --repo "$env:GITHUB_REPOSITORY" --pattern $env:BASE_SOURCE --dir $PWD
+          if ($LASTEXITCODE -ne 0 -or !(Test-Path $zip)) { throw 'Could not download exact R8.22 source' }
+          $hash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($hash -ne $env:BASE_SHA256) { throw "R8.22 source hash mismatch: $hash" }
+
+          $root = Join-Path $PWD 'build_windows/windows-system'
+          if (Test-Path (Join-Path $PWD 'build_windows')) { Remove-Item (Join-Path $PWD 'build_windows') -Recurse -Force }
+          New-Item -ItemType Directory -Force -Path $root | Out-Null
+          Expand-Archive -Path $zip -DestinationPath $root -Force
+
+          $pkg = Get-Content (Join-Path $root 'package.json') -Raw | ConvertFrom-Json
+          if ($pkg.version -ne '145.8.22') { throw "Expected 145.8.22, got $($pkg.version)" }
+
+          foreach ($item in @(
+            'src/data.js',
+            'src/firebase.js',
+            'src/resultStore.js',
+            'src/v145r8-parity.js',
+            'electron/main.cjs',
+            'electron/preload.cjs'
+          )) {
+            $name = 'R823_' + ($item -replace '[^A-Za-z0-9]','_').ToUpper() + '_SHA256'
+            $value = (Get-FileHash (Join-Path $root $item) -Algorithm SHA256).Hash.ToLowerInvariant()
+            "$name=$value" | Add-Content $env:GITHUB_ENV
+          }
+
+      - name: Apply compact order icons with inline details/results
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $root = Join-Path $PWD 'build_windows/windows-system'
+          $appPath = Join-Path $root 'src/app.js'
+          $stylesPath = Join-Path $root 'src/styles.css'
+          $pkgPath = Join-Path $root 'package.json'
+
+          $app = Get-Content $appPath -Raw
+          if ($app.Contains('TAH_R823_ORDER_ICON_DETAILS')) { throw 'R8.23 marker already exists' }
+
+          $startMarker = 'async function labWorklistPage(c){'
+          $endMarker = 'const DEFAULT_CLINIC='
+          $start = $app.IndexOf($startMarker)
+          $end = $app.IndexOf($endMarker, $start)
+          if ($start -lt 0 -or $end -le $start) { throw 'Could not locate labWorklistPage block' }
+
+          $newFunc = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($env:R823_LAB_FUNCTION_B64))
+          $app = $app.Substring(0,$start) + $newFunc + "`r`n" + $app.Substring($end)
+          Set-Content $appPath -Value $app -Encoding utf8
+
+          $css = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($env:R823_CSS_B64))
+          $existingCss = Get-Content $stylesPath -Raw
+          if ($existingCss.Contains('TAH_R823_ORDER_ICON_DETAILS')) { throw 'R8.23 CSS marker already exists' }
+          Add-Content -Path $stylesPath -Value "`r`n$css" -Encoding utf8
+
+          $pkg = Get-Content $pkgPath -Raw | ConvertFrom-Json
+          $pkg.version = '145.8.23'
+          $pkg.description = 'Tahalil Alakkad Windows V145 R8.23 - compact order icons with inline details and results'
+          $pkg | ConvertTo-Json -Depth 20 | Set-Content $pkgPath -Encoding utf8
+
+          $notes = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($env:R823_NOTES_B64))
+          $notes | Set-Content (Join-Path $root 'V145_R823_ORDER_ICON_DETAILS_NOTES.txt') -Encoding utf8
+
+      - name: Audit R8.23 scope and same-order result flow
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $root = Join-Path $PWD 'build_windows/windows-system'
+          $app = Get-Content (Join-Path $root 'src/app.js') -Raw
+          $css = Get-Content (Join-Path $root 'src/styles.css') -Raw
+          $data = Get-Content (Join-Path $root 'src/data.js') -Raw
+          $pkg = Get-Content (Join-Path $root 'package.json') -Raw | ConvertFrom-Json
+
+          if ($pkg.version -ne '145.8.23') { throw "Expected 145.8.23, got $($pkg.version)" }
+          foreach ($marker in @(
+            'TAH_R823_ORDER_ICON_DETAILS',
+            'data-open-order',
+            'lab-r823-detail',
+            'labuploadfiles',
+            'labuploadcamera',
+            'النتيجة داخل نفس الطلب'
+          )) {
+            if (!$app.Contains($marker) -and !$css.Contains($marker)) { throw "R8.23 marker missing: $marker" }
+          }
+
+          if (!$data.Contains('export async function labUploadResults(order,files')) { throw 'labUploadResults missing' }
+          if (!$data.Contains("doc(db,C.customers,customerId,'orders',order.id)")) { throw 'Result upload no longer targets same order ID' }
+          if (!$data.Contains("workflow_status:'ready'")) { throw 'Result-ready workflow update missing' }
+          if (!$data.Contains('b.update(ref,patch)')) { throw 'Original order result update missing' }
+          if (!$data.Contains('b.update(labMirrorRef(order.id),labMirrorData(patch))')) { throw 'Lab mirror result update missing' }
+
+          $checks = @{
+            'src/data.js'='R823_SRC_DATA_JS_SHA256';
+            'src/firebase.js'='R823_SRC_FIREBASE_JS_SHA256';
+            'src/resultStore.js'='R823_SRC_RESULTSTORE_JS_SHA256';
+            'src/v145r8-parity.js'='R823_SRC_V145R8_PARITY_JS_SHA256';
+            'electron/main.cjs'='R823_ELECTRON_MAIN_CJS_SHA256';
+            'electron/preload.cjs'='R823_ELECTRON_PRELOAD_CJS_SHA256'
+          }
+          foreach ($pair in $checks.GetEnumerator()) {
+            $actual = (Get-FileHash (Join-Path $root $pair.Key) -Algorithm SHA256).Hash.ToLowerInvariant()
+            $expected = [Environment]::GetEnvironmentVariable($pair.Value)
+            if ($actual -ne $expected) { throw "$($pair.Key) changed - R8.23 scope violation" }
+          }
+
+          node --check (Join-Path $root 'src/app.js')
+          if ($LASTEXITCODE -ne 0) { throw 'app.js syntax failed' }
+          node --check (Join-Path $root 'src/data.js')
+          if ($LASTEXITCODE -ne 0) { throw 'data.js syntax failed' }
+          node --check (Join-Path $root 'electron/main.cjs')
+          if ($LASTEXITCODE -ne 0) { throw 'main.cjs syntax failed' }
+
+          $audit = @(
+            'R8.23 ORDER ICON DETAILS AUDIT: PASS',
+            'Base: exact R8.22 source',
+            'Changed: lab worklist presentation in src/app.js + R8.23 CSS + package metadata',
+            'Result storage: SAME customer/order ID through unchanged labUploadResults()',
+            'Firebase/data/resultStore/electron security logic: unchanged'
+          )
+          $audit | Set-Content 'R823_ORDER_DETAILS_AUDIT.txt' -Encoding utf8
+
+      - name: Package R8.23 source
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $root = Join-Path $PWD 'build_windows/windows-system'
+          $stage = Join-Path $env:RUNNER_TEMP 'source_stage_r823'
+          if (Test-Path $stage) { Remove-Item $stage -Recurse -Force }
+          New-Item -ItemType Directory -Force -Path $stage | Out-Null
+          Get-ChildItem -LiteralPath $root -Force |
+            Where-Object { @('node_modules','release','.git') -notcontains $_.Name } |
+            ForEach-Object { Copy-Item -LiteralPath $_.FullName -Destination $stage -Recurse -Force }
+
+          $zip = Join-Path $PWD 'Tahalil-Alakkad-V145-R8.23-Windows-Source.zip'
+          if (Test-Path $zip) { Remove-Item $zip -Force }
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          [System.IO.Compression.ZipFile]::CreateFromDirectory($stage,$zip,[System.IO.Compression.CompressionLevel]::Optimal,$false)
+          $hash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  Tahalil-Alakkad-V145-R8.23-Windows-Source.zip" | Set-Content 'Tahalil-Alakkad-V145-R8.23-Windows-Source.zip.sha256' -Encoding ascii
+          Copy-Item (Join-Path $root 'V145_R823_ORDER_ICON_DETAILS_NOTES.txt') 'V145_R823_ORDER_ICON_DETAILS_NOTES.txt' -Force
+
+      - name: Install dependencies
+        working-directory: build_windows/windows-system
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          npm install --no-audit --no-fund
+          if ($LASTEXITCODE -ne 0) { throw 'npm install failed' }
+
+      - name: Build Portable
+        working-directory: build_windows/windows-system
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          npm run dist:portable
+          if ($LASTEXITCODE -ne 0) { throw 'Portable build failed' }
+
+      - name: Portable smoke test
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $release = Join-Path $PWD 'build_windows/windows-system/release'
+          $portable = Get-ChildItem $release -Filter '*Portable*.exe' -File | Sort-Object Length -Descending | Select-Object -First 1
+          if (!$portable) { throw 'Portable EXE missing' }
+          $proc = Start-Process -FilePath $portable.FullName -PassThru
+          Start-Sleep -Seconds 12
+          if ($proc.HasExited) { throw "Portable exited unexpectedly: $($proc.ExitCode)" }
+          Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
+
+      - name: Build Setup
+        working-directory: build_windows/windows-system
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          npm run dist:setup
+          if ($LASTEXITCODE -ne 0) { throw 'Setup build failed' }
+
+      - name: Prepare delivery
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $release = Join-Path $PWD 'build_windows/windows-system/release'
+          $portable = Get-ChildItem $release -Filter '*Portable*.exe' -File | Sort-Object Length -Descending | Select-Object -First 1
+          $setup = Get-ChildItem $release -Filter '*Setup*.exe' -File | Sort-Object Length -Descending | Select-Object -First 1
+          if (!$portable -or !$setup) { throw 'Portable or Setup missing' }
+          Copy-Item $portable.FullName 'Tahalil-Alakkad-V145-R8.23-Windows-Portable.exe' -Force
+          Copy-Item $setup.FullName 'Tahalil-Alakkad-V145-R8.23-Windows-Setup.exe' -Force
+          foreach ($name in @(
+            'Tahalil-Alakkad-V145-R8.23-Windows-Portable.exe',
+            'Tahalil-Alakkad-V145-R8.23-Windows-Setup.exe'
+          )) {
+            $hash = (Get-FileHash $name -Algorithm SHA256).Hash.ToLowerInvariant()
+            "$hash  $name" | Set-Content "$name.sha256" -Encoding ascii
+          }
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Tahalil-Alakkad-V145-R8.23-Windows-Order-Icon-Details
+          path: |
+            Tahalil-Alakkad-V145-R8.23-Windows-Portable.exe
+            Tahalil-Alakkad-V145-R8.23-Windows-Portable.exe.sha256
+            Tahalil-Alakkad-V145-R8.23-Windows-Setup.exe
+            Tahalil-Alakkad-V145-R8.23-Windows-Setup.exe.sha256
+            Tahalil-Alakkad-V145-R8.23-Windows-Source.zip
+            Tahalil-Alakkad-V145-R8.23-Windows-Source.zip.sha256
+            V145_R823_ORDER_ICON_DETAILS_NOTES.txt
+            R823_ORDER_DETAILS_AUDIT.txt
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Publish R8.23 release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $tag = 'v145-r8.23-windows'
+          $title = 'تحاليل العقاد Windows V145 R8.23 — Order Icon Details'
+          $notes = Get-Content 'V145_R823_ORDER_ICON_DETAILS_NOTES.txt' -Raw
+
+          gh release view $tag --repo "$env:GITHUB_REPOSITORY" *> $null
+          if ($LASTEXITCODE -eq 0) {
+            gh release edit $tag --repo "$env:GITHUB_REPOSITORY" --title $title --notes $notes
+          } else {
+            gh release create $tag --repo "$env:GITHUB_REPOSITORY" --title $title --notes $notes
+          }
+          if ($LASTEXITCODE -ne 0) { throw 'Could not create R8.23 release' }
+
+          gh release upload $tag `
+            Tahalil-Alakkad-V145-R8.23-Windows-Portable.exe `
+            Tahalil-Alakkad-V145-R8.23-Windows-Portable.exe.sha256 `
+            Tahalil-Alakkad-V145-R8.23-Windows-Setup.exe `
+            Tahalil-Alakkad-V145-R8.23-Windows-Setup.exe.sha256 `
+            Tahalil-Alakkad-V145-R8.23-Windows-Source.zip `
+            Tahalil-Alakkad-V145-R8.23-Windows-Source.zip.sha256 `
+            V145_R823_ORDER_ICON_DETAILS_NOTES.txt `
+            R823_ORDER_DETAILS_AUDIT.txt `
+            --repo "$env:GITHUB_REPOSITORY" --clobber
+          if ($LASTEXITCODE -ne 0) { throw 'Could not upload R8.23 release assets' }
