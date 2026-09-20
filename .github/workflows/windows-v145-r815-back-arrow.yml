@@ -1,0 +1,369 @@
+name: Windows V145 R8.15 Back Arrow
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: tahalil-windows-v145-r815-back-arrow
+  cancel-in-progress: false
+
+jobs:
+  windows-v145-r815:
+    name: Windows V145 R8.15 — Back Arrow
+    runs-on: windows-latest
+    timeout-minutes: 110
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: "false"
+      BASE_TAG: "v145-r8.14-windows"
+      BASE_SOURCE: "Tahalil-Alakkad-V145-R8.14-Windows-Source.zip"
+      BASE_SHA256: "ca8a2d9dbebb3f9092f09caabcb8b0f79bddd425db69f798c60a9ce076b5b15c"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Restore exact R8.14 source
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          $zip = Join-Path $PWD $env:BASE_SOURCE
+          if (Test-Path $zip) { Remove-Item $zip -Force }
+
+          gh release download $env:BASE_TAG --repo "$env:GITHUB_REPOSITORY" --pattern $env:BASE_SOURCE --dir $PWD
+          if ($LASTEXITCODE -ne 0 -or !(Test-Path $zip)) {
+            throw 'Could not download exact R8.14 source release'
+          }
+
+          $hash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($hash -ne $env:BASE_SHA256) {
+            throw "R8.14 source hash mismatch: $hash"
+          }
+
+          $root = Join-Path $PWD 'build_windows/windows-system'
+          if (Test-Path (Join-Path $PWD 'build_windows')) {
+            Remove-Item (Join-Path $PWD 'build_windows') -Recurse -Force
+          }
+          New-Item -ItemType Directory -Force -Path $root | Out-Null
+          Expand-Archive -Path $zip -DestinationPath $root -Force
+
+          foreach ($required in @(
+            'package.json',
+            'src/app.js',
+            'src/styles.css',
+            'src/data.js',
+            'src/firebase.js',
+            'src/v145r8-parity.js',
+            'electron/main.cjs',
+            'electron/preload.cjs'
+          )) {
+            if (!(Test-Path (Join-Path $root $required))) {
+              throw "R8.14 source missing: $required"
+            }
+          }
+
+          $locked = @{
+            R815_DATA_SHA256     = (Get-FileHash (Join-Path $root 'src/data.js') -Algorithm SHA256).Hash.ToLowerInvariant()
+            R815_FIREBASE_SHA256 = (Get-FileHash (Join-Path $root 'src/firebase.js') -Algorithm SHA256).Hash.ToLowerInvariant()
+            R815_PARITY_SHA256   = (Get-FileHash (Join-Path $root 'src/v145r8-parity.js') -Algorithm SHA256).Hash.ToLowerInvariant()
+            R815_MAIN_SHA256     = (Get-FileHash (Join-Path $root 'electron/main.cjs') -Algorithm SHA256).Hash.ToLowerInvariant()
+            R815_PRELOAD_SHA256  = (Get-FileHash (Join-Path $root 'electron/preload.cjs') -Algorithm SHA256).Hash.ToLowerInvariant()
+          }
+
+          foreach ($pair in $locked.GetEnumerator()) {
+            "$($pair.Key)=$($pair.Value)" | Add-Content $env:GITHUB_ENV
+          }
+
+      - name: Add back arrow to top bar
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $root = Join-Path $PWD 'build_windows/windows-system'
+
+          $patcher = @'
+          from pathlib import Path
+          import json, sys
+
+          root = Path(sys.argv[1])
+          app_path = root / 'src' / 'app.js'
+          css_path = root / 'src' / 'styles.css'
+          pkg_path = root / 'package.json'
+
+          app = app_path.read_text(encoding='utf-8-sig')
+          css = css_path.read_text(encoding='utf-8-sig')
+
+          if 'TAH_BACK_ARROW_R815' in app or 'TAH_BACK_ARROW_R815' in css:
+              raise SystemExit('R8.15 already installed')
+
+          needle = '<div class="top">'
+          if needle not in app:
+              raise SystemExit('Top bar anchor not found')
+
+          button = '<div class="top"><button id="systemBackBtn" class="system-back-btn" type="button" title="رجوع للرئيسية" aria-label="رجوع للرئيسية">&#8592;</button>'
+          app = app.replace(needle, button, 1)
+
+          app += r'''
+
+          /* TAH_BACK_ARROW_R815 */
+          document.addEventListener('click', async (ev)=>{
+            const btn = ev.target && ev.target.closest ? ev.target.closest('#systemBackBtn') : null;
+            if(!btn) return;
+            ev.preventDefault();
+            try{
+              if(typeof renderTab === 'function') await renderTab('dashboard');
+            }catch(err){
+              console.error('Back navigation failed', err);
+            }
+          });
+          '''
+
+          css += r'''
+
+          /* TAH_BACK_ARROW_R815 */
+          .system-back-btn{
+            width:42px;
+            height:42px;
+            min-width:42px;
+            border-radius:12px;
+            border:1px solid #cfdde8;
+            background:#ffffff;
+            color:#113f68;
+            display:inline-flex;
+            align-items:center;
+            justify-content:center;
+            font-size:25px;
+            font-weight:900;
+            line-height:1;
+            cursor:pointer;
+            box-shadow:0 4px 12px rgba(18,63,104,.08);
+            transition:transform .15s ease, box-shadow .15s ease, background .15s ease;
+            margin-left:10px;
+          }
+          .system-back-btn:hover{
+            background:#f4f8fb;
+            transform:translateY(-1px);
+            box-shadow:0 6px 14px rgba(18,63,104,.12);
+          }
+          .system-back-btn:active{ transform:translateY(0); }
+          .system-back-btn:focus-visible{
+            outline:3px solid rgba(23,102,159,.22);
+            outline-offset:2px;
+          }
+          '''
+
+          pkg = json.loads(pkg_path.read_text(encoding='utf-8-sig'))
+          if str(pkg.get('version')) != '145.8.14':
+              raise SystemExit(f"Expected exact R8.14 package version, got {pkg.get('version')}")
+
+          pkg['version'] = '145.8.15'
+          pkg['description'] = 'Tahalil Alakkad Windows V145 R8.15 - back arrow in top bar'
+
+          app_path.write_text(app, encoding='utf-8')
+          css_path.write_text(css, encoding='utf-8')
+          pkg_path.write_text(json.dumps(pkg, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+
+          (root / 'V145_R815_BACK_ARROW_NOTES.txt').write_text(
+              'Windows V145 R8.15\n\n'
+              '- Added a clear back arrow in the top bar.\n'
+              '- Back arrow returns safely to the main dashboard.\n'
+              '- Existing dashboard, save, Firebase, customer, timestamp and Electron behavior preserved.\n',
+              encoding='utf-8'
+          )
+
+          print('R815_BACK_ARROW_APPLIED')
+          '@
+
+          $patcherPath = Join-Path $env:RUNNER_TEMP 'patch_r815.py'
+          $patcher | Set-Content $patcherPath -Encoding utf8
+          python $patcherPath $root
+          if ($LASTEXITCODE -ne 0) { throw 'R8.15 patch failed' }
+
+      - name: Audit R8.15 and protected files
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $root = Join-Path $PWD 'build_windows/windows-system'
+
+          $pkg = Get-Content (Join-Path $root 'package.json') -Raw | ConvertFrom-Json
+          if ($pkg.version -ne '145.8.15') { throw "Expected 145.8.15, got $($pkg.version)" }
+
+          $app = Get-Content (Join-Path $root 'src/app.js') -Raw
+          $css = Get-Content (Join-Path $root 'src/styles.css') -Raw
+
+          foreach ($marker in @(
+            'TAH_BACK_ARROW_R815',
+            'systemBackBtn',
+            'system-back-btn',
+            "renderTab('dashboard')"
+          )) {
+            if (!($app.Contains($marker) -or $css.Contains($marker))) {
+              throw "Missing R8.15 contract: $marker"
+            }
+          }
+
+          $actualData = (Get-FileHash (Join-Path $root 'src/data.js') -Algorithm SHA256).Hash.ToLowerInvariant()
+          $actualFirebase = (Get-FileHash (Join-Path $root 'src/firebase.js') -Algorithm SHA256).Hash.ToLowerInvariant()
+          $actualParity = (Get-FileHash (Join-Path $root 'src/v145r8-parity.js') -Algorithm SHA256).Hash.ToLowerInvariant()
+          $actualMain = (Get-FileHash (Join-Path $root 'electron/main.cjs') -Algorithm SHA256).Hash.ToLowerInvariant()
+          $actualPreload = (Get-FileHash (Join-Path $root 'electron/preload.cjs') -Algorithm SHA256).Hash.ToLowerInvariant()
+
+          if ($actualData -ne $env:R815_DATA_SHA256) { throw 'data.js changed - blocked' }
+          if ($actualFirebase -ne $env:R815_FIREBASE_SHA256) { throw 'firebase.js changed - blocked' }
+          if ($actualParity -ne $env:R815_PARITY_SHA256) { throw 'core parity changed - blocked' }
+          if ($actualMain -ne $env:R815_MAIN_SHA256) { throw 'electron/main.cjs changed - blocked' }
+          if ($actualPreload -ne $env:R815_PRELOAD_SHA256) { throw 'electron/preload.cjs changed - blocked' }
+
+          node --check (Join-Path $root 'src/app.js')
+          if ($LASTEXITCODE -ne 0) { throw 'app.js syntax failed' }
+
+      - name: Package R8.15 source
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $root = Join-Path $PWD 'build_windows/windows-system'
+          $stage = Join-Path $env:RUNNER_TEMP 'source_stage_r815'
+
+          if (Test-Path $stage) { Remove-Item $stage -Recurse -Force }
+          New-Item -ItemType Directory -Force -Path $stage | Out-Null
+
+          Get-ChildItem -LiteralPath $root -Force |
+            Where-Object { @('node_modules','release','.git') -notcontains $_.Name } |
+            ForEach-Object { Copy-Item -LiteralPath $_.FullName -Destination $stage -Recurse -Force }
+
+          $zip = Join-Path $PWD 'Tahalil-Alakkad-V145-R8.15-Windows-Source.zip'
+          if (Test-Path $zip) { Remove-Item $zip -Force }
+
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          [System.IO.Compression.ZipFile]::CreateFromDirectory($stage,$zip,[System.IO.Compression.CompressionLevel]::Optimal,$false)
+
+          if (!(Test-Path $zip) -or (Get-Item $zip).Length -lt 50000) { throw 'R8.15 source ZIP invalid' }
+
+          $hash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  Tahalil-Alakkad-V145-R8.15-Windows-Source.zip" | Set-Content 'Tahalil-Alakkad-V145-R8.15-Windows-Source.zip.sha256' -Encoding ascii
+          Copy-Item (Join-Path $root 'V145_R815_BACK_ARROW_NOTES.txt') 'V145_R815_BACK_ARROW_NOTES.txt' -Force
+
+      - name: Install dependencies
+        working-directory: build_windows/windows-system
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          npm install --no-audit --no-fund
+          if ($LASTEXITCODE -ne 0) { throw 'npm install failed' }
+
+      - name: Build Portable
+        working-directory: build_windows/windows-system
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          npm run dist:portable
+          if ($LASTEXITCODE -ne 0) { throw 'Portable build failed' }
+
+      - name: Portable startup smoke
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $release = Join-Path $PWD 'build_windows/windows-system/release'
+          $portable = Get-ChildItem $release -Filter '*Portable*.exe' -File | Sort-Object Length -Descending | Select-Object -First 1
+          if (!$portable) { throw 'Portable EXE missing' }
+
+          $proc = Start-Process -FilePath $portable.FullName -PassThru
+          Start-Sleep -Seconds 12
+          if ($proc.HasExited) {
+            if ($proc.ExitCode -ne 0) { throw "Portable exited with code $($proc.ExitCode)" }
+            throw 'Portable exited unexpectedly during smoke test'
+          }
+          Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
+
+      - name: Build Setup
+        working-directory: build_windows/windows-system
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          npm run dist:setup
+          if ($LASTEXITCODE -ne 0) { throw 'Setup build failed' }
+
+      - name: Prepare R8.15 delivery files
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $release = Join-Path $PWD 'build_windows/windows-system/release'
+
+          $portable = Get-ChildItem $release -Filter '*Portable*.exe' -File | Sort-Object Length -Descending | Select-Object -First 1
+          $setup = Get-ChildItem $release -Filter '*Setup*.exe' -File | Sort-Object Length -Descending | Select-Object -First 1
+
+          if (!$portable -or !$setup) { throw 'Portable or Setup EXE missing' }
+
+          Copy-Item $portable.FullName 'Tahalil-Alakkad-V145-R8.15-Windows-Portable.exe' -Force
+          Copy-Item $setup.FullName 'Tahalil-Alakkad-V145-R8.15-Windows-Setup.exe' -Force
+
+          foreach ($name in @(
+            'Tahalil-Alakkad-V145-R8.15-Windows-Portable.exe',
+            'Tahalil-Alakkad-V145-R8.15-Windows-Setup.exe'
+          )) {
+            $hash = (Get-FileHash $name -Algorithm SHA256).Hash.ToLowerInvariant()
+            "$hash  $name" | Set-Content "$name.sha256" -Encoding ascii
+          }
+
+      - name: Upload R8.15 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Tahalil-Alakkad-V145-R8.15-Windows-Back-Arrow
+          path: |
+            Tahalil-Alakkad-V145-R8.15-Windows-Portable.exe
+            Tahalil-Alakkad-V145-R8.15-Windows-Portable.exe.sha256
+            Tahalil-Alakkad-V145-R8.15-Windows-Setup.exe
+            Tahalil-Alakkad-V145-R8.15-Windows-Setup.exe.sha256
+            Tahalil-Alakkad-V145-R8.15-Windows-Source.zip
+            Tahalil-Alakkad-V145-R8.15-Windows-Source.zip.sha256
+            V145_R815_BACK_ARROW_NOTES.txt
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Publish Windows V145 R8.15 release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          $tag = 'v145-r8.15-windows'
+          $title = 'تحاليل العقاد Windows V145 R8.15 — Back Arrow'
+
+          $notes = @'
+          Windows V145 R8.15
+
+          - Added a clear back arrow in the top bar.
+          - Back arrow returns safely to the main dashboard.
+          - Existing dashboard, save, Firebase, customer, timestamp and Electron behavior preserved.
+          '@
+
+          $files = @(
+            'Tahalil-Alakkad-V145-R8.15-Windows-Portable.exe',
+            'Tahalil-Alakkad-V145-R8.15-Windows-Portable.exe.sha256',
+            'Tahalil-Alakkad-V145-R8.15-Windows-Setup.exe',
+            'Tahalil-Alakkad-V145-R8.15-Windows-Setup.exe.sha256',
+            'Tahalil-Alakkad-V145-R8.15-Windows-Source.zip',
+            'Tahalil-Alakkad-V145-R8.15-Windows-Source.zip.sha256',
+            'V145_R815_BACK_ARROW_NOTES.txt'
+          )
+
+          gh release view $tag --repo "$env:GITHUB_REPOSITORY" *> $null
+          if ($LASTEXITCODE -eq 0) {
+            gh release edit $tag --repo "$env:GITHUB_REPOSITORY" --title $title --notes $notes
+          } else {
+            gh release create $tag --repo "$env:GITHUB_REPOSITORY" --title $title --notes $notes
+          }
+          if ($LASTEXITCODE -ne 0) { throw 'Could not create/update R8.15 release' }
+
+          gh release upload $tag @files --repo "$env:GITHUB_REPOSITORY" --clobber
+          if ($LASTEXITCODE -ne 0) { throw 'Could not upload R8.15 files' }
