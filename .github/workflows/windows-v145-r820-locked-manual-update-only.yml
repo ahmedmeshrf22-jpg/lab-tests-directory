@@ -1,0 +1,424 @@
+name: Windows V145 R8.20 LOCKED Manual Update Only
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: tahalil-windows-v145-r820-locked
+  cancel-in-progress: false
+
+jobs:
+  windows-v145-r820:
+    name: Windows V145 R8.20 — LOCKED
+    runs-on: windows-latest
+    timeout-minutes: 110
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: "false"
+      BASE_TAG: "v145-r8.19-windows"
+      BASE_SOURCE: "Tahalil-Alakkad-V145-R8.19-Windows-Source.zip"
+      BASE_SHA256: "def13b7128360d8d6706a29b2a715d70308362e180931540f38af3cbf0aad1b8"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Restore exact R8.19 source
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $zip = Join-Path $PWD $env:BASE_SOURCE
+          if (Test-Path $zip) { Remove-Item $zip -Force }
+
+          gh release download $env:BASE_TAG --repo "$env:GITHUB_REPOSITORY" --pattern $env:BASE_SOURCE --dir $PWD
+          if ($LASTEXITCODE -ne 0 -or !(Test-Path $zip)) {
+            throw 'Could not download exact R8.19 source release'
+          }
+
+          $hash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($hash -ne $env:BASE_SHA256) {
+            throw "R8.19 source hash mismatch: $hash"
+          }
+
+          $root = Join-Path $PWD 'build_windows/windows-system'
+          if (Test-Path (Join-Path $PWD 'build_windows')) {
+            Remove-Item (Join-Path $PWD 'build_windows') -Recurse -Force
+          }
+          New-Item -ItemType Directory -Force -Path $root | Out-Null
+          Expand-Archive -Path $zip -DestinationPath $root -Force
+
+          foreach ($required in @(
+            'package.json',
+            'src/app.js',
+            'src/styles.css',
+            'src/data.js',
+            'src/firebase.js',
+            'src/v145r8-parity.js',
+            'electron/main.cjs',
+            'electron/preload.cjs'
+          )) {
+            if (!(Test-Path (Join-Path $root $required))) {
+              throw "R8.19 source missing: $required"
+            }
+          }
+
+          $locked = @{
+            R820_APP_SHA256      = (Get-FileHash (Join-Path $root 'src/app.js') -Algorithm SHA256).Hash.ToLowerInvariant()
+            R820_DATA_SHA256     = (Get-FileHash (Join-Path $root 'src/data.js') -Algorithm SHA256).Hash.ToLowerInvariant()
+            R820_STYLES_SHA256   = (Get-FileHash (Join-Path $root 'src/styles.css') -Algorithm SHA256).Hash.ToLowerInvariant()
+            R820_FIREBASE_SHA256 = (Get-FileHash (Join-Path $root 'src/firebase.js') -Algorithm SHA256).Hash.ToLowerInvariant()
+            R820_PARITY_SHA256   = (Get-FileHash (Join-Path $root 'src/v145r8-parity.js') -Algorithm SHA256).Hash.ToLowerInvariant()
+            R820_PRELOAD_SHA256  = (Get-FileHash (Join-Path $root 'electron/preload.cjs') -Algorithm SHA256).Hash.ToLowerInvariant()
+          }
+          foreach ($pair in $locked.GetEnumerator()) {
+            "$($pair.Key)=$($pair.Value)" | Add-Content $env:GITHUB_ENV
+          }
+
+      - name: Remove automatic updater and lock installation policy
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $root = Join-Path $PWD 'build_windows/windows-system'
+
+          $patcher = @'
+          from pathlib import Path
+          import json, sys
+
+          root = Path(sys.argv[1])
+          main_path = root / 'electron' / 'main.cjs'
+          pkg_path = root / 'package.json'
+
+          main = main_path.read_text(encoding='utf-8-sig')
+
+          if 'TAH_R820_MANUAL_UPDATE_LOCK' in main:
+              raise SystemExit('R8.20 already installed')
+
+          exact = [
+              ("const { Readable } = require('stream');\nconst { pipeline } = require('stream/promises');\n", ""),
+              ("const WINDOWS_UPDATE_MANIFEST_URL = 'https://github.com/ahmedmeshrf22-jpg/tahalil-alakkad-updates/releases/latest/download/latest-windows.json';\nconst MAX_WINDOWS_UPDATE_BYTES = 350 * 1024 * 1024;\n", ""),
+              ("let windowsUpdateCheckStarted = false;\n", ""),
+          ]
+          for old, new in exact:
+              if old not in main:
+                  raise SystemExit('Expected R8.19 updater anchor missing: ' + old[:60])
+              main = main.replace(old, new, 1)
+
+          app_id_line = "const APP_ID = 'com.aistudio.tahalil.alakkad.windows';\n"
+          if app_id_line not in main:
+              raise SystemExit('Stable APP_ID anchor missing')
+          main = main.replace(
+              app_id_line,
+              app_id_line + "const APP_UPDATE_POLICY = 'manual-setup-only';\n",
+              1
+          )
+
+          start = main.find('function currentWindowsVersionCode() {')
+          end = main.find('function appIconPath()', start)
+          if start < 0 or end < 0 or end <= start:
+              raise SystemExit('Could not locate full Windows automatic-update block')
+          main = (
+              main[:start]
+              + "/* TAH_R820_MANUAL_UPDATE_LOCK: application code never checks, downloads, or launches updates automatically. */\n\n"
+              + main[end:]
+          )
+
+          old_ready = "app.whenReady().then(() => { cleanupResultTemp(); createTray(); createWindow(); scheduleAutomaticBackup(); scheduleWindowsUpdateCheck(); });"
+          new_ready = "app.whenReady().then(() => { cleanupResultTemp(); createTray(); createWindow(); scheduleAutomaticBackup(); });"
+          if old_ready not in main:
+              raise SystemExit('Automatic-update startup call anchor missing')
+          main = main.replace(old_ready, new_ready, 1)
+
+          pkg = json.loads(pkg_path.read_text(encoding='utf-8-sig'))
+          if str(pkg.get('version')) != '145.8.19':
+              raise SystemExit(f"Expected exact R8.19 package version, got {pkg.get('version')}")
+          if pkg.get('build', {}).get('appId') != 'com.aistudio.tahalil.alakkad.windows':
+              raise SystemExit('APP_ID changed unexpectedly')
+
+          pkg['version'] = '145.8.20'
+          pkg['description'] = 'Tahalil Alakkad Windows V145 R8.20 - manual-update locked production build'
+          nsis = pkg.setdefault('build', {}).setdefault('nsis', {})
+          nsis['deleteAppDataOnUninstall'] = False
+          nsis['differentialPackage'] = False
+
+          main_path.write_text(main, encoding='utf-8')
+          pkg_path.write_text(json.dumps(pkg, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+
+          (root / 'V145_R820_LOCKED_SECURITY_INSTALL_NOTES.txt').write_text(
+              'Windows V145 R8.20 LOCKED\n\n'
+              '- Automatic Windows update check removed completely.\n'
+              '- No update manifest, automatic Setup download, forced update, or automatic installer launch remains.\n'
+              '- Updates are manual only: install a Setup file intentionally supplied by the owner.\n'
+              '- Stable appId/product identity preserved for future manual in-place upgrades.\n'
+              '- Existing local userData is not intentionally deleted by the installer configuration.\n'
+              '- NSIS differential update packaging disabled.\n'
+              '- Electron isolation/security settings are audited and preserved.\n'
+              '- Existing R8.19 application behavior is otherwise preserved.\n'
+              '- Windows code signing certificate is not configured in this project; release SHA-256 files are published for integrity checking.\n',
+              encoding='utf-8'
+          )
+          print('R820_MANUAL_UPDATE_LOCK_APPLIED')
+          '@
+
+          $patcherPath = Join-Path $env:RUNNER_TEMP 'patch_r820.py'
+          $patcher | Set-Content $patcherPath -Encoding utf8
+          python $patcherPath $root
+          if ($LASTEXITCODE -ne 0) {
+            throw 'R8.20 lock patch failed'
+          }
+
+      - name: Security and installation audit R8.20
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $root = Join-Path $PWD 'build_windows/windows-system'
+          $mainPath = Join-Path $root 'electron/main.cjs'
+          $pkgPath = Join-Path $root 'package.json'
+
+          $main = Get-Content $mainPath -Raw
+          $pkg = Get-Content $pkgPath -Raw | ConvertFrom-Json
+
+          if ($pkg.version -ne '145.8.20') {
+            throw "Expected 145.8.20, got $($pkg.version)"
+          }
+          if ($pkg.build.appId -ne 'com.aistudio.tahalil.alakkad.windows') {
+            throw 'Stable appId changed - blocked'
+          }
+          if ($pkg.build.productName -ne 'Tahalil Alakkad System') {
+            throw 'Stable productName changed - blocked'
+          }
+          if ($pkg.build.nsis.perMachine -ne $false) {
+            throw 'Expected per-user installer'
+          }
+          if ($pkg.build.nsis.oneClick -ne $false) {
+            throw 'Expected assisted Setup installer'
+          }
+          if ($pkg.build.nsis.deleteAppDataOnUninstall -ne $false) {
+            throw 'Installer app-data preservation policy missing'
+          }
+          if ($pkg.build.nsis.differentialPackage -ne $false) {
+            throw 'Differential update packaging must remain disabled'
+          }
+
+          foreach ($required in @(
+            "APP_UPDATE_POLICY = 'manual-setup-only'",
+            'TAH_R820_MANUAL_UPDATE_LOCK',
+            'contextIsolation: true',
+            'nodeIntegration: false',
+            'sandbox: true',
+            'webSecurity: true',
+            'allowRunningInsecureContent: false',
+            'webviewTag: false',
+            'devTools: false',
+            "win.loadFile(path.join(__dirname, '..', 'dist', 'index.html'))",
+            "win.webContents.on('will-navigate'"
+          )) {
+            if (!$main.Contains($required)) {
+              throw "Missing security/install contract: $required"
+            }
+          }
+
+          foreach ($forbidden in @(
+            'WINDOWS_UPDATE_MANIFEST_URL',
+            'latest-windows.json',
+            'checkForWindowsUpdate',
+            'scheduleWindowsUpdateCheck',
+            'downloadWindowsUpdate',
+            'MAX_WINDOWS_UPDATE_BYTES',
+            'windowsUpdateCheckStarted',
+            'Update SHA-256 verification failed'
+          )) {
+            if ($main.Contains($forbidden)) {
+              throw "Automatic updater residue found: $forbidden"
+            }
+          }
+
+          if ((Get-FileHash (Join-Path $root 'src/app.js') -Algorithm SHA256).Hash.ToLowerInvariant() -ne $env:R820_APP_SHA256) { throw 'app.js changed - blocked' }
+          if ((Get-FileHash (Join-Path $root 'src/data.js') -Algorithm SHA256).Hash.ToLowerInvariant() -ne $env:R820_DATA_SHA256) { throw 'data.js changed - blocked' }
+          if ((Get-FileHash (Join-Path $root 'src/styles.css') -Algorithm SHA256).Hash.ToLowerInvariant() -ne $env:R820_STYLES_SHA256) { throw 'styles.css changed - blocked' }
+          if ((Get-FileHash (Join-Path $root 'src/firebase.js') -Algorithm SHA256).Hash.ToLowerInvariant() -ne $env:R820_FIREBASE_SHA256) { throw 'firebase.js changed - blocked' }
+          if ((Get-FileHash (Join-Path $root 'src/v145r8-parity.js') -Algorithm SHA256).Hash.ToLowerInvariant() -ne $env:R820_PARITY_SHA256) { throw 'core parity changed - blocked' }
+          if ((Get-FileHash (Join-Path $root 'electron/preload.cjs') -Algorithm SHA256).Hash.ToLowerInvariant() -ne $env:R820_PRELOAD_SHA256) { throw 'preload.cjs changed - blocked' }
+
+          node --check $mainPath
+          if ($LASTEXITCODE -ne 0) { throw 'electron/main.cjs syntax failed' }
+
+          node --check (Join-Path $root 'src/app.js')
+          if ($LASTEXITCODE -ne 0) { throw 'app.js syntax failed' }
+
+          node --check (Join-Path $root 'src/data.js')
+          if ($LASTEXITCODE -ne 0) { throw 'data.js syntax failed' }
+
+          "R8.20 SECURITY / INSTALL AUDIT: PASS" | Set-Content 'R820_SECURITY_INSTALL_AUDIT.txt' -Encoding utf8
+          "Automatic update: DISABLED / REMOVED" | Add-Content 'R820_SECURITY_INSTALL_AUDIT.txt'
+          "Update policy: MANUAL SETUP ONLY" | Add-Content 'R820_SECURITY_INSTALL_AUDIT.txt'
+          "Stable appId: $($pkg.build.appId)" | Add-Content 'R820_SECURITY_INSTALL_AUDIT.txt'
+          "Per-machine install: $($pkg.build.nsis.perMachine)" | Add-Content 'R820_SECURITY_INSTALL_AUDIT.txt'
+          "Delete app data on uninstall: $($pkg.build.nsis.deleteAppDataOnUninstall)" | Add-Content 'R820_SECURITY_INSTALL_AUDIT.txt'
+          "Differential update package: $($pkg.build.nsis.differentialPackage)" | Add-Content 'R820_SECURITY_INSTALL_AUDIT.txt'
+          "Code signing: NOT CONFIGURED" | Add-Content 'R820_SECURITY_INSTALL_AUDIT.txt'
+
+      - name: Package R8.20 source
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $root = Join-Path $PWD 'build_windows/windows-system'
+          $stage = Join-Path $env:RUNNER_TEMP 'source_stage_r820'
+
+          if (Test-Path $stage) { Remove-Item $stage -Recurse -Force }
+          New-Item -ItemType Directory -Force -Path $stage | Out-Null
+
+          Get-ChildItem -LiteralPath $root -Force |
+            Where-Object { @('node_modules','release','.git') -notcontains $_.Name } |
+            ForEach-Object { Copy-Item -LiteralPath $_.FullName -Destination $stage -Recurse -Force }
+
+          $zip = Join-Path $PWD 'Tahalil-Alakkad-V145-R8.20-Windows-Source.zip'
+          if (Test-Path $zip) { Remove-Item $zip -Force }
+
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          [System.IO.Compression.ZipFile]::CreateFromDirectory($stage,$zip,[System.IO.Compression.CompressionLevel]::Optimal,$false)
+
+          if (!(Test-Path $zip) -or (Get-Item $zip).Length -lt 50000) {
+            throw 'R8.20 source ZIP invalid'
+          }
+
+          $hash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  Tahalil-Alakkad-V145-R8.20-Windows-Source.zip" | Set-Content 'Tahalil-Alakkad-V145-R8.20-Windows-Source.zip.sha256' -Encoding ascii
+          Copy-Item (Join-Path $root 'V145_R820_LOCKED_SECURITY_INSTALL_NOTES.txt') 'V145_R820_LOCKED_SECURITY_INSTALL_NOTES.txt' -Force
+
+      - name: Install dependencies
+        working-directory: build_windows/windows-system
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          npm install --no-audit --no-fund
+          if ($LASTEXITCODE -ne 0) { throw 'npm install failed' }
+
+      - name: Build Portable
+        working-directory: build_windows/windows-system
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          npm run dist:portable
+          if ($LASTEXITCODE -ne 0) { throw 'Portable build failed' }
+
+      - name: Portable startup smoke
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $release = Join-Path $PWD 'build_windows/windows-system/release'
+          $portable = Get-ChildItem $release -Filter '*Portable*.exe' -File | Sort-Object Length -Descending | Select-Object -First 1
+          if (!$portable) { throw 'Portable EXE missing' }
+
+          $proc = Start-Process -FilePath $portable.FullName -PassThru
+          Start-Sleep -Seconds 12
+          if ($proc.HasExited) {
+            if ($proc.ExitCode -ne 0) { throw "Portable exited with code $($proc.ExitCode)" }
+            throw 'Portable exited unexpectedly during smoke test'
+          }
+          Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
+
+      - name: Build Setup
+        working-directory: build_windows/windows-system
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          npm run dist:setup
+          if ($LASTEXITCODE -ne 0) { throw 'Setup build failed' }
+
+      - name: Prepare R8.20 delivery files
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $release = Join-Path $PWD 'build_windows/windows-system/release'
+
+          $portable = Get-ChildItem $release -Filter '*Portable*.exe' -File | Sort-Object Length -Descending | Select-Object -First 1
+          $setup = Get-ChildItem $release -Filter '*Setup*.exe' -File | Sort-Object Length -Descending | Select-Object -First 1
+
+          if (!$portable -or !$setup) {
+            throw 'Portable or Setup EXE missing'
+          }
+
+          Copy-Item $portable.FullName 'Tahalil-Alakkad-V145-R8.20-Windows-Portable.exe' -Force
+          Copy-Item $setup.FullName 'Tahalil-Alakkad-V145-R8.20-Windows-Setup.exe' -Force
+
+          foreach ($name in @(
+            'Tahalil-Alakkad-V145-R8.20-Windows-Portable.exe',
+            'Tahalil-Alakkad-V145-R8.20-Windows-Setup.exe'
+          )) {
+            $hash = (Get-FileHash $name -Algorithm SHA256).Hash.ToLowerInvariant()
+            "$hash  $name" | Set-Content "$name.sha256" -Encoding ascii
+          }
+
+      - name: Upload R8.20 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Tahalil-Alakkad-V145-R8.20-Windows-LOCKED
+          path: |
+            Tahalil-Alakkad-V145-R8.20-Windows-Portable.exe
+            Tahalil-Alakkad-V145-R8.20-Windows-Portable.exe.sha256
+            Tahalil-Alakkad-V145-R8.20-Windows-Setup.exe
+            Tahalil-Alakkad-V145-R8.20-Windows-Setup.exe.sha256
+            Tahalil-Alakkad-V145-R8.20-Windows-Source.zip
+            Tahalil-Alakkad-V145-R8.20-Windows-Source.zip.sha256
+            V145_R820_LOCKED_SECURITY_INSTALL_NOTES.txt
+            R820_SECURITY_INSTALL_AUDIT.txt
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Publish Windows V145 R8.20 LOCKED release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          $tag = 'v145-r8.20-windows'
+          $title = 'تحاليل العقاد Windows V145 R8.20 — LOCKED Manual Update Only'
+
+          $notes = @'
+          Windows V145 R8.20 LOCKED
+
+          - Automatic update system removed completely.
+          - No update manifest check, automatic Setup download, forced update, or automatic installer launch.
+          - Future application updates are manual Setup installs only.
+          - Stable appId/product identity preserved for manual in-place upgrades.
+          - Installer data-preservation policy is explicit; differential update packaging is disabled.
+          - Electron isolation, navigation and web-security protections audited and preserved.
+          - Existing R8.19 functionality preserved.
+          - Windows code signing certificate is not configured; SHA-256 files are included for integrity verification.
+          '@
+
+          $files = @(
+            'Tahalil-Alakkad-V145-R8.20-Windows-Portable.exe',
+            'Tahalil-Alakkad-V145-R8.20-Windows-Portable.exe.sha256',
+            'Tahalil-Alakkad-V145-R8.20-Windows-Setup.exe',
+            'Tahalil-Alakkad-V145-R8.20-Windows-Setup.exe.sha256',
+            'Tahalil-Alakkad-V145-R8.20-Windows-Source.zip',
+            'Tahalil-Alakkad-V145-R8.20-Windows-Source.zip.sha256',
+            'V145_R820_LOCKED_SECURITY_INSTALL_NOTES.txt',
+            'R820_SECURITY_INSTALL_AUDIT.txt'
+          )
+
+          gh release view $tag --repo "$env:GITHUB_REPOSITORY" *> $null
+          if ($LASTEXITCODE -eq 0) {
+            gh release edit $tag --repo "$env:GITHUB_REPOSITORY" --title $title --notes $notes
+          } else {
+            gh release create $tag --repo "$env:GITHUB_REPOSITORY" --title $title --notes $notes
+          }
+          if ($LASTEXITCODE -ne 0) {
+            throw 'Could not create/update R8.20 release'
+          }
+
+          gh release upload $tag @files --repo "$env:GITHUB_REPOSITORY" --clobber
+          if ($LASTEXITCODE -ne 0) {
+            throw 'Could not upload R8.20 files'
+          }
