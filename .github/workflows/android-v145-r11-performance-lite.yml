@@ -1,0 +1,318 @@
+name: Android V145 R11 PERFORMANCE LITE
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-v145-r11-performance-lite
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Android V145 R11 — PERFORMANCE LITE
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    env:
+      BASE_REF: v145-r10-android-locked
+      BASE_COMMIT: 6e2a20f7c0ccffaec602a40d09812fb5a5023bfd
+      BASE_APK_URL: https://github.com/ahmedmeshrf22-jpg/lab-tests-directory/releases/download/v145-r10-android-locked/Tahalil-Alakkad-V145-R10-LOCKED-SIGNED.apk
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Gradle 8.11.1
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+
+      - name: Restore exact green R10 source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin '+refs/heads/*:refs/remotes/origin/*' '+refs/tags/*:refs/tags/*'
+          test "$(git rev-parse "$BASE_REF^{commit}")" = "$BASE_COMMIT"
+          rm -rf build_android_r11
+          git worktree add --detach build_android_r11 "$BASE_COMMIT"
+          grep -Fq 'versionCode = 150' build_android_r11/app/build.gradle.kts
+          grep -Fq 'versionName = "5.70-v145-r10-locked-parity"' build_android_r11/app/build.gradle.kts
+          ! grep -R -Fq 'ForcedUpdateGate' build_android_r11/app/src/main/java
+          ! grep -Fq 'REQUEST_INSTALL_PACKAGES' build_android_r11/app/src/main/AndroidManifest.xml
+
+          sha256sum \
+            build_android_r11/firestore.rules \
+            build_android_r11/app/google-services.json \
+            build_android_r11/app/src/main/assets/lab_tests_android.json \
+            build_android_r11/app/src/main/java/com/example/settings/AppSettings.kt \
+            build_android_r11/app/src/main/res/xml/network_security_config.xml \
+            build_android_r11/app/src/main/java/com/example/MainActivity.kt \
+            build_android_r11/app/src/main/java/com/example/ui/LabTestsViewModel.kt \
+            build_android_r11/app/src/main/java/com/example/ui/CustomerSystemDialog.kt \
+            build_android_r11/app/src/main/java/com/example/ui/TestDocumentImport.kt \
+            build_android_r11/app/src/main/java/com/example/ui/SmartMedicalVision.kt \
+            build_android_r11/app/src/main/java/com/example/notifications/OrderRealtimeNotificationService.kt \
+            > "$RUNNER_TEMP/r11-protected.sha256"
+
+      - name: Apply bounded PERFORMANCE LITE patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          root = Path('build_android_r11')
+
+          gradle = root / 'app/build.gradle.kts'
+          g = gradle.read_text(encoding='utf-8')
+          replacements = {
+              'versionCode = 150': 'versionCode = 151',
+              'versionName = "5.70-v145-r10-locked-parity"': 'versionName = "5.71-v145-r11-performance-lite"',
+              'isCrunchPngs = false': 'isCrunchPngs = true',
+          }
+          for old, new in replacements.items():
+              assert g.count(old) == 1, old
+              g = g.replace(old, new, 1)
+          gradle.write_text(g, encoding='utf-8')
+
+          perf = root / 'app/src/main/java/com/example/settings/FirestorePerformance.kt'
+          p = perf.read_text(encoding='utf-8')
+          assert p.count('/** V82 production Firestore continuity policy: larger persistent cache for lab work during outages. */') == 1
+          assert p.count('private const val CACHE_BYTES = 300L * 1024L * 1024L') == 1
+          p = p.replace(
+              '/** V82 production Firestore continuity policy: larger persistent cache for lab work during outages. */',
+              '/** V145 R11: bounded persistent cache keeps offline continuity without reserving 300 MB. */',
+              1,
+          ).replace(
+              'private const val CACHE_BYTES = 300L * 1024L * 1024L',
+              'private const val CACHE_BYTES = 64L * 1024L * 1024L',
+              1,
+          )
+          perf.write_text(p, encoding='utf-8')
+
+          backup = root / 'app/src/main/java/com/example/notifications/AutoBackupScheduler.kt'
+          b = backup.read_text(encoding='utf-8')
+          anchor = '''        val alarmIntent = PendingIntent.getBroadcast(
+                      context,
+                      REQUEST_CODE,
+                      Intent(context, AutoBackupAlarmReceiver::class.java).setAction(AutoBackupAlarmReceiver.ACTION_RUN),
+                      PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                  )
+
+                  val canExact = Build.VERSION.SDK_INT < Build.VERSION_CODES.S || alarmManager.canScheduleExactAlarms()
+          '''
+          replacement = '''        val alarmIntent = PendingIntent.getBroadcast(
+                      context,
+                      REQUEST_CODE,
+                      Intent(context, AutoBackupAlarmReceiver::class.java).setAction(AutoBackupAlarmReceiver.ACTION_RUN),
+                      PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                  )
+
+                  // R11 LITE: no daily wake-up until the manager has explicitly configured auto-backup.
+                  if (!AutoBackupCredentialStore.isConfigured(context)) {
+                      alarmManager.cancel(alarmIntent)
+                      return
+                  }
+
+                  val canExact = Build.VERSION.SDK_INT < Build.VERSION_CODES.S || alarmManager.canScheduleExactAlarms()
+          '''
+          assert b.count(anchor) == 1
+          b = b.replace(anchor, replacement, 1)
+          backup.write_text(b, encoding='utf-8')
+
+          (root / 'V145_R11_PERFORMANCE_LITE_NOTES.txt').write_text(
+              'Android V145 R11 PERFORMANCE LITE\n\n'
+              '- Built only on the released green R10 LOCKED commit.\n'
+              '- Firestore persistent cache reduced from 300 MB to 64 MB; offline sync remains enabled.\n'
+              '- Release PNG crunching enabled; all icons and images remain present.\n'
+              '- Unconfigured automatic backup no longer keeps a daily alarm; configured backup is unchanged.\n'
+              '- OCR, Document Scanner, Code Scanner and ZXing remain because source audit confirmed active use.\n'
+              '- Firebase Sync, Crashlytics, App Check, signing identity, requests, results, catalogue and notifications remain.\n'
+              '- R10 manual-update lock and cancel-without-reason behavior remain.\n'
+              '- Firestore rules and production Firebase configuration are unchanged and are not deployed.\n',
+              encoding='utf-8'
+          )
+          print('ANDROID_R11_PERFORMANCE_LITE_PATCH_APPLIED')
+          PY
+
+      - name: Scope and safety lock
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd build_android_r11
+
+          grep -Fq 'versionCode = 151' app/build.gradle.kts
+          grep -Fq 'versionName = "5.71-v145-r11-performance-lite"' app/build.gradle.kts
+          grep -Fq 'isCrunchPngs = true' app/build.gradle.kts
+          grep -Fq 'isMinifyEnabled = true' app/build.gradle.kts
+          grep -Fq 'isShrinkResources = true' app/build.gradle.kts
+          grep -Fq 'applicationId = "com.aistudio.labtestsdirectory.egypt"' app/build.gradle.kts
+          grep -Fq 'private const val CACHE_BYTES = 64L * 1024L * 1024L' app/src/main/java/com/example/settings/FirestorePerformance.kt
+          grep -Fq 'if (!AutoBackupCredentialStore.isConfigured(context)) {' app/src/main/java/com/example/notifications/AutoBackupScheduler.kt
+          grep -Fq 'alarmManager.cancel(alarmIntent)' app/src/main/java/com/example/notifications/AutoBackupScheduler.kt
+
+          # These heavy libraries are intentionally retained: every one has a live call site.
+          grep -Fq 'implementation(libs.firebase.ai)' app/build.gradle.kts
+          grep -Fq 'implementation(libs.firebase.firestore)' app/build.gradle.kts
+          grep -Fq 'implementation(libs.firebase.crashlytics)' app/build.gradle.kts
+          grep -Fq 'implementation(libs.firebase.appcheck.playintegrity)' app/build.gradle.kts
+          grep -Fq 'play-services-code-scanner:16.1.0' app/build.gradle.kts
+          grep -Fq 'play-services-mlkit-document-scanner:16.0.0-beta1' app/build.gradle.kts
+          grep -Fq 'text-recognition:16.0.1' app/build.gradle.kts
+          grep -Fq 'com.google.zxing:core:3.5.3' app/build.gradle.kts
+
+          ! grep -R -Fq 'ForcedUpdateGate' app/src/main/java
+          ! grep -Fq 'REQUEST_INSTALL_PACKAGES' app/src/main/AndroidManifest.xml
+          grep -Fq 'PlayIntegrityAppCheckProviderFactory.getInstance()' app/src/main/java/com/example/MainActivity.kt
+          grep -Fq 'android:usesCleartextTraffic="false"' app/src/main/AndroidManifest.xml
+          grep -Fq 'cleartextTrafficPermitted="false"' app/src/main/res/xml/network_security_config.xml
+
+          git diff --check
+          ACTUAL="$(git diff --name-only | sort)"
+          EXPECTED="$(printf '%s\n' \
+            app/build.gradle.kts \
+            app/src/main/java/com/example/notifications/AutoBackupScheduler.kt \
+            app/src/main/java/com/example/settings/FirestorePerformance.kt | sort)"
+          test "$ACTUAL" = "$EXPECTED"
+
+          sed 's#build_android_r11/##' "$RUNNER_TEMP/r11-protected.sha256" > "$RUNNER_TEMP/r11-protected-local.sha256"
+          sha256sum -c "$RUNNER_TEMP/r11-protected-local.sha256"
+
+          python3 - <<'PY'
+          import json
+          x = json.load(open('app/src/main/assets/lab_tests_android.json', encoding='utf-8'))
+          assert len(x) == 331
+          ids = [i['id'] for i in x]
+          assert len(ids) == len(set(ids))
+          print('ANDROID R11 PERFORMANCE LITE SAFETY AUDIT PASS')
+          PY
+
+      - name: Load proven production signer
+        shell: bash
+        env:
+          SIGNING_BUNDLE_B64: ${{ secrets.TAHALIL_SIGNING_BUNDLE_B64 }}
+        run: |
+          set -euo pipefail
+          WF='.github/workflows/android-v144-ONLY-SESSION-RELOCK-FIX-FINAL-ONE-RUN-R3-AUDITED.yml'
+          test -s "$WF"
+          extract_step() {
+            local name="$1" out="$2"
+            awk -v target="$name" '
+              $0 == "      - name: " target { found=1; next }
+              found && /^        run: \|/ { inrun=1; next }
+              inrun && /^      - name:/ { exit }
+              inrun { sub(/^          /,""); print }
+            ' "$WF" > "$out"
+            test -s "$out"
+          }
+          extract_step 'Prepare deterministic APK certificate reader' "$RUNNER_TEMP/cert.sh"
+          extract_step 'Select exact installed Android signer' "$RUNNER_TEMP/signer.sh"
+          bash "$RUNNER_TEMP/cert.sh"
+          bash "$RUNNER_TEMP/signer.sh"
+
+      - name: Confirm signing environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${KEYSTORE_PATH:-}"
+          test -n "${STORE_PASSWORD:-}"
+          test -n "${KEY_ALIAS:-}"
+          test -n "${KEY_PASSWORD:-}"
+          test -f "$KEYSTORE_PATH"
+
+      - name: Compile and build
+        working-directory: build_android_r11
+        shell: bash
+        run: |
+          set -euo pipefail
+          gradle --no-daemon --no-configuration-cache --no-parallel --max-workers=2 :app:compileReleaseKotlin
+          gradle --no-daemon --no-configuration-cache --no-parallel --max-workers=2 :app:assembleRelease
+
+      - name: Verify signed APK and R10 upgrade identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="$(find build_android_r11/app/build/outputs/apk/release -type f -name '*.apk' | sort | head -1)"
+          test -s "$APK"
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -1)"
+          AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -1)"
+          "$APKSIGNER" verify --verbose "$APK"
+          curl -fL --retry 3 "$BASE_APK_URL" -o "$RUNNER_TEMP/android-r10.apk"
+          NEW_CERT="$(python3 "$RUNNER_TEMP/apk_cert_sha256.py" "$APK" | tr 'A-F' 'a-f' | tr -d ':[:space:]')"
+          OLD_CERT="$(python3 "$RUNNER_TEMP/apk_cert_sha256.py" "$RUNNER_TEMP/android-r10.apk" | tr 'A-F' 'a-f' | tr -d ':[:space:]')"
+          test "$NEW_CERT" = "$OLD_CERT"
+          BADGING="$("$AAPT" dump badging "$APK" | head -1)"
+          echo "$BADGING" | grep -Fq "package: name='com.aistudio.labtestsdirectory.egypt'"
+          echo "$BADGING" | grep -Fq "versionCode='151'"
+          echo "$BADGING" | grep -Fq "versionName='5.71-v145-r11-performance-lite'"
+          cp "$APK" Tahalil-Alakkad-V145-R11-PERFORMANCE-LITE-SIGNED.apk
+          sha256sum Tahalil-Alakkad-V145-R11-PERFORMANCE-LITE-SIGNED.apk > Tahalil-Alakkad-V145-R11-PERFORMANCE-LITE-SIGNED.apk.sha256
+          {
+            echo "R10_BYTES=$(stat -c%s "$RUNNER_TEMP/android-r10.apk")"
+            echo "R11_BYTES=$(stat -c%s Tahalil-Alakkad-V145-R11-PERFORMANCE-LITE-SIGNED.apk)"
+          } | tee V145_R11_SIZE_REPORT.txt
+
+      - name: Commit exact R11 source
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd build_android_r11
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git checkout -B v145-r11-performance-lite
+          git add -A
+          git commit -m 'Android V145 R11: performance lite'
+          FINAL_SHA="$(git rev-parse HEAD)"
+          echo "FINAL_SHA=$FINAL_SHA" >> "$GITHUB_ENV"
+          git archive --format=zip --output="$GITHUB_WORKSPACE/Tahalil-Alakkad-V145-R11-PERFORMANCE-LITE-SOURCE.zip" HEAD
+          cd "$GITHUB_WORKSPACE"
+          sha256sum Tahalil-Alakkad-V145-R11-PERFORMANCE-LITE-SOURCE.zip > Tahalil-Alakkad-V145-R11-PERFORMANCE-LITE-SOURCE.zip.sha256
+          cp build_android_r11/V145_R11_PERFORMANCE_LITE_NOTES.txt .
+
+      - name: Upload R11 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Tahalil-Alakkad-V145-R11-PERFORMANCE-LITE
+          path: |
+            Tahalil-Alakkad-V145-R11-PERFORMANCE-LITE-SIGNED.apk
+            Tahalil-Alakkad-V145-R11-PERFORMANCE-LITE-SIGNED.apk.sha256
+            Tahalil-Alakkad-V145-R11-PERFORMANCE-LITE-SOURCE.zip
+            Tahalil-Alakkad-V145-R11-PERFORMANCE-LITE-SOURCE.zip.sha256
+            V145_R11_PERFORMANCE_LITE_NOTES.txt
+            V145_R11_SIZE_REPORT.txt
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish Android V145 R11 PERFORMANCE LITE release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git -C build_android_r11 push --force origin HEAD:refs/heads/v145-r11-performance-lite
+          TAG='v145-r11-performance-lite'
+          TITLE='تحاليل العقاد Android V145 R11 — PERFORMANCE LITE'
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --title "$TITLE" --notes-file V145_R11_PERFORMANCE_LITE_NOTES.txt
+          else
+            gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --target "$FINAL_SHA" --title "$TITLE" --notes-file V145_R11_PERFORMANCE_LITE_NOTES.txt
+          fi
+          gh release upload "$TAG" \
+            Tahalil-Alakkad-V145-R11-PERFORMANCE-LITE-SIGNED.apk \
+            Tahalil-Alakkad-V145-R11-PERFORMANCE-LITE-SIGNED.apk.sha256 \
+            Tahalil-Alakkad-V145-R11-PERFORMANCE-LITE-SOURCE.zip \
+            Tahalil-Alakkad-V145-R11-PERFORMANCE-LITE-SOURCE.zip.sha256 \
+            V145_R11_PERFORMANCE_LITE_NOTES.txt \
+            V145_R11_SIZE_REPORT.txt \
+            --repo "$GITHUB_REPOSITORY" --clobber
