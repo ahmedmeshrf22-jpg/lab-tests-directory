@@ -1,0 +1,198 @@
+name: Windows V145 R8.29 CORE SYNC HARDENING
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: tahalil-windows-v145-r829-core-sync
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Windows V145 R8.29 — Core Sync Hardening
+    runs-on: windows-latest
+    timeout-minutes: 120
+    env:
+      BASE_URL: https://github.com/ahmedmeshrf22-jpg/lab-tests-directory/releases/download/v145-r8.28-windows/Tahalil-Alakkad-V145-R8.28-Windows-Source.zip
+      BASE_SHA256: b921517399f0f5bb328cc0baa334b0e3d87c1e74c35f3147530bb22e53f75857
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Restore exact green R8.28 source
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Invoke-WebRequest -Uri $env:BASE_URL -OutFile base.zip
+          $actual = (Get-FileHash base.zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actual -ne $env:BASE_SHA256) { throw "R8.28 source hash mismatch: $actual" }
+          New-Item -ItemType Directory -Force build_windows | Out-Null
+          Expand-Archive base.zip build_windows -Force
+          if (!(Test-Path build_windows/src/data.js)) { throw 'R8.28 data.js missing' }
+          if (!(Test-Path build_windows/src/app.js)) { throw 'R8.28 app.js missing' }
+          if ((Get-Content build_windows/package.json -Raw | ConvertFrom-Json).version -ne '145.8.28') { throw 'Wrong base version' }
+
+      - name: Apply bounded core sync patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import json
+
+          root = Path('build_windows')
+          data = root / 'src/data.js'
+          s = data.read_text(encoding='utf-8')
+
+          old_import = "query, where, orderBy, limit, serverTimestamp, writeBatch, increment, getDocFromServer, getDocFromCache, getDocsFromServer, getDocsFromCache, arrayUnion"
+          new_import = "query, where, orderBy, limit, serverTimestamp, writeBatch, runTransaction, increment, getDocFromServer, getDocFromCache, getDocsFromServer, getDocsFromCache, arrayUnion"
+          assert s.count(old_import) == 1
+          s = s.replace(old_import, new_import, 1)
+
+          old_list = """export async function listCustomers(max=300){
+           const q=query(collection(db,C.customers),orderBy('updated_at_ms','desc'),limit(max)),primary=await serverThenCache(q);
+           if(primary)return primary.snapshot.docs.map(d=>({id:d.id,...d.data()}));
+           return shadowRows(await failoverDocuments('customer','customers/','العملاء')).sort((a,b)=>Number(b.updated_at_ms||b.created_at_ms||0)-Number(a.updated_at_ms||a.created_at_ms||0)).slice(0,max);
+          }
+          """
+          new_list = """export async function listCustomers(max=500){
+           const q=query(collection(db,C.customers),orderBy('updated_at_ms','desc'),limit(max)),primary=await serverThenCache(q);
+           if(primary)return primary.snapshot.docs.map(d=>({id:d.id,...d.data()}));
+           return shadowRows(await failoverDocuments('customer','customers/','العملاء')).sort((a,b)=>Number(b.updated_at_ms||b.created_at_ms||0)-Number(a.updated_at_ms||a.created_at_ms||0)).slice(0,max);
+          }
+          export function watchCustomers(cb,max=500){
+           let stopped=false,unsub=null;
+           const emergency=async e=>{if(stopped)return;const rows=shadowRows(await failoverDocuments('customer','customers/','العملاء')).sort((a,b)=>Number(b.updated_at_ms||b.created_at_ms||0)-Number(a.updated_at_ms||a.created_at_ms||0)).slice(0,max);cb(rows,e);};
+           const attach=(fallback=false)=>{if(stopped)return;try{unsub?.()}catch{}const base=collection(db,C.customers),q=fallback?base:query(base,orderBy('updated_at_ms','desc'),limit(max));unsub=onSnapshot(q,snap=>{if(stopped)return;shadowDocs(snap);const rows=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>Number(b.updated_at_ms||b.created_at_ms||0)-Number(a.updated_at_ms||a.created_at_ms||0)).slice(0,max);cb(rows);},e=>{if(!fallback)attach(true);else emergency(e);});};
+           attach(false);return()=>{stopped=true;try{unsub?.()}catch{}};
+          }
+          """
+          assert s.count(old_list) == 1
+          s = s.replace(old_list, new_list, 1)
+
+          old_pay = """export async function collectPayment(customerId,order,amount,note=''){ amount=Number(amount||0); if(amount<=0||amount>Number(order.remaining_amount||0)+.001)throw new Error('قيمة التحصيل غير صحيحة'); const ref=doc(db,C.customers,customerId,'orders',order.id), pr=doc(collection(ref,'payments')); const paid=Number(order.paid_amount||0)+amount,total=Number(order.total_customer_price||0),remaining=Math.max(0,total-paid),status=remaining<=.001?'paid':'partial',now=Date.now(),uid=auth.currentUser.uid,email=auth.currentUser.email||''; const b=writeBatch(db); b.update(ref,{paid_amount:paid,remaining_amount:remaining,payment_status:status,updated_at_ms:now,updated_at:serverTimestamp(),updated_by_uid:uid,updated_by_email:email,edit_count:increment(1)}); b.set(pr,{operation_id:pr.id,customer_id:customerId,order_id:order.id,amount,note,created_at_ms:now,created_at:serverTimestamp(),created_by_uid:uid,created_by_email:email}); await b.commit(); ShadowBackupReplicator.mirrorPath(pr.path,now);ShadowBackupReplicator.mirrorPath(ref.path,now); await audit('payment_collect','payment',pr.id,'تحصيل دفعة',`${order.order_number} • ${money(amount)}`,customerId,order.id); await addCustomerActivity(customerId,'payment','تحصيل دفعة',`${order.order_number} • ${money(amount)}`); }
+          """
+          new_pay = """export async function collectPayment(customerId,order,amount,note=''){
+           amount=Number(amount||0);if(!navigator.onLine)throw new Error('التحصيل يحتاج اتصالًا لحظيًا لمنع تعارض الدفعات بين الأجهزة');if(amount<=0)throw new Error('قيمة التحصيل غير صحيحة');
+           const ref=doc(db,C.customers,customerId,'orders',order.id),pr=doc(collection(ref,'payments')),mirror=labMirrorRef(order.id),now=Date.now(),uid=auth.currentUser.uid,email=auth.currentUser.email||'';
+           await runTransaction(db,async tx=>{const snap=await tx.get(ref);if(!snap.exists())throw new Error('الطلب غير موجود');const live=snap.data();if(live.is_voided)throw new Error('الطلب ملغي');const total=Number(live.total_customer_price||0),currentPaid=Number(live.paid_amount||0),currentRemaining=Math.max(0,total-currentPaid);if(amount>currentRemaining+.001)throw new Error(`المتبقي الحالي ${money(currentRemaining)} EGP فقط`);const paid=Math.min(total,currentPaid+amount),remaining=Math.max(0,total-paid),status=remaining<=.001?'paid':'partial',patch={paid_amount:paid,remaining_amount:remaining,payment_status:status,updated_at_ms:now,updated_at:serverTimestamp(),updated_by_uid:uid,updated_by_email:email,edit_count:increment(1)};tx.update(ref,patch);tx.set(mirror,labMirrorData({...patch,customer_id:customerId}),{merge:true});tx.set(pr,{operation_id:pr.id,customer_id:customerId,order_id:order.id,amount,note:String(note||'').slice(0,500),created_at_ms:now,created_at:serverTimestamp(),created_by_uid:uid,created_by_email:email});});
+           ShadowBackupReplicator.mirrorPath(pr.path,now);ShadowBackupReplicator.mirrorPath(ref.path,now);ShadowBackupReplicator.mirrorPath(mirror.path,now);await audit('payment_collect','payment',pr.id,'تحصيل دفعة',`${order.order_number} • ${money(amount)}`,customerId,order.id);await addCustomerActivity(customerId,'payment','تحصيل دفعة',`${order.order_number} • ${money(amount)}`);
+          }
+          """
+          assert s.count(old_pay) == 1
+          s = s.replace(old_pay, new_pay, 1)
+          s = s.replace('export async function loadCustomerOrders(customerId,max=100){','export async function loadCustomerOrders(customerId,max=500){',1)
+          s = s.replace('export async function listWorklist(max=300){','export async function listWorklist(max=500){',1)
+          s = s.replace('export function watchWorklist(cb,max=300){','export function watchWorklist(cb,max=500){',1)
+          s = s.replace('export async function listLabOrders(max=200){','export async function listLabOrders(max=500){',1)
+          s = s.replace('export function watchLabOrders(cb,max=200){','export function watchLabOrders(cb,max=500){',1)
+          s = s.replace('export function watchSharedOrders(cb,max=200,labMode=false){','export function watchSharedOrders(cb,max=500,labMode=false){',1)
+          data.write_text(s,encoding='utf-8')
+
+          app = root / 'src/app.js'
+          a = app.read_text(encoding='utf-8')
+          old_decl = "customers=[],worklist=[],unsubWork=null,unsubEvents=null,eventOrders=new Map()"
+          new_decl = "customers=[],worklist=[],unsubWork=null,unsubEvents=null,unsubCustomers=null,customersLiveRenderer=null,eventOrders=new Map()"
+          assert a.count(old_decl) == 1
+          a = a.replace(old_decl,new_decl,1)
+          old_restart = "async function restartOperationalStreams(){try{unsubWork?.()}catch{}try{unsubEvents?.()}catch{}unsubWork=null;unsubEvents=null;eventOrders=new Map();eventsInitialized=false;"
+          new_restart = "async function restartOperationalStreams(){try{unsubWork?.()}catch{}try{unsubEvents?.()}catch{}try{unsubCustomers?.()}catch{}unsubWork=null;unsubEvents=null;unsubCustomers=D.watchCustomers((rows,err)=>{if(!err){customers=rows;customersLiveRenderer?.(rows)}});eventOrders=new Map();eventsInitialized=false;"
+          assert a.count(old_restart) == 1
+          a = a.replace(old_restart,new_restart,1)
+          a = a.replace("labLiveRenderer=null;worklistLiveRenderer=null;if(isLabUser()", "labLiveRenderer=null;worklistLiveRenderer=null;customersLiveRenderer=null;if(isLabUser()",1)
+          a = a.replace("const render=()=>{const q=D.normalize($('#cq').value);", "const render=()=>{const q=D.normalize($('#cq').value);",1)
+          anchor = "$('#cq').oninput=()=>{closeMenu();render()};$('#addc').onclick="
+          assert a.count(anchor) == 1
+          a = a.replace(anchor,"customersLiveRenderer=()=>{if(currentTab==='customers'&&document.getElementById('ct'))render()};"+anchor,1)
+          a = a.replace("try{unsubWork?.()}catch{}try{unsubEvents?.()}catch{}await lockAdminFirebase()", "try{unsubWork?.()}catch{}try{unsubEvents?.()}catch{}try{unsubCustomers?.()}catch{}await lockAdminFirebase()",1)
+          app.write_text(a,encoding='utf-8')
+
+          pkg_path=root/'package.json';pkg=json.loads(pkg_path.read_text(encoding='utf-8'));pkg['version']='145.8.29';pkg['description']='Tahalil Alakkad Windows V145 R8.29 - core sync hardening';pkg_path.write_text(json.dumps(pkg,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
+          lock_path=root/'package-lock.json';lock=json.loads(lock_path.read_text(encoding='utf-8'));lock['version']='145.8.29';lock['packages']['']['version']='145.8.29';lock_path.write_text(json.dumps(lock,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
+          (root/'V145_R829_CORE_SYNC_NOTES.txt').write_text('Windows V145 R8.29 CORE SYNC HARDENING\n\n- Customers now update live from Firebase across Windows and Android devices.\n- Customer/order/worklist realtime limits are unified at 500.\n- Payment collection is an online Firestore transaction using authoritative current totals.\n- Concurrent collections cannot overwrite each other or exceed the live remaining balance.\n- The main order, lab mirror and payment record commit atomically.\n- Firebase project, rules, existing data, appId, signing, offline cache and manual-update policy are unchanged.\n- No record is deleted and no migration is required.\n',encoding='utf-8')
+          print('R8.29 CORE SYNC PATCH APPLIED')
+          PY
+
+      - name: Scope and safety lock
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd build_windows
+          grep -Fq 'runTransaction' src/data.js
+          grep -Fq 'watchCustomers(cb,max=500)' src/data.js
+          grep -Fq "if(!navigator.onLine)throw new Error('التحصيل يحتاج اتصالًا لحظيًا" src/data.js
+          grep -Fq 'tx.update(ref,patch)' src/data.js
+          grep -Fq 'tx.set(mirror' src/data.js
+          grep -Fq 'tx.set(pr' src/data.js
+          grep -Fq 'unsubCustomers=D.watchCustomers' src/app.js
+          grep -Fq 'customersLiveRenderer' src/app.js
+          test "$(node -p "require('./package.json').version")" = '145.8.29'
+          test "$(node -p "require('./package.json').build.appId")" = 'com.aistudio.tahalil.alakkad.windows'
+          node --check src/data.js
+          node --check src/app.js
+
+      - name: Install exact dependencies
+        working-directory: build_windows
+        shell: pwsh
+        run: npm ci
+
+      - name: Build and verify web bundle
+        working-directory: build_windows
+        shell: pwsh
+        run: |
+          npm run build:web
+          if ($LASTEXITCODE -ne 0) { throw 'Web build failed' }
+
+      - name: Build Setup
+        working-directory: build_windows
+        shell: pwsh
+        run: |
+          npm run dist:setup
+          if ($LASTEXITCODE -ne 0) { throw 'Setup build failed' }
+
+      - name: Package delivery
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $setup=Get-ChildItem build_windows/release -Filter '*Setup*.exe' -File | Sort-Object Length -Descending | Select-Object -First 1
+          if (!$setup) { throw 'Setup EXE missing' }
+          Copy-Item $setup.FullName Tahalil-Alakkad-V145-R8.29-Windows-Setup.exe -Force
+          $stage=Join-Path $env:RUNNER_TEMP 'r829-source'
+          New-Item -ItemType Directory -Force $stage | Out-Null
+          Get-ChildItem build_windows -Force | Where-Object { @('node_modules','release','dist') -notcontains $_.Name } | ForEach-Object { Copy-Item $_.FullName $stage -Recurse -Force }
+          Compress-Archive "$stage/*" Tahalil-Alakkad-V145-R8.29-Windows-Source.zip -CompressionLevel Optimal -Force
+          foreach($f in @('Tahalil-Alakkad-V145-R8.29-Windows-Setup.exe','Tahalil-Alakkad-V145-R8.29-Windows-Source.zip')){((Get-FileHash $f -Algorithm SHA256).Hash.ToLowerInvariant()+"  "+$f)|Set-Content "$f.sha256" -Encoding ascii}
+          Copy-Item build_windows/V145_R829_CORE_SYNC_NOTES.txt .
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Tahalil-Alakkad-V145-R8.29-Core-Sync
+          path: |
+            Tahalil-Alakkad-V145-R8.29-Windows-Setup.exe
+            Tahalil-Alakkad-V145-R8.29-Windows-Setup.exe.sha256
+            Tahalil-Alakkad-V145-R8.29-Windows-Source.zip
+            Tahalil-Alakkad-V145-R8.29-Windows-Source.zip.sha256
+            V145_R829_CORE_SYNC_NOTES.txt
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish R8.29 release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference='Stop'
+          $tag='v145-r8.29-windows-core-sync'
+          gh release view $tag --repo "$env:GITHUB_REPOSITORY" *> $null
+          if ($LASTEXITCODE -eq 0) { gh release delete $tag --repo "$env:GITHUB_REPOSITORY" --yes --cleanup-tag }
+          gh release create $tag --repo "$env:GITHUB_REPOSITORY" --target "$env:GITHUB_SHA" --title 'تحاليل العقاد Windows V145 R8.29 — Core Sync Hardening' --notes-file V145_R829_CORE_SYNC_NOTES.txt Tahalil-Alakkad-V145-R8.29-Windows-Setup.exe Tahalil-Alakkad-V145-R8.29-Windows-Setup.exe.sha256 Tahalil-Alakkad-V145-R8.29-Windows-Source.zip Tahalil-Alakkad-V145-R8.29-Windows-Source.zip.sha256
