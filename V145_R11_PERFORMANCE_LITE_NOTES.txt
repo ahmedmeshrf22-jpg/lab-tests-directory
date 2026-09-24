@@ -1,0 +1,10 @@
+Android V145 R11 PERFORMANCE LITE
+
+- Built only on the released green R10 LOCKED commit.
+- Firestore persistent cache reduced from 300 MB to 64 MB; offline sync remains enabled.
+- PNG crunching remains disabled exactly as in green R10; legacy image resources remain unchanged.
+- Unconfigured automatic backup no longer keeps a daily alarm; configured backup is unchanged.
+- OCR, Document Scanner, Code Scanner and ZXing remain because source audit confirmed active use.
+- Firebase Sync, Crashlytics, App Check, signing identity, requests, results, catalogue and notifications remain.
+- R10 manual-update lock and cancel-without-reason behavior remain.
+- Firestore rules and production Firebase configuration are unchanged and are not deployed.

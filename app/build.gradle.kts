@@ -20,8 +20,8 @@ android {
     applicationId = "com.aistudio.labtestsdirectory.egypt"
     minSdk = 24
     targetSdk = 36
-    versionCode = 150
-    versionName = "5.70-v145-r10-locked-parity"
+    versionCode = 151
+    versionName = "5.71-v145-r11-performance-lite"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }

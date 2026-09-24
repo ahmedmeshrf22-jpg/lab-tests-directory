@@ -105,6 +105,12 @@ object AutoBackupScheduler {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
+        // R11 LITE: no daily wake-up until the manager has explicitly configured auto-backup.
+        if (!AutoBackupCredentialStore.isConfigured(context)) {
+            alarmManager.cancel(alarmIntent)
+            return
+        }
+
         val canExact = Build.VERSION.SDK_INT < Build.VERSION_CODES.S || alarmManager.canScheduleExactAlarms()
         if (canExact) {
             // Exact 04:00 when Android grants Alarms & reminders access.

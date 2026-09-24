@@ -4,9 +4,9 @@ import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreSettings
 import com.google.firebase.firestore.PersistentCacheSettings
 
-/** V82 production Firestore continuity policy: larger persistent cache for lab work during outages. */
+/** V145 R11: bounded persistent cache keeps offline continuity without reserving 300 MB. */
 object FirestorePerformance {
-    private const val CACHE_BYTES = 300L * 1024L * 1024L
+    private const val CACHE_BYTES = 64L * 1024L * 1024L
 
     @Volatile
     private var configured = false
