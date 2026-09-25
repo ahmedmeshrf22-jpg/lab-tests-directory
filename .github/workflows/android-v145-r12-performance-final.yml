@@ -1,0 +1,357 @@
+name: Android V145 R12 PERFORMANCE FINAL
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-v145-r12-performance-final
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Android V145 R12 — PERFORMANCE
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    env:
+      BASE_REF: v145-r11-performance-lite
+      BASE_COMMIT: 97ed892998a5e8c56cdb9e24607a088153438ec6
+      BASE_APK_URL: https://github.com/ahmedmeshrf22-jpg/lab-tests-directory/releases/download/v145-r11-performance-lite/Tahalil-Alakkad-V145-R11-PERFORMANCE-LITE-SIGNED.apk
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Gradle 8.11.1
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+
+      - name: Restore exact green R11 source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin '+refs/heads/*:refs/remotes/origin/*' '+refs/tags/*:refs/tags/*'
+          test "$(git rev-parse "$BASE_REF^{commit}")" = "$BASE_COMMIT"
+          rm -rf build_android_r12
+          git worktree add --detach build_android_r12 "$BASE_COMMIT"
+
+          grep -Fq 'versionCode = 151' build_android_r12/app/build.gradle.kts
+          grep -Fq 'versionName = "5.71-v145-r11-performance-lite"' build_android_r12/app/build.gradle.kts
+          grep -Fq 'private const val CACHE_BYTES = 64L * 1024L * 1024L' build_android_r12/app/src/main/java/com/example/settings/FirestorePerformance.kt
+          grep -Fq 'if (!AutoBackupCredentialStore.isConfigured(context)) {' build_android_r12/app/src/main/java/com/example/notifications/AutoBackupScheduler.kt
+
+          sha256sum \
+            build_android_r12/firestore.rules \
+            build_android_r12/app/google-services.json \
+            build_android_r12/app/src/main/assets/lab_tests_android.json \
+            build_android_r12/app/src/main/java/com/example/settings/AppSettings.kt \
+            build_android_r12/app/src/main/res/xml/network_security_config.xml \
+            build_android_r12/app/src/main/java/com/example/ui/CustomerSystemDialog.kt \
+            build_android_r12/app/src/main/java/com/example/util/TestDocumentImport.kt \
+            build_android_r12/app/src/main/java/com/example/util/SmartMedicalVision.kt \
+            build_android_r12/app/src/main/java/com/example/notifications/AutoBackupScheduler.kt \
+            > "$RUNNER_TEMP/r12-protected.sha256"
+
+      - name: Apply Android R12 performance patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          root = Path('build_android_r12')
+
+          # 1) Version bump only.
+          gradle = root / 'app/build.gradle.kts'
+          g = gradle.read_text(encoding='utf-8')
+          replacements = {
+              'versionCode = 151': 'versionCode = 152',
+              'versionName = "5.71-v145-r11-performance-lite"': 'versionName = "5.72-v145-r12-performance"',
+          }
+          for old, new in replacements.items():
+              assert g.count(old) == 1, old
+              g = g.replace(old, new, 1)
+          gradle.write_text(g, encoding='utf-8')
+
+          # 2) MainActivity:
+          #    - shorter artificial splash delay
+          #    - keep only the foreground realtime service; remove duplicate clinic listener
+          main = root / 'app/src/main/java/com/example/MainActivity.kt'
+          m = main.read_text(encoding='utf-8')
+
+          assert m.count('delay(900L)') == 1
+          m = m.replace('delay(900L)', 'delay(350L)', 1)
+
+          old_listener = '''                            val isLab = normalizeUserRole(effectiveUserProfile?.role.orEmpty()) == "lab_operator"
+                            if (isLab) {
+                                viewModel.stopClinicOrderNotificationsRealtime()
+                            } else {
+                                viewModel.startClinicOrderNotificationsRealtime()
+                            }
+          '''
+          new_listener = '''                            // R12 PERFORMANCE: OrderRealtimeNotificationService is the single
+                            // realtime watcher for both clinic and lab roles. The old clinic-side
+                            // ViewModel listener duplicated the same collection-group stream.
+                            viewModel.stopClinicOrderNotificationsRealtime()
+          '''
+          assert m.count(old_listener) == 1
+          m = m.replace(old_listener, new_listener, 1)
+          main.write_text(m, encoding='utf-8')
+
+          # 3) ViewModel:
+          #    Do not fetch the entire customer collection immediately after login.
+          #    CustomerSystemDialog already calls loadCustomers() when that screen is opened.
+          vm = root / 'app/src/main/java/com/example/ui/LabTestsViewModel.kt'
+          v = vm.read_text(encoding='utf-8')
+
+          eager = '''        if (!customerOverridesLoaded) loadCustomerPriceOverrides()
+                  if (_customers.value.isEmpty()) loadCustomers()
+          '''
+          lazy = '''        if (!customerOverridesLoaded) loadCustomerPriceOverrides()
+                  // R12 PERFORMANCE: customer records are loaded on demand by the customer UI.
+                  // Avoid a full customers collection read during application startup.
+          '''
+          assert v.count(eager) == 1
+          v = v.replace(eager, lazy, 1)
+          vm.write_text(v, encoding='utf-8')
+
+          # 4) Realtime service:
+          #    Keep the same persistent notification service and the same 200-event safety cap,
+          #    but subscribe only to updates newer than the stored checkpoint.
+          svc = root / 'app/src/main/java/com/example/notifications/OrderRealtimeNotificationService.kt'
+          s = svc.read_text(encoding='utf-8')
+
+          old_query = '''        val query = if (role == "lab_operator") {
+                      db.collection("lab_orders")
+                          .orderBy("updated_at_ms", Query.Direction.DESCENDING)
+                          .limit(200)
+                  } else {
+                      db.collectionGroup("orders")
+                          .orderBy("updated_at_ms", Query.Direction.DESCENDING)
+                          .limit(200)
+                  }
+          '''
+          new_query = '''        val query = if (role == "lab_operator") {
+                      db.collection("lab_orders")
+                          .whereGreaterThan("updated_at_ms", checkpoint)
+                          .orderBy("updated_at_ms", Query.Direction.DESCENDING)
+                          .limit(200)
+                  } else {
+                      db.collectionGroup("orders")
+                          .whereGreaterThan("updated_at_ms", checkpoint)
+                          .orderBy("updated_at_ms", Query.Direction.DESCENDING)
+                          .limit(200)
+                  }
+          '''
+          assert s.count(old_query) == 1
+          s = s.replace(old_query, new_query, 1)
+          svc.write_text(s, encoding='utf-8')
+
+          (root / 'V145_R12_PERFORMANCE_NOTES.txt').write_text(
+              'Android V145 R12 PERFORMANCE\\n\\n'
+              '- Built only on the exact green R11 PERFORMANCE LITE commit 97ed892998a5e8c56cdb9e24607a088153438ec6.\\n'
+              '- Removed the duplicate clinic realtime Firestore listener; the foreground realtime service remains the single watcher.\\n'
+              '- Realtime watcher now starts from its saved updated_at_ms checkpoint instead of re-reading the latest 200 orders at startup.\\n'
+              '- Full customer collection is no longer fetched immediately after login; customer screens still load it on demand.\\n'
+              '- Artificial in-app splash delay reduced from 900 ms to 350 ms.\\n'
+              '- Firebase sync, offline cache, OCR, Document Scanner, Code Scanner, ZXing, backup/restore, App Check and signing identity remain unchanged.\\n'
+              '- R11 64 MB Firestore persistent cache and auto-backup scheduling fix remain unchanged.\\n'
+              '- Firestore rules, google-services.json, catalogue asset and network security configuration are unchanged.\\n',
+              encoding='utf-8'
+          )
+          print('ANDROID_R12_PERFORMANCE_PATCH_APPLIED')
+          PY
+
+      - name: Scope and safety lock
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd build_android_r12
+
+          grep -Fq 'versionCode = 152' app/build.gradle.kts
+          grep -Fq 'versionName = "5.72-v145-r12-performance"' app/build.gradle.kts
+          grep -Fq 'delay(350L)' app/src/main/java/com/example/MainActivity.kt
+          ! grep -Fq 'viewModel.startClinicOrderNotificationsRealtime()' app/src/main/java/com/example/MainActivity.kt
+          grep -Fq 'viewModel.stopClinicOrderNotificationsRealtime()' app/src/main/java/com/example/MainActivity.kt
+          grep -Fq 'R12 PERFORMANCE: customer records are loaded on demand' app/src/main/java/com/example/ui/LabTestsViewModel.kt
+          grep -Fq '.whereGreaterThan("updated_at_ms", checkpoint)' app/src/main/java/com/example/notifications/OrderRealtimeNotificationService.kt
+
+          # R11 performance/safety behavior must remain.
+          grep -Fq 'private const val CACHE_BYTES = 64L * 1024L * 1024L' app/src/main/java/com/example/settings/FirestorePerformance.kt
+          grep -Fq 'if (!AutoBackupCredentialStore.isConfigured(context)) {' app/src/main/java/com/example/notifications/AutoBackupScheduler.kt
+          grep -Fq 'alarmManager.cancel(alarmIntent)' app/src/main/java/com/example/notifications/AutoBackupScheduler.kt
+
+          # Security + identity unchanged.
+          grep -Fq 'applicationId = "com.aistudio.labtestsdirectory.egypt"' app/build.gradle.kts
+          grep -Fq 'isMinifyEnabled = true' app/build.gradle.kts
+          grep -Fq 'isShrinkResources = true' app/build.gradle.kts
+          grep -Fq 'isCrunchPngs = false' app/build.gradle.kts
+          grep -Fq 'PlayIntegrityAppCheckProviderFactory.getInstance()' app/src/main/java/com/example/MainActivity.kt
+          grep -Fq 'android:usesCleartextTraffic="false"' app/src/main/AndroidManifest.xml
+          grep -Fq 'cleartextTrafficPermitted="false"' app/src/main/res/xml/network_security_config.xml
+          ! grep -R -Fq 'ForcedUpdateGate' app/src/main/java
+          ! grep -Fq 'REQUEST_INSTALL_PACKAGES' app/src/main/AndroidManifest.xml
+
+          # Heavy but live features intentionally retained.
+          grep -Fq 'implementation(libs.firebase.firestore)' app/build.gradle.kts
+          grep -Fq 'implementation(libs.firebase.crashlytics)' app/build.gradle.kts
+          grep -Fq 'implementation(libs.firebase.appcheck.playintegrity)' app/build.gradle.kts
+          grep -Fq 'play-services-code-scanner:16.1.0' app/build.gradle.kts
+          grep -Fq 'play-services-mlkit-document-scanner:16.0.0-beta1' app/build.gradle.kts
+          grep -Fq 'text-recognition:16.0.1' app/build.gradle.kts
+          grep -Fq 'com.google.zxing:core:3.5.3' app/build.gradle.kts
+
+          git diff --check
+          ACTUAL="$(git diff --name-only | sort)"
+          EXPECTED="$(printf '%s\n' \
+            app/build.gradle.kts \
+            app/src/main/java/com/example/MainActivity.kt \
+            app/src/main/java/com/example/notifications/OrderRealtimeNotificationService.kt \
+            app/src/main/java/com/example/ui/LabTestsViewModel.kt | sort)"
+          test "$ACTUAL" = "$EXPECTED"
+
+          sed 's#build_android_r12/##' "$RUNNER_TEMP/r12-protected.sha256" > "$RUNNER_TEMP/r12-protected-local.sha256"
+          sha256sum -c "$RUNNER_TEMP/r12-protected-local.sha256"
+
+          python3 - <<'PY'
+          import json
+          x = json.load(open('app/src/main/assets/lab_tests_android.json', encoding='utf-8'))
+          assert len(x) == 331
+          ids = [i['id'] for i in x]
+          assert len(ids) == len(set(ids))
+          print('ANDROID R12 PERFORMANCE SAFETY AUDIT PASS')
+          PY
+
+      - name: Load proven production signer
+        shell: bash
+        env:
+          SIGNING_BUNDLE_B64: ${{ secrets.TAHALIL_SIGNING_BUNDLE_B64 }}
+        run: |
+          set -euo pipefail
+          WF='.github/workflows/android-v144-ONLY-SESSION-RELOCK-FIX-FINAL-ONE-RUN-R3-AUDITED.yml'
+          test -s "$WF"
+          extract_step() {
+            local name="$1" out="$2"
+            awk -v target="$name" '
+              $0 == "      - name: " target { found=1; next }
+              found && /^        run: \|/ { inrun=1; next }
+              inrun && /^      - name:/ { exit }
+              inrun { sub(/^          /,""); print }
+            ' "$WF" > "$out"
+            test -s "$out"
+          }
+          extract_step 'Prepare deterministic APK certificate reader' "$RUNNER_TEMP/cert.sh"
+          extract_step 'Select exact installed Android signer' "$RUNNER_TEMP/signer.sh"
+          bash "$RUNNER_TEMP/cert.sh"
+          bash "$RUNNER_TEMP/signer.sh"
+
+      - name: Confirm signing environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${KEYSTORE_PATH:-}"
+          test -n "${STORE_PASSWORD:-}"
+          test -n "${KEY_ALIAS:-}"
+          test -n "${KEY_PASSWORD:-}"
+          test -f "$KEYSTORE_PATH"
+
+      - name: Compile and build
+        working-directory: build_android_r12
+        shell: bash
+        run: |
+          set -euo pipefail
+          gradle --no-daemon --no-configuration-cache --no-parallel --max-workers=2 :app:compileReleaseKotlin
+          gradle --no-daemon --no-configuration-cache --no-parallel --max-workers=2 :app:assembleRelease
+
+      - name: Verify signed APK and R11 upgrade identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="$(find build_android_r12/app/build/outputs/apk/release -type f -name '*.apk' | sort | head -1)"
+          test -s "$APK"
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -1)"
+          AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -1)"
+          "$APKSIGNER" verify --verbose "$APK"
+
+          curl -fL --retry 3 "$BASE_APK_URL" -o "$RUNNER_TEMP/android-r11.apk"
+          NEW_CERT="$(python3 "$RUNNER_TEMP/apk_cert_sha256.py" "$APK" | tr 'A-F' 'a-f' | tr -d ':[:space:]')"
+          OLD_CERT="$(python3 "$RUNNER_TEMP/apk_cert_sha256.py" "$RUNNER_TEMP/android-r11.apk" | tr 'A-F' 'a-f' | tr -d ':[:space:]')"
+          test "$NEW_CERT" = "$OLD_CERT"
+
+          BADGING="$("$AAPT" dump badging "$APK" | head -1)"
+          echo "$BADGING" | grep -Fq "package: name='com.aistudio.labtestsdirectory.egypt'"
+          echo "$BADGING" | grep -Fq "versionCode='152'"
+          echo "$BADGING" | grep -Fq "versionName='5.72-v145-r12-performance'"
+
+          cp "$APK" Tahalil-Alakkad-V145-R12-PERFORMANCE-SIGNED.apk
+          sha256sum Tahalil-Alakkad-V145-R12-PERFORMANCE-SIGNED.apk > Tahalil-Alakkad-V145-R12-PERFORMANCE-SIGNED.apk.sha256
+          {
+            echo "R11_BYTES=$(stat -c%s "$RUNNER_TEMP/android-r11.apk")"
+            echo "R12_BYTES=$(stat -c%s Tahalil-Alakkad-V145-R12-PERFORMANCE-SIGNED.apk)"
+          } | tee V145_R12_SIZE_REPORT.txt
+
+      - name: Commit exact R12 source
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd build_android_r12
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git checkout -B v145-r12-performance
+          git add -A
+          git commit -m 'Android V145 R12: startup and realtime performance'
+          FINAL_SHA="$(git rev-parse HEAD)"
+          echo "FINAL_SHA=$FINAL_SHA" >> "$GITHUB_ENV"
+          git archive --format=zip --output="$GITHUB_WORKSPACE/Tahalil-Alakkad-V145-R12-PERFORMANCE-SOURCE.zip" HEAD
+          cd "$GITHUB_WORKSPACE"
+          sha256sum Tahalil-Alakkad-V145-R12-PERFORMANCE-SOURCE.zip > Tahalil-Alakkad-V145-R12-PERFORMANCE-SOURCE.zip.sha256
+          cp build_android_r12/V145_R12_PERFORMANCE_NOTES.txt .
+
+      - name: Upload R12 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Tahalil-Alakkad-V145-R12-PERFORMANCE
+          path: |
+            Tahalil-Alakkad-V145-R12-PERFORMANCE-SIGNED.apk
+            Tahalil-Alakkad-V145-R12-PERFORMANCE-SIGNED.apk.sha256
+            Tahalil-Alakkad-V145-R12-PERFORMANCE-SOURCE.zip
+            Tahalil-Alakkad-V145-R12-PERFORMANCE-SOURCE.zip.sha256
+            V145_R12_PERFORMANCE_NOTES.txt
+            V145_R12_SIZE_REPORT.txt
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish Android V145 R12 PERFORMANCE release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git -C build_android_r12 push --force origin HEAD:refs/heads/v145-r12-performance
+          TAG='v145-r12-performance'
+          TITLE='تحاليل العقاد Android V145 R12 — PERFORMANCE'
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --title "$TITLE" --notes-file V145_R12_PERFORMANCE_NOTES.txt
+          else
+            gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --target "$FINAL_SHA" --title "$TITLE" --notes-file V145_R12_PERFORMANCE_NOTES.txt
+          fi
+          gh release upload "$TAG" \
+            Tahalil-Alakkad-V145-R12-PERFORMANCE-SIGNED.apk \
+            Tahalil-Alakkad-V145-R12-PERFORMANCE-SIGNED.apk.sha256 \
+            Tahalil-Alakkad-V145-R12-PERFORMANCE-SOURCE.zip \
+            Tahalil-Alakkad-V145-R12-PERFORMANCE-SOURCE.zip.sha256 \
+            V145_R12_PERFORMANCE_NOTES.txt \
+            V145_R12_SIZE_REPORT.txt \
+            --repo "$GITHUB_REPOSITORY" --clobber
